@@ -84,7 +84,6 @@ num_epochs = 200
 checkpoint_interval = 999
 out_dir = '/scratch/pwitte/sleipner'
 parameters = [p for p in pfno.parameters()]
-#criterion = distdl.nn.DistributedMSELoss(P_x).to(device)
 criterion = DistributedRelativeLpLoss(P_root, P_x).to(device)
 
 if len(parameters) > 0:
