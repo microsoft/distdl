@@ -82,7 +82,7 @@ pfno = ParallelFNO4d(
 # Training
 num_epochs = 200
 checkpoint_interval = 999
-out_dir = '/scratch/pwitte/sleipner'
+out_dir = '/workspace/home/DistDL/examples/co2flow'
 parameters = [p for p in pfno.parameters()]
 criterion = DistributedRelativeLpLoss(P_root, P_x).to(device)
 

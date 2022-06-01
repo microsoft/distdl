@@ -90,7 +90,7 @@ pfno = ParallelFNO4d(
 criterion = distdl.nn.DistributedMSELoss(P_x).to(device)
 
 # Load trained network
-out_dir = '/datadrive/philipp'
+out_dir = '/workspace/home/DistDL/examples/co2flow'
 model_path = os.path.join(out_dir, f'model8_{P_x.rank:04d}.pt')
 pfno.load_state_dict(torch.load(model_path))
 pfno = pfno.to(device)
