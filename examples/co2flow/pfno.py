@@ -74,33 +74,45 @@ class Linear(distdl.nn.Module):
 
 class RFFT4D(distdl.nn.Module):
 
-    def __init__(self, P_in, P_out):
+    def __init__(self, P_in, P_out, balance=False):
         super(RFFT4D, self).__init__()
 
-        self.transpose = Repartition(P_in, P_out)
+        self.transposef = Repartition(P_in, P_out)
+        if balance:
+            self.transposeb = Repartition(P_out, P_in)
+        else:
+            self.transposeb = None
         self.fft = torch.fft.fftn
         self.rfft = torch.fft.rfftn
 
     def forward(self, x):
         x = self.rfft(x, dim=(2,4,5))
-        x = self.transpose(x)
+        x = self.transposef(x)
         x = self.fft(x, dim=(3))
+        if self.transposeb is not None:
+            x = self.transposeb(x)
         return x
 
 
 class IRFFT4D(distdl.nn.Module):
 
-    def __init__(self, P_in, P_out):
+    def __init__(self, P_in, P_out, balance=False):
         super(IRFFT4D, self).__init__()
 
-        self.transpose = Repartition(P_in, P_out)
+        self.transposef = Repartition(P_in, P_out)
+        if balance:
+            self.transposeb = Repartition(P_out, P_in)
+        else:
+            self.transposeb = None
         self.fft = torch.fft.ifftn
         self.rfft = torch.fft.irfftn
-
+        
     def forward(self, x):
         x = self.fft(x, dim=(3))
-        x = self.transpose(x)
+        x = self.transposef(x)
         x = self.rfft(x, dim=(2,4,5))
+        if self.transposeb is not None:
+            x = self.transposeb(x)
         return x
 
 
@@ -162,7 +174,8 @@ class SpectralConv(distdl.nn.Module):
 
         # Output tensor
         y = torch.clone(x)*0
-        
+        print(y.shape)
+
         if self.xlow_shape_local > 0:
             y[:, :, :self.xlow_shape_local, :self.num_ky, :self.num_kz, :self.num_kw] = torch.einsum("bixyzt,ioxyzt->boxyzt", 
                 x[:, :, :self.xlow_shape_local, :self.num_ky, :self.num_kz, :self.num_kw], self.w1)
@@ -188,12 +201,16 @@ class SpectralConv(distdl.nn.Module):
 
 class FNOLayer4D(distdl.nn.Module):
 
-    def __init__(self, P_root, P_x, P_y, channel_hidden, shape, num_k):
+    def __init__(self, P_root, P_x, P_y, channel_hidden, shape, num_k, balance=False):
         super(FNOLayer4D, self).__init__()
 
-        self.fft = RFFT4D(P_x, P_y)
-        self.spectral_conv = SpectralConv(P_y, channel_hidden, shape, num_k)
-        self.ifft = IRFFT4D(P_y, P_x)
+        self.fft = RFFT4D(P_x, P_y, balance=balance)
+        if balance:
+            self.spectral_conv = SpectralConv(P_x, channel_hidden, shape, num_k)
+            self.ifft = IRFFT4D(P_x, P_y, balance=balance)
+        else:
+            self.spectral_conv = SpectralConv(P_y, channel_hidden, shape, num_k)
+            self.ifft = IRFFT4D(P_y, P_x, balance=balance)
         self.linear = Linear(P_root, P_x, channel_hidden, channel_hidden)
 
     def forward(self, x):
@@ -209,17 +226,17 @@ class FNOLayer4D(distdl.nn.Module):
 
 class ParallelFNO4d(distdl.nn.Module):
 
-    def __init__(self, P_world, P_root, P_x, P_y, channel_in, channel_hidden, channel_out, shape, num_k, init_weights=True, padding=6):
+    def __init__(self, P_world, P_root, P_x, P_y, channel_in, channel_hidden, channel_out, shape, num_k, init_weights=True, padding=6, balance=False):
         super(ParallelFNO4d, self).__init__()
         P_world._comm.Barrier()
 
         # Encoder
         self.encoder1 = Linear(P_root, P_x, channel_in, channel_hidden // 2)
         self.encoder2 = Linear(P_root, P_x, channel_hidden // 2, channel_hidden)
-        self.fno1 = FNOLayer4D(P_root, P_x, P_y, channel_hidden, shape, num_k)
-        self.fno2 = FNOLayer4D(P_root, P_x, P_y, channel_hidden, shape, num_k)
-        self.fno3 = FNOLayer4D(P_root, P_x, P_y, channel_hidden, shape, num_k)
-        self.fno4 = FNOLayer4D(P_root, P_x, P_y, channel_hidden, shape, num_k)
+        self.fno1 = FNOLayer4D(P_root, P_x, P_y, channel_hidden, shape, num_k, balance=balance)
+        self.fno2 = FNOLayer4D(P_root, P_x, P_y, channel_hidden, shape, num_k, balance=balance)
+        self.fno3 = FNOLayer4D(P_root, P_x, P_y, channel_hidden, shape, num_k, balance=balance)
+        self.fno4 = FNOLayer4D(P_root, P_x, P_y, channel_hidden, shape, num_k, balance=balance)
         self.decoder1 = Linear(P_root, P_x, channel_hidden, 32)
         self.decoder2 = Linear(P_root, P_x, 32, channel_out)
         self.padding = padding
