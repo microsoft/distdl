@@ -25,7 +25,7 @@ class RFFT2D(distdl.nn.Module):
 
     def forward(self, x):
         x = self.rfft(x, dim=(3))
-        x = self.transpose(x)
+        x = self.transpose(x)   # communicate
         x = self.fft(x, dim=(2))
         return x
 
