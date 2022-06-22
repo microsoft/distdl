@@ -6,7 +6,7 @@
 $ CUPY_ACCELERATORS=cub,cutensor python ex_cupy.py 
 ```
 
-## Run mpi applications
+## Run MPI-python applications (in docker environment)
 
 ```bash
 $ mpiexec -np 4 --allow-run-as-root python example
@@ -17,17 +17,17 @@ $ mpiexec -np 4 --allow-run-as-root python example
 To profile non-MPI applications:
 
 ```bash
-$ CUPY_ACCELERATORS=cub,cutensor nsys profile --trace=cuda \
-    --cuda-memory-usage=true --force-overwrite=true \
-    -o profile/profile-report python ex_cupy.py
+$ CUPY_ACCELERATORS=cub,cutensor nsys profile --trace=cuda,nvtx,cublas,cublas-verbose,cusparse,cudnn \
+  --cuda-memory-usage=true --force-overwrite=true --cudabacktrace=all --sampling-period=200000 \
+  -o profile/profile_ex_cupy_broadcast python ex_cupy_broadcast.py
 ```
 
 To profile MPI applications:
 
 ```bash
-$ CUPY_ACCELERATORS=cub,cutensor nsys profile --trace=mpi,cuda,nvtx,ucx \
-    --cuda-memory-usage=true --force-overwrite=true \
-    -o profile/profile-report mpirun -np 2 python ex_cupy.py
+$ CUPY_ACCELERATORS=cub,cutensor nsys profile --trace=mpi,ucx,cuda,nvtx,cublas,cublas-verbose,cusparse,cudnn \
+  --cuda-memory-usage=true --force-overwrite=true --sampling-period=200000 \
+  -o profile/profile_ex_cupy_broadcast mpirun -np 2 --allow-run-as-root python ex_cupy_broadcast.py
 ```
 
 ## Basic differences between numpy and cupy
