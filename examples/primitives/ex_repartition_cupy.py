@@ -29,37 +29,41 @@ in_workers = np.arange(0, in_size)
 P_x_base = P_world.create_partition_inclusive(in_workers)
 P_x = P_x_base.create_cartesian_topology_partition(in_shape)
 
+# Create the output partition (using the last 4 workers)
+out_shape = (2, 2)
+out_size = np.prod(out_shape)
+out_workers = np.arange(P_world.size - out_size, P_world.size)
+# print("out_workers ", out_workers)
+
+P_y_base = P_world.create_partition_inclusive(out_workers)
+P_y = P_y_base.create_cartesian_topology_partition(out_shape)
+
+print("P_world.rank = %d, P_x_base.rank = %d, P_x.rank = %d, P_y_base.rank = %d, P_y.rank = %d" %
+      (P_world.rank, P_x_base.rank, P_x.rank, P_y_base.rank, P_y.rank))
+
+# This global tensor shape is among the smallest useful shapes for an example
+x_global_shape = np.array([7, 5])
+
+# Create the transpose layer
+layer = Repartition(P_x, P_y, preserve_batch=False)
+
+# Setup the input tensor.  Any worker in P_x will generate its part of the
+# input tensor.  Any worker not in P_x will have a zero-volume tensor.
+#
+# Input tensor will be (on a 4 x 1 partition):
+# [ [ 1 1 1 1 1 ]
+#   [ 1 1 1 1 1 ]
+#   -------------
+#   [ 2 2 2 2 2 ]
+#   [ 2 2 2 2 2 ]
+#   -------------
+#   [ 3 3 3 3 3 ]
+#   [ 3 3 3 3 3 ]
+#   -------------
+#   [ 4 4 4 4 4 ] ]
+
+# TODO: P_x.rank or P_world.rank?
 with cp.cuda.Device(P_x.rank):
-
-    # Create the output partition (using the last 4 workers)
-    out_shape = (2, 2)
-    out_size = np.prod(out_shape)
-    out_workers = np.arange(P_world.size - out_size, P_world.size)
-    # print("out_workers", out_workers)
-
-    P_y_base = P_world.create_partition_inclusive(out_workers)
-    P_y = P_y_base.create_cartesian_topology_partition(out_shape)
-
-    # This global tensor shape is among the smallest useful shapes for an example
-    x_global_shape = np.array([7, 5])
-
-    # Create the transpose layer
-    layer = Repartition(P_x, P_y, preserve_batch=False)
-
-    # Setup the input tensor.  Any worker in P_x will generate its part of the
-    # input tensor.  Any worker not in P_x will have a zero-volume tensor.
-    #
-    # Input tensor will be (on a 4 x 1 partition):
-    # [ [ 1 1 1 1 1 ]
-    #   [ 1 1 1 1 1 ]
-    #   -------------
-    #   [ 2 2 2 2 2 ]
-    #   [ 2 2 2 2 2 ]
-    #   -------------
-    #   [ 3 3 3 3 3 ]
-    #   [ 3 3 3 3 3 ]
-    #   -------------
-    #   [ 4 4 4 4 4 ] ]
 
     x = zero_volume_tensor()  # resided on GPU or not? most probably host.
 
