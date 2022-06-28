@@ -14,18 +14,18 @@ class MPIExpandableBuffer:
 
     Parameters
     ----------
-    dtype : numpy.dtype
+    dtype : cupy.dtype
         The data type of the buffer
     initial_capacity : integer, optional
         The initial capacity of the raw buffer
 
     Attributes
     ----------
-    dtype : numpy.dtype
+    dtype : cupy.dtype
         The data type of the buffer
     capacity : integer, optional
         The capacity of the raw buffer
-    raw_buffer : numpy.ndarray
+    raw_buffer : cupy.ndarray
         The underlying 1D storage buffer
     views : dict
         Dictionary mapping shapes to contiguous numpy array views
@@ -128,9 +128,9 @@ class MPIExpandableBuffer:
 
         # If new shape is larger than the buffer, expand the buffer
         view_volume = np.prod(view_shape)
-        print("view_volume: ", view_volume)
-        print("view_shape: ", view_shape)
-        print("Self.capacity: ", self.capacity)
+        # print("view_volume: ", view_volume)
+        # print("view_shape: ", view_shape)
+        # print("Self.capacity: ", self.capacity)
 
         if view_volume > self.capacity:
             self.expand(view_volume)

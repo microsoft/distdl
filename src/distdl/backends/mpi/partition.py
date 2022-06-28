@@ -129,7 +129,7 @@ class MPIPartition:
 
         if self.active:
             if (self._comm != MPI.COMM_NULL and
-                self._comm != MPI.COMM_WORLD): # noqa E129
+                self._comm != MPI.COMM_WORLD):  # noqa E129
                 self._comm.Free()
 
             if self._group != MPI.GROUP_NULL:
@@ -170,7 +170,7 @@ class MPIPartition:
             check_null_group(self._group) or
             check_null_group(other._group) or
             check_null_rank(self.rank) or
-            check_null_rank(other.rank)): # noqa E129
+            check_null_rank(other.rank)):  # noqa E129
             return False
 
         return (check_identical_comm(self._comm, other._comm) and
@@ -530,6 +530,8 @@ class MPIPartition:
                 src_cart_index[-src_dim:] = c
                 src_flat_index = cartesian_index_c(src_shape[match_loc],
                                                    src_cart_index[match_loc])
+
+        # TODO : check
         data = np.array([src_flat_index], dtype=np.int)
         src_flat_indices = P_union.allgather_data(data)
 
@@ -707,6 +709,7 @@ class MPIPartition:
             else:
                 src_flat_index = cartesian_index_c(src_shape[match_loc],
                                                    src_cart_index[match_loc])
+        # TODO: Check
         data = np.array([src_flat_index], dtype=np.int)
         src_flat_indices = P_union.allgather_data(data)
 
@@ -756,6 +759,7 @@ class MPIPartition:
 
         return P_send, P_recv
 
+    # TODO: Check
     def broadcast_data(self, data, root=0, P_data=None):
         r"""Copy arbitrary data from one worker to all workers in a partition.
 
