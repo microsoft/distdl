@@ -9,7 +9,7 @@ $ CUPY_ACCELERATORS=cub,cutensor python ex_cupy.py
 ## Run MPI-python applications (in docker environment)
 
 ```bash
-$ mpiexec -np 4 --allow-run-as-root python example
+$ CUPY_ACCELERATORS=cub,cutensor mpirun -np 4 --allow-run-as-root python example
 ```
 
 ## Profile applications
