@@ -190,6 +190,7 @@ class BroadcastFunction(torch.autograd.Function):
         input_tensor_structure = ctx.input_tensor_structure
         output_tensor_structure = ctx.output_tensor_structure
         device = ctx.device
+        print("device: ", device)
 
         assert grad_output.device == device
 
@@ -200,6 +201,7 @@ class BroadcastFunction(torch.autograd.Function):
         else:
             grad_input = zero_volume_tensor(device=device)
 
+        print("grad_input.device = ", grad_input.device)
         requests = []
 
         # If I received data (either from a remote worker or just from myself)
@@ -230,6 +232,7 @@ class BroadcastFunction(torch.autograd.Function):
 
         MPI.Request.Waitall(requests)
 
+        print("Before tensore creation, line 235")
         # If we had to receive data, we need to tensorify it.
         if P_send.active:
             if P_send == P_recv:

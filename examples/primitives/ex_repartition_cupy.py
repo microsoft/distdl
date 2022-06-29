@@ -12,7 +12,7 @@ from mpi4py import MPI
 
 import distdl.utilities.slicing as slicing
 from distdl.backends.mpi.partition import MPIPartition
-from distdl.nn.repartition import Repartition
+from distdl.nn.repartition_cupy import Repartition
 from distdl.utilities.torch import zero_volume_tensor
 
 
@@ -65,7 +65,7 @@ layer = Repartition(P_x, P_y, preserve_batch=False)
 # TODO: P_x.rank or P_world.rank?
 with cp.cuda.Device(P_x.rank):
 
-    x = zero_volume_tensor()  # resided on GPU or not? most probably host.
+    x = zero_volume_tensor(device=cp.cuda.runtime.getDevice())  # resided on GPU or not? most probably host.
 
     if P_x.active:
         x_local_shape = slicing.compute_subshape(P_x.shape,
@@ -108,7 +108,7 @@ with cp.cuda.Device(P_x.rank):
     #   [ 3 3 3 | 4 4 ]
     #   [ 3 3 3 | 4 4 ]
     #   [ 3 3 3 | 4 4 ] ]
-    dy = zero_volume_tensor()
+    dy = zero_volume_tensor(device=cp.cuda.runtime.getDevice())
     if P_y.active:
         y_local_shape = slicing.compute_subshape(P_y.shape,
                                                  P_y.index,

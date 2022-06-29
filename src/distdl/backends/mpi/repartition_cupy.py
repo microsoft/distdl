@@ -18,6 +18,7 @@ def allocate_repartition_buffers(buffer_manager, P_x_to_y_overlaps, P_y_to_x_ove
 
     """
 
+    # TODO : check
     ## numpy_dtype = torch_to_numpy_dtype_dict[dtype]
     cupy_dtype = torch_to_cupy_dtype_dict[dtype]
 

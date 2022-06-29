@@ -64,7 +64,7 @@ class MPIExpandableBuffer:
         if new_capacity <= self.capacity:
             return
 
-        print(new_capacity)
+        # print(new_capacity)
         # Otherwise, create a new buffer.
         new_buffer = cp.empty([new_capacity], dtype=self.dtype)
 

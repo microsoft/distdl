@@ -127,7 +127,7 @@ class Repartition(Module):
         self.P_y_ranks = P_union.allgather_data(data)
 
         # Get some types and functions from the back-end
-        self.allocate_repartition_buffers = self._distdl_backend.repartition.allocate_repartition_buffers
+        self.allocate_repartition_buffers = self._distdl_backend.repartition_cupy.allocate_repartition_buffers
 
     def _distdl_module_setup(self, input):
         r"""Repartition module setup function.
@@ -335,7 +335,7 @@ class Repartition(Module):
 
         """
 
-        Function = self._distdl_backend.functional.repartition.RepartitionFunction
+        Function = self._distdl_backend.functional.repartition_cupy.RepartitionFunction
 
         # If this is an identity operation (no communication necessary),
         # simply return a clone of the input.
