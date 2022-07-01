@@ -20,7 +20,8 @@ P_world = MPIPartition(MPI.COMM_WORLD)
 P_world._comm.Barrier()
 
 # Create the input/output partition (using the first worker)
-in_shape = (2, 3)
+## in_shape = (2, 3)
+in_shape = (2, 2)
 in_size = np.prod(in_shape)
 in_workers = np.arange(0, in_size)
 
@@ -32,7 +33,8 @@ P_x = P_x_base.create_cartesian_topology_partition(in_shape)
 # subtensors all must be the same size.  Thus, this global shape is evenly
 # divisible by the partition.  Later we will have an example for applying the
 # reduction on the tensor itself.
-x_global_shape = np.array([6, 6])
+## x_global_shape = np.array([6, 6])
+x_global_shape = np.array([4, 4])
 
 # Setup the input tensor.  Any worker in P_x will generate its part of the
 # input tensor.  Any worker not in P_x will have a zero-volume tensor.
@@ -48,13 +50,16 @@ x_global_shape = np.array([6, 6])
 
 with cp.cuda.Device(P_world.rank % cp.cuda.runtime.getDeviceCount()):
 
-    x = zero_volume_tensor()
+    x = zero_volume_tensor(device=cp.cuda.runtime.getDevice())
     if P_x.active:
         x_local_shape = slicing.compute_subshape(P_x.shape,
                                                  P_x.index,
                                                  x_global_shape)
-        x = np.zeros(x_local_shape) + P_x.rank + 1
-        x = torch.from_numpy(x)
+        ## x = np.zeros(x_local_shape) + P_x.rank + 1
+        x = cp.zeros(x_local_shape) + P_x.rank + 1
+        ## x = torch.from_numpy(x)
+        x = torch.as_tensor(x, device='cuda')
+
     x.requires_grad = True
     print(f"rank {P_world.rank}; index {P_x.index}; value {x}")
 
@@ -136,13 +141,16 @@ with cp.cuda.Device(P_world.rank % cp.cuda.runtime.getDeviceCount()):
     #   -------------------
     #   [ 4 4 4 | 5 5 | 6 6 ]
     #   [ 4 4 4 | 5 5 | 6 6 ] ]
-    x = zero_volume_tensor()
+    x = zero_volume_tensor(device=cp.cuda.runtime.getDevice())
     if P_x.active:
         x_local_shape = slicing.compute_subshape(P_x.shape,
                                                  P_x.index,
                                                  x_global_shape)
-        x = np.zeros(x_local_shape) + P_x.rank + 1
-        x = torch.from_numpy(x)
+        ## x = np.zeros(x_local_shape) + P_x.rank + 1
+        x = cp.zeros(x_local_shape) + P_x.rank + 1
+        ## x = torch.from_numpy(x)
+        x = torch.as_tensor(x, device='cuda')
+
     x.requires_grad = True
     print(f"rank {P_world.rank}; index {P_x.index}; value {x}")
 
