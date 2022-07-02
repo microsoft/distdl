@@ -43,6 +43,7 @@ x_global_shape = np.array([7, 5])
 # Create the transpose layer
 layer = Repartition(P_x, P_y, preserve_batch=False)
 
+
 # Setup the input tensor.  Any worker in P_x will generate its part of the
 # input tensor.  Any worker not in P_x will have a zero-volume tensor.
 #
@@ -55,8 +56,8 @@ layer = Repartition(P_x, P_y, preserve_batch=False)
 #   [ 1 1 1 1 1 ]
 #   [ 1 1 1 1 1 ] ]
 with cp.cuda.Device(P_world.rank):
-
-    x = zero_volume_tensor()
+    # layer = layer.to_device()
+    x = zero_volume_tensor(device=cp.cuda.runtime.getDevice())
     if P_x.active:
         x_local_shape = slicing.compute_subshape(P_x.shape,
                                                  P_x.index,
@@ -97,7 +98,7 @@ with cp.cuda.Device(P_world.rank):
     #   [ 3 3 3 | 4 4 ]
     #   [ 3 3 3 | 4 4 ]
     #   [ 3 3 3 | 4 4 ] ]
-    dy = zero_volume_tensor()
+    dy = zero_volume_tensor(device=cp.cuda.runtime.getDevice())
     if P_y.active:
         y_local_shape = slicing.compute_subshape(P_y.shape,
                                                  P_y.index,

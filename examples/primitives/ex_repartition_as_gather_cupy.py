@@ -38,7 +38,7 @@ P_y_base = P_world.create_partition_inclusive(out_workers)
 P_y = P_y_base.create_cartesian_topology_partition(out_shape)
 
 # This global tensor shape is among the smallest useful shapes for an example
-x_global_shape = np.array([7, 5])
+x_global_shape = np.array([10000, 5000])
 
 # Create the transpose layer
 layer = Repartition(P_x, P_y, preserve_batch=False)
@@ -56,7 +56,7 @@ layer = Repartition(P_x, P_y, preserve_batch=False)
 #   [ 3 3 3 | 4 4 ]
 #   [ 3 3 3 | 4 4 ] ]
 with cp.cuda.Device(P_world.rank):
-    x = zero_volume_tensor()
+    x = zero_volume_tensor(device=cp.cuda.runtime.getDevice())
     if P_x.active:
         x_local_shape = slicing.compute_subshape(P_x.shape,
                                                 P_x.index,
@@ -95,7 +95,7 @@ with cp.cuda.Device(P_world.rank):
     #   [ 1 1 1 1 1 ]
     #   [ 1 1 1 1 1 ]
     #   [ 1 1 1 1 1 ] ]
-    dy = zero_volume_tensor()
+    dy = zero_volume_tensor(device=cp.cuda.runtime.getDevice())
     if P_y.active:
         y_local_shape = slicing.compute_subshape(P_y.shape,
                                                 P_y.index,
