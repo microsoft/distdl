@@ -18,7 +18,7 @@ To profile non-MPI applications:
 
 ```bash
 $ CUPY_ACCELERATORS=cub,cutensor nsys profile --trace=cuda,nvtx,cublas,cublas-verbose,cusparse,cudnn \
-  --cuda-memory-usage=true --force-overwrite=true --cudabacktrace=all --sampling-period=500000 \
+  --cuda-memory-usage=true --force-overwrite=true --cudabacktrace=all --sampling-period=200000 \
   -o profile/profile_ex_cupy_broadcast python ex_cupy_broadcast.py
 ```
 
@@ -26,7 +26,7 @@ To profile MPI applications:
 
 ```bash
 $ CUPY_ACCELERATORS=cub,cutensor nsys profile --trace=mpi,ucx,cuda,nvtx,cublas,cublas-verbose,cusparse,cudnn \
-  --cuda-memory-usage=true --force-overwrite=true --sampling-period=500000 \
+  --cuda-memory-usage=true --force-overwrite=true --sampling-period=200000 \
   -o profile/profile_ex_cupy_broadcast mpirun -np 2 --allow-run-as-root python ex_cupy_broadcast.py
 ```
 
