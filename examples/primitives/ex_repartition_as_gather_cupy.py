@@ -16,6 +16,8 @@ from distdl.backends.mpi.partition import MPIPartition
 ## from distdl.nn.repartition import Repartition
 from distdl.nn.repartition_cupy import Repartition
 from distdl.utilities.torch import zero_volume_tensor
+from torch.utils.dlpack import to_dlpack
+from torch.utils.dlpack import from_dlpack
 
 # Set up MPI cartesian communicator
 P_world = MPIPartition(MPI.COMM_WORLD)
@@ -38,7 +40,7 @@ P_y_base = P_world.create_partition_inclusive(out_workers)
 P_y = P_y_base.create_cartesian_topology_partition(out_shape)
 
 # This global tensor shape is among the smallest useful shapes for an example
-x_global_shape = np.array([10000, 5000])
+x_global_shape = np.array([1000, 100])
 
 # Create the transpose layer
 layer = Repartition(P_x, P_y, preserve_batch=False)
@@ -55,6 +57,8 @@ layer = Repartition(P_x, P_y, preserve_batch=False)
 #   [ 3 3 3 | 4 4 ]
 #   [ 3 3 3 | 4 4 ]
 #   [ 3 3 3 | 4 4 ] ]
+print("From P_world.rank ", P_world.rank, ": ", P_x.shape)
+
 with cp.cuda.Device(P_world.rank):
     x = zero_volume_tensor(device=cp.cuda.runtime.getDevice())
     if P_x.active:
@@ -65,6 +69,7 @@ with cp.cuda.Device(P_world.rank):
         x = cp.zeros(x_local_shape) + P_x.rank + 1
         ## x = torch.from_numpy(x)
         x = torch.as_tensor(x, device='cuda')
+        # x = from_dlpack(x.toDlpack())
         
     x.requires_grad = True
     print(f"rank {P_world.rank}; index {P_x.index}; value {x}")
@@ -104,6 +109,8 @@ with cp.cuda.Device(P_world.rank):
         dy = cp.zeros(y_local_shape) + P_y.rank + 1
         ## dy = torch.from_numpy(dy)
         dy = torch.as_tensor(dy, device='cuda')
+        # dy = from_dlpack(dy.toDlpack())
+
 
     print(f"rank {P_world.rank}; index {P_y.index}; value {dy}")
 
