@@ -190,7 +190,6 @@ class BroadcastFunction(torch.autograd.Function):
         input_tensor_structure = ctx.input_tensor_structure
         output_tensor_structure = ctx.output_tensor_structure
         device = ctx.device
-        print("device: ", device)
 
         assert grad_output.device == device
 
@@ -201,7 +200,6 @@ class BroadcastFunction(torch.autograd.Function):
         else:
             grad_input = zero_volume_tensor(device=device)
 
-        print("grad_input.device = ", grad_input.device)
         requests = []
 
         # If I received data (either from a remote worker or just from myself)
@@ -216,8 +214,22 @@ class BroadcastFunction(torch.autograd.Function):
             ## grad_output_numpy = grad_output.detach().cpu().numpy()
             grad_output_cupy = cp.array(grad_output.detach())
             ## req = P_recv._comm.Ireduce(grad_output_numpy, reduced_data_recv, root=0, op=MPI.SUM)
-            req = P_recv._comm.Ireduce(grad_output_cupy, reduced_data_recv, root=0, op=MPI.SUM)
-            requests.append(req)
+
+            # cupy_temp_buff = cp.zeros(grad_output.shape)
+            # step = 2
+            # while step < P_recv._comm.size :
+            #     dist = step / 2
+            #     if(P_recv.rank % step == 0) :
+            #         req = P_recv._comm.Isend(grad_output_cupy, dest=P_recv.rank - dist, tag=321)
+            #     elif ((P_recv.rank % step == step / 2)):
+            #         req = P_recv._comm.Irecv(cupy_temp_buff, source=P_recv.rank + dist, tag=321)
+            #         # Perform the reduction
+            #         # requests should be done, before the reduction. (?)
+            #     step <<= 1
+                    
+            # requests.append(req)
+            P_recv._comm.Reduce(grad_output_cupy, reduced_data_recv, op=MPI.SUM, root=0)
+            
 
         # If I sent data in the forward, I have to receive it here.  Unless I
         # also received that data, then I already have it from above.
@@ -227,12 +239,12 @@ class BroadcastFunction(torch.autograd.Function):
             ## reduced_data_send = np.zeros(input_tensor_structure.shape, dtype=numpy_dtype)
             reduced_data_send = cp.zeros(input_tensor_structure.shape, dtype=cupy_dtype)
             ## req = P_send._comm.Ireduce(MPI.IN_PLACE, reduced_data_send, root=0, op=MPI.SUM)
-            req = P_send._comm.Ireduce(MPI.IN_PLACE, reduced_data_send, root=0, op=MPI.SUM)
-            requests.append(req)
+            P_send._comm.Reduce(MPI.IN_PLACE, reduced_data_send, op=MPI.SUM, root=0)
+            # requests.append(req)
 
+        # TODO: If waitall, then why non-blocking reduce?
         MPI.Request.Waitall(requests)
 
-        print("Before tensore creation, line 235")
         # If we had to receive data, we need to tensorify it.
         if P_send.active:
             if P_send == P_recv:

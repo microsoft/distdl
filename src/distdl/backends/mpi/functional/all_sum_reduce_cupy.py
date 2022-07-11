@@ -82,10 +82,11 @@ class AllSumReduceFunction(torch.autograd.Function):
             ## input_numpy = input.detach().cpu().numpy()
             input_cupy = cp.array(input.detach())
             ## req = P_allreduce._comm.Iallreduce(input_numpy, reduced_data, op=MPI.SUM)
-            req = P_allreduce._comm.Iallreduce(input_cupy, reduced_data, op=MPI.SUM)
-            requests.append(req)
+            ## req = P_allreduce._comm.Iallreduce(input_cupy, reduced_data, op=MPI.SUM)
+            P_allreduce._comm.Allreduce(input_cupy, reduced_data, op=MPI.SUM)
+            ## requests.append(req)
 
-        MPI.Request.Waitall(requests)
+        ## MPI.Request.Waitall(requests)
 
         # If we had to receive data, we need to tensorify it.
         if P_allreduce.active:
@@ -136,10 +137,11 @@ class AllSumReduceFunction(torch.autograd.Function):
             ## grad_output_numpy = grad_output.detach().cpu().numpy()
             grad_output_cupy = cp.array(grad_output.detach())
             ## req = P_allreduce._comm.Iallreduce(grad_output_numpy, reduced_data, op=MPI.SUM)
-            req = P_allreduce._comm.Iallreduce(grad_output_cupy, reduced_data, op=MPI.SUM)
-            requests.append(req)
+            ## req = P_allreduce._comm.Iallreduce(grad_output_cupy, reduced_data, op=MPI.SUM)
+            P_allreduce._comm.Allreduce(grad_output_cupy, reduced_data, op=MPI.SUM)
+            ## requests.append(req)
 
-        MPI.Request.Waitall(requests)
+        ## MPI.Request.Waitall(requests)
 
         # If we had to receive data, we need to tensorify it.
         if P_allreduce.active:
