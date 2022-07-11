@@ -8,7 +8,8 @@
 
 import timeit
 import time
-# import pdb
+import debugpy
+
 import cupy as cp
 import numpy as np
 import torch
@@ -25,6 +26,10 @@ from torch.utils.dlpack import from_dlpack
 # Set up MPI cartesian communicator
 P_world = MPIPartition(MPI.COMM_WORLD)
 P_world._comm.Barrier()
+
+debugpy.listen(('localhost', 5678 + P_world.rank))
+debugpy.wait_for_client()
+debugpy.breakpoint()
 
 # Create the input partition (using the first 4 workers)
 in_shape = (2, 2)
@@ -65,8 +70,6 @@ layer = Repartition(P_x, P_y, preserve_batch=False)
 start_time = timeit.default_timer()
 REPEAT = 1
 
-# pdb.set_trace()
-
 for i in range(REPEAT):
 
     # TODO: Is this a correct place to set device?
@@ -78,10 +81,10 @@ for i in range(REPEAT):
                                                      x_global_shape)
             ## x = np.zeros(x_local_shape) + P_x.rank + 1
             ## x = cp.zeros(x_local_shape) + P_x.rank + 1
-            x = torch.zeros(*x_local_shape, device=x.device) + P_x.rank + 1
+            x = torch.zeros(*x_local_shape, device=x.device) + (P_x.rank + 1)
             ## x = torch.from_numpy(x)
             ## x = torch.as_tensor(x, device='cuda')
-            # x = from_dlpack(x.toDlpack())
+            ## x = from_dlpack(x.toDlpack())
 
         x.requires_grad = True
         print(f"P_world.rank {P_world.rank}; P_x.index {P_x.index}; x value: \n{x}\n")
@@ -119,7 +122,7 @@ for i in range(REPEAT):
                                                      x_global_shape)
             ## dy = np.zeros(y_local_shape) + P_y.rank + 1
             ## dy = cp.zeros(y_local_shape) + P_y.rank + 1
-            dy = torch.zeros(*y_local_shape, device=dy.device) + P_y.rank + 1
+            dy = torch.zeros(*y_local_shape, device=dy.device) + (P_y.rank + 1)
             ## dy = torch.from_numpy(dy)
             ## dy = torch.as_tensor(dy, device='cuda')
             ## dy = from_dlpack(dy.toDlpack())
