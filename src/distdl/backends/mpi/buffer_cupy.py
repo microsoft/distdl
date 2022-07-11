@@ -1,5 +1,18 @@
-import cupy as cp
-import numpy as np
+import os
+
+try:
+    if os.environ["DISTDL_DEVICE"] == "GPU":
+        import cupy as xp
+        USE_GPU = True
+        print("---- Using GPU ----")
+    elif os.environ["DISTDL_DEVICE"] == "CPU":
+        import numpy as xp
+        USE_GPU = False
+        print("---- Using CPU ----")
+except:
+    USE_GPU = False
+    import numpy as xp
+    print("---- Not valide device. Enter either CPU or GPU. Using CPU for now. ----")
 
 
 class MPIExpandableBuffer:
@@ -69,6 +82,7 @@ class MPIExpandableBuffer:
         new_buffer = cp.empty([new_capacity], dtype=self.dtype)
 
         # And copy the contents of the old buffer into the new one.
+
         cp.copyto(new_buffer[:len(self.raw_buffer)], self.raw_buffer)
 
         # The new buffer is now the current buffer
