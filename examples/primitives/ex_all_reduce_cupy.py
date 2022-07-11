@@ -21,7 +21,7 @@ P_world._comm.Barrier()
 
 # Create the input/output partition (using the first worker)
 ## in_shape = (2, 3)
-in_shape = (2, 2)
+in_shape = (2, 3)
 in_size = np.prod(in_shape)
 in_workers = np.arange(0, in_size)
 
@@ -34,7 +34,7 @@ P_x = P_x_base.create_cartesian_topology_partition(in_shape)
 # divisible by the partition.  Later we will have an example for applying the
 # reduction on the tensor itself.
 ## x_global_shape = np.array([6, 6])
-x_global_shape = np.array([4, 4])
+x_global_shape = np.array([6, 6])
 
 # Setup the input tensor.  Any worker in P_x will generate its part of the
 # input tensor.  Any worker not in P_x will have a zero-volume tensor.
@@ -61,7 +61,8 @@ with cp.cuda.Device(P_world.rank % cp.cuda.runtime.getDeviceCount()):
         x = torch.as_tensor(x, device='cuda')
 
     x.requires_grad = True
-    print(f"rank {P_world.rank}; index {P_x.index}; value {x}")
+
+    print(f"P_world.rank {P_world.rank}; P_x.index {P_x.index}; x value: \n{x}\n")
 
     # Create the all-reduce layer.  Note, only one of the keep/reduce axes is
     # required.  If they are both specified they must be mutually coherent.
@@ -83,7 +84,7 @@ with cp.cuda.Device(P_world.rank % cp.cuda.runtime.getDeviceCount()):
     #   [ 15 15 | 15 15 | 15 15 ] ]
     y = all_reduce_cols(x)
 
-    print(f"rank {P_world.rank}; index {P_x.index}; value {y}")
+    print(f"P_world.rank {P_world.rank}; P_x.index {P_x.index}; y value: \n{y}\n")
 
     # Here we reduce the rows (axis 0), along the columns.
     all_reduce_rows = AllSumReduce(P_x, axes_reduce=(0,))
@@ -98,7 +99,7 @@ with cp.cuda.Device(P_world.rank % cp.cuda.runtime.getDeviceCount()):
     #   [ 5 5 | 7 7 | 9 9 ] ]
     y = all_reduce_rows(x)
 
-    print(f"rank {P_world.rank}; index {P_x.index}; value {y}")
+    print(f"P_world.rank {P_world.rank}; P_x.index {P_x.index}; y value: \n{y}\n")
 
     # Here we reduce all axes.
     all_reduce_all = AllSumReduce(P_x, axes_reduce=(0, 1))
@@ -113,7 +114,7 @@ with cp.cuda.Device(P_world.rank % cp.cuda.runtime.getDeviceCount()):
     #   [ 21 21 | 21 21 | 21 21 ] ]
     y = all_reduce_all(x)
 
-    print(f"rank {P_world.rank}; index {P_x.index}; value {y}")
+    print(f"P_world.rank {P_world.rank}; P_x.index {P_x.index}; y value: \n{y}\n")
 
     # Here we reduce none of the axes.
     all_reduce_none = AllSumReduce(P_x, axes_reduce=tuple())
@@ -128,7 +129,7 @@ with cp.cuda.Device(P_world.rank % cp.cuda.runtime.getDeviceCount()):
     #   [ 4 4 | 5 5 | 6 6 ] ]
     y = all_reduce_none(x)
 
-    print(f"rank {P_world.rank}; index {P_x.index}; value {y}")
+    print(f"P_world.rank {P_world.rank}; P_x.index {P_x.index}; y value: \n{y}\n")
 
     # Reset the input so that we do not have equal shapes along the reducing
     # dimensons.
@@ -152,7 +153,7 @@ with cp.cuda.Device(P_world.rank % cp.cuda.runtime.getDeviceCount()):
         x = torch.as_tensor(x, device='cuda')
 
     x.requires_grad = True
-    print(f"rank {P_world.rank}; index {P_x.index}; value {x}")
+    print(f"P_world.rank {P_world.rank}; P_x.index {P_x.index}; x value: \n{x}\n")
 
     # We cannot reduce along the rows directly here, because e.g., Rank 0 and Rank
     # 1 have different shaped subtensors.  But if we first reduce locally along
@@ -170,7 +171,8 @@ with cp.cuda.Device(P_world.rank % cp.cuda.runtime.getDeviceCount()):
     #   -------------------
     #   [ 12 | 10 | 12 ]
     #   [ 12 | 10 | 12 ] ]
-    print(f"rank {P_world.rank}; index {P_x.index}; value {x_prime}")
+
+    print(f"P_world.rank {P_world.rank}; P_x.index {P_x.index}; x_prime value: \n{x_prime}\n")
 
     # Which we can now all-reduce to obtain:
     # [ [ 13 | 13 | 13 ]
@@ -181,4 +183,4 @@ with cp.cuda.Device(P_world.rank % cp.cuda.runtime.getDeviceCount()):
     #   [ 34 | 34 | 34 ] ]
     y = all_reduce_cols(x_prime)
 
-    print(f"rank {P_world.rank}; index {P_x.index}; value {y}")
+    print(f"P_world.rank {P_world.rank}; P_x.index {P_x.index}; y value: \n{y}\n")

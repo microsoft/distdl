@@ -74,9 +74,11 @@ x_local_shape = compute_subshape(P_x.shape, P_x.index, x_global_shape)
 
 with cp.cuda.Device(P_world.rank):
     ## x = np.zeros(x_local_shape) + P_x.rank + 1
-    x = cp.zeros(x_local_shape) + P_x.rank + 1
     ## x = torch.from_numpy(x)
-    x = torch.as_tensor(x, device='cuda')
+    ## x = cp.zeros(x_local_shape) + P_x.rank + 1
+    ## x = torch.as_tensor(x, device='cuda')
+    x = torch.zeros(*x_local_shape, device=cp.cuda.runtime.getDevice()) + (P_x.rank + 1)
+
     x.requires_grad = True
 
     # x has to be padded to make space for the halo.  Torch's pad function takes
