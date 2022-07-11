@@ -20,6 +20,9 @@ from distdl.utilities.torch import zero_volume_tensor
 P_world = MPIPartition(MPI.COMM_WORLD)
 P_world._comm.Barrier()
 
+# Intra-node communicator -> ranks [1 ... num_devices]
+cp.cuda.runtime.setDevice(P_world.rank % cp.cuda.runtime.getDeviceCount())
+
 # Create the input/output partition (using the first 2 workers)
 in_shape = (2, 1)
 in_size = np.prod(in_shape)
@@ -29,7 +32,7 @@ P_x_base = P_world.create_partition_inclusive(in_workers)
 P_x = P_x_base.create_cartesian_topology_partition(in_shape)
 
 # Create the output partition (using the last 6 workers)
-out_shape = (2, 2)
+out_shape = (2, 3)
 out_size = np.prod(out_shape)
 out_workers = np.arange(P_world.size-out_size, P_world.size)
 
@@ -52,75 +55,78 @@ x_global_shape = np.array([5, 2])
 #   [ 2 2 ]
 #   [ 2 2 ] ]
 
-with cp.cuda.Device(P_world.rank % cp.cuda.runtime.getDeviceCount()):
 
-    x = zero_volume_tensor(device=cp.cuda.runtime.getDevice())
-    
-    print("x.device ", x.device)
+# % cp.cuda.runtime.getDeviceCount()
+x = zero_volume_tensor(device=cp.cuda.runtime.getDevice())
 
-    if P_x.active:
-        x_local_shape = slicing.compute_subshape(P_x.shape,
-                                                 P_x.index,
-                                                 x_global_shape)
-        ## x = np.zeros(x_local_shape) + P_x.rank + 1
-        x = cp.zeros(x_local_shape) + P_x.rank + 1
-        ## x = torch.from_numpy(x)
-        x = torch.as_tensor(x, device='cuda')
+# print("x.device ", x.device)
 
-    x.requires_grad = True
-    print(f"rank {P_world.rank}; index {P_x.index}; value {x}")
+if P_x.active:
+    x_local_shape = slicing.compute_subshape(P_x.shape,
+                                             P_x.index,
+                                             x_global_shape)
+    ## x = np.zeros(x_local_shape) + P_x.rank + 1
+    ## x = cp.zeros(x_local_shape) + P_x.rank + 1
+    ## x = torch.from_numpy(x)
+    ## x = torch.as_tensor(x, device='cuda')
+    x = torch.zeros(*x_local_shape, device=x.device) + (P_x.rank + 1)
 
-    # Here we broadcast the columns (axis 1), along the rows.
-    all_reduce_cols = Broadcast(P_x, P_y, preserve_batch=False)
-    #
-    # Output tensor will be (on a 2 x 3 partition):
-    # [ [ 1 1 | 1 1 | 1 1 ]
-    #   [ 1 1 | 1 1 | 1 1 ]
-    #   [ 1 1 | 1 1 | 1 1 ]
-    #   -------------------------
-    #   [ 2 2 | 2 2 | 2 2 ]
-    #   [ 2 2 | 2 2 | 2 2 ]
-    #   [ 2 2 | 2 2 | 2 2 ] ]
-    y = all_reduce_cols(x)
+x.requires_grad = True
+print(f"rank {P_world.rank}; index {P_x.index}; value {x}")
 
-    print(f"rank {P_world.rank}; index {P_x.index}; value {y}")
+# Here we broadcast the columns (axis 1), along the rows.
+all_reduce_cols = Broadcast(P_x, P_y, preserve_batch=False)
+#
+# Output tensor will be (on a 2 x 3 partition):
+# [ [ 1 1 | 1 1 | 1 1 ]
+#   [ 1 1 | 1 1 | 1 1 ]
+#   [ 1 1 | 1 1 | 1 1 ]
+#   -------------------------
+#   [ 2 2 | 2 2 | 2 2 ]
+#   [ 2 2 | 2 2 | 2 2 ]
+#   [ 2 2 | 2 2 | 2 2 ] ]
+y = all_reduce_cols(x)
 
-    # Setup the adjoint input tensor.  Any worker in P_y will generate its part of
-    # the adjoint input tensor.  Any worker not in P_y will have a zero-volume
-    # tensor.
+print(f"rank {P_world.rank}; index {P_x.index}; value {y}")
 
-    y_global_shape = assemble_global_tensor_structure(y, P_y).shape
+# Setup the adjoint input tensor.  Any worker in P_y will generate its part of
+# the adjoint input tensor.  Any worker not in P_y will have a zero-volume
+# tensor.
 
-    # Adjoint input tensor will be (on a 2 x 3 partition):
-    # [ [ 1 1 | 2 2 | 3 3 ]
-    #   [ 1 1 | 2 2 | 3 3 ]
-    #   [ 1 1 | 2 2 | 3 3 ]
-    #   -------------------------
-    #   [ 4 4 | 5 5 | 6 6 ]
-    #   [ 4 4 | 5 5 | 6 6 ]
-    #   [ 4 4 | 5 5 | 6 6 ] ]
-    dy = zero_volume_tensor(device=cp.cuda.runtime.getDevice())
-    if P_y.active:
-        y_local_shape = slicing.compute_subshape(P_y.shape,
-                                                 P_y.index,
-                                                 y_global_shape)
-        ## dy = np.zeros(y_local_shape) + P_y.rank + 1
-        dy = cp.zeros(y_local_shape) + P_y.rank + 1
-        ## dy = torch.from_numpy(dy)
-        dy = torch.as_tensor(dy, device='cuda')
+y_global_shape = assemble_global_tensor_structure(y, P_y).shape
 
-    print(f"rank {P_world.rank}; index {P_y.index}; value {dy}")
+# Adjoint input tensor will be (on a 2 x 3 partition):
+# [ [ 1 1 | 2 2 | 3 3 ]
+#   [ 1 1 | 2 2 | 3 3 ]
+#   [ 1 1 | 2 2 | 3 3 ]
+#   -------------------------
+#   [ 4 4 | 5 5 | 6 6 ]
+#   [ 4 4 | 5 5 | 6 6 ]
+#   [ 4 4 | 5 5 | 6 6 ] ]
+dy = zero_volume_tensor(device=cp.cuda.runtime.getDevice())
+if P_y.active:
+    y_local_shape = slicing.compute_subshape(P_y.shape,
+                                             P_y.index,
+                                             y_global_shape)
+    ## dy = np.zeros(y_local_shape) + P_y.rank + 1
+    ## dy = cp.zeros(y_local_shape) + P_y.rank + 1
+    ## dy = torch.from_numpy(dy)
+    ## dy = torch.as_tensor(dy, device='cuda')
+    dy = torch.zeros(*y_local_shape, device=dy.device) + (P_y.rank + 1)
 
-    # Apply the adjoint of the layer.
-    #
-    # Adjoint output tensor will be (on a 2 x 1 partition):
-    # [ [  6  6 ]
-    #   [  6  6 ]
-    #   [  6  6 ]
-    #   -------
-    #   [ 15 15 ]
-    #   [ 15 15 ] ]
-    # print(dy.device)
-    y.backward(dy)
-    dx = x.grad
-    print(f"rank {P_world.rank}; index {P_x.index}; value {dx}")
+
+print(f"rank {P_world.rank}; index {P_y.index}; value {dy}")
+
+# Apply the adjoint of the layer.
+#
+# Adjoint output tensor will be (on a 2 x 1 partition):
+# [ [  6  6 ]
+#   [  6  6 ]
+#   [  6  6 ]
+#   -------
+#   [ 15 15 ]
+#   [ 15 15 ] ]
+# print(dy.device)
+y.backward(dy)
+dx = x.grad
+print(f"rank {P_world.rank}; index {P_x.index}; value {dx}")
