@@ -111,25 +111,33 @@ class SumReduceFunction(torch.autograd.Function):
         # below.
         if P_send.active:
             ## numpy_dtype = torch_to_numpy_dtype_dict[input_tensor_structure.dtype]
-            cupy_dtype = torch_to_cupy_dtype_dict[input_tensor_structure.dtype]
+            ## cupy_dtype = torch_to_cupy_dtype_dict[input_tensor_structure.dtype]
             ## reduced_data_send = np.zeros(input_tensor_structure.shape, dtype=numpy_dtype)
-            reduced_data_send = cp.zeros(input_tensor_structure.shape, dtype=cupy_dtype)
+            ## reduced_data_send = cp.zeros(input_tensor_structure.shape, dtype=cupy_dtype)
+            reduced_data_send = torch.zeros(*input_tensor_structure.shape, 
+                                            dtype=input_tensor_structure.dtype, 
+                                            device=cp.cuda.runtime.getDevice())
             ## input_numpy = input.detach().cpu().numpy()
-            input_cupy = cp.array(input.detach())
+            ## input_cupy = cp.array(input.detach())
             ## req = P_send._comm.Ireduce(input_numpy, reduced_data_send, root=0, op=MPI.SUM)
-            req = P_send._comm.Ireduce(input_cupy, reduced_data_send, root=0, op=MPI.SUM)
-            requests.append(req)
+            ## req = P_send._comm.Ireduce(input_cupy, reduced_data_send, root=0, op=MPI.SUM)
+            ## requests.append(req)
+            P_send._comm.Reduce(input.detach(), reduced_data_send, root=0, op=MPI.SUM)
 
         # If I sent data in the forward, I have to receive it here.
         if P_send != P_recv and P_recv.active:
             ## numpy_dtype = torch_to_numpy_dtype_dict[output_tensor_structure.dtype]
-            cupy_dtype = torch_to_cupy_dtype_dict[output_tensor_structure.dtype]
+            ## cupy_dtype = torch_to_cupy_dtype_dict[output_tensor_structure.dtype]
             ## reduced_data_recv = np.zeros(output_tensor_structure.shape, dtype=numpy_dtype)
-            reduced_data_recv = cp.zeros(output_tensor_structure.shape, dtype=cupy_dtype)
-            req = P_recv._comm.Ireduce(MPI.IN_PLACE, reduced_data_recv, root=0, op=MPI.SUM)
-            requests.append(req)
+            ## reduced_data_recv = cp.zeros(output_tensor_structure.shape, dtype=cupy_dtype)
+            reduced_data_recv = torch.zeros(*output_tensor_structure.shape, 
+                                            dtype=output_tensor_structure.dtype, 
+                                            device=cp.cuda.runtime.getDevice())
+            ## req = P_recv._comm.Ireduce(MPI.IN_PLACE, reduced_data_recv, root=0, op=MPI.SUM)
+            ## requests.append(req)
+            P_recv._comm.Reduce(MPI.IN_PLACE, reduced_data_recv, root=0, op=MPI.SUM)
 
-        MPI.Request.Waitall(requests)
+        # MPI.Request.Waitall(requests)
 
         # If we had to receive data, we need to tensorify it.
         if P_recv.active:
