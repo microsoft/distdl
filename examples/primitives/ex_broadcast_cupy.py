@@ -21,6 +21,7 @@ P_world = MPIPartition(MPI.COMM_WORLD)
 P_world._comm.Barrier()
 
 # Intra-node communicator -> ranks [1 ... num_devices]
+# On the assumption of 1-to-1 mapping between ranks and GPUs
 cp.cuda.runtime.setDevice(P_world.rank % cp.cuda.runtime.getDeviceCount())
 
 # Create the input/output partition (using the first 2 workers)

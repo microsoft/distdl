@@ -27,9 +27,8 @@ from torch.utils.dlpack import from_dlpack
 P_world = MPIPartition(MPI.COMM_WORLD)
 P_world._comm.Barrier()
 
-debugpy.listen(('localhost', 5678 + P_world.rank))
-debugpy.wait_for_client()
-debugpy.breakpoint()
+# On the assumption of 1-to-1 mapping between ranks and GPUs
+cp.cuda.runtime.setDevice(P_world.rank % cp.cuda.runtime.getDeviceCount())
 
 # Create the input partition (using the first 4 workers)
 in_shape = (2, 2)
@@ -67,83 +66,80 @@ layer = Repartition(P_x, P_y, preserve_batch=False)
 #   [ 3 3 3 | 4 4 ] ]
 # print("From P_world.rank ", P_world.rank, ": ", P_x.shape)
 
-start_time = timeit.default_timer()
-REPEAT = 1
+# start_time = timeit.default_timer()
+# REPEAT = 1
+# for i in range(REPEAT):
+    
+x = zero_volume_tensor(device=cp.cuda.runtime.getDevice())
+if P_x.active:
+    x_local_shape = slicing.compute_subshape(P_x.shape,
+                                                P_x.index,
+                                                x_global_shape)
+    ## x = np.zeros(x_local_shape) + P_x.rank + 1
+    ## x = cp.zeros(x_local_shape) + P_x.rank + 1
+    x = torch.zeros(*x_local_shape, device=x.device) + (P_x.rank + 1)
+    ## x = torch.from_numpy(x)
+    ## x = torch.as_tensor(x, device='cuda')
+    ## x = from_dlpack(x.toDlpack())
 
-for i in range(REPEAT):
+x.requires_grad = True
+print(f"P_world.rank {P_world.rank}; P_x.index {P_x.index}; x value: \n{x}\n")
 
-    # TODO: Is this a correct place to set device?
-    with cp.cuda.Device(P_world.rank):
-        x = zero_volume_tensor(device=cp.cuda.runtime.getDevice())
-        if P_x.active:
-            x_local_shape = slicing.compute_subshape(P_x.shape,
-                                                     P_x.index,
-                                                     x_global_shape)
-            ## x = np.zeros(x_local_shape) + P_x.rank + 1
-            ## x = cp.zeros(x_local_shape) + P_x.rank + 1
-            x = torch.zeros(*x_local_shape, device=x.device) + (P_x.rank + 1)
-            ## x = torch.from_numpy(x)
-            ## x = torch.as_tensor(x, device='cuda')
-            ## x = from_dlpack(x.toDlpack())
+# Apply the layer.
+#
+# Output tensor will be (on a 1 x 1 partition):
+# [ [ 1 1 1 2 2 ]
+#   [ 1 1 1 2 2 ]
+#   [ 1 1 1 2 2 ]
+#   [ 1 1 1 2 2 ]
+#   [ 3 3 3 4 4 ]
+#   [ 3 3 3 4 4 ]
+#   [ 3 3 3 4 4 ] ]
 
-        x.requires_grad = True
-        print(f"P_world.rank {P_world.rank}; P_x.index {P_x.index}; x value: \n{x}\n")
+y = layer(x)
+print(f"P_world.rank {P_world.rank}; P_y.index {P_y.index}; y value: \n{y}\n")
 
-        # Apply the layer.
-        #
-        # Output tensor will be (on a 1 x 1 partition):
-        # [ [ 1 1 1 2 2 ]
-        #   [ 1 1 1 2 2 ]
-        #   [ 1 1 1 2 2 ]
-        #   [ 1 1 1 2 2 ]
-        #   [ 3 3 3 4 4 ]
-        #   [ 3 3 3 4 4 ]
-        #   [ 3 3 3 4 4 ] ]
+# Setup the adjoint input tensor.  Any worker in P_y will generate its part of
+# the adjoint input tensor.  Any worker not in P_y will have a zero-volume
+# tensor.
+#
+# Adjoint input tensor will be (on a 1 x 1 partition):
+# [ [ 1 1 1 1 1 ]
+#   [ 1 1 1 1 1 ]
+#   [ 1 1 1 1 1 ]
+#   [ 1 1 1 1 1 ]
+#   [ 1 1 1 1 1 ]
+#   [ 1 1 1 1 1 ]
+#   [ 1 1 1 1 1 ] ]
+dy = zero_volume_tensor(device=cp.cuda.runtime.getDevice())
+if P_y.active:
+    y_local_shape = slicing.compute_subshape(P_y.shape,
+                                                P_y.index,
+                                                x_global_shape)
+    ## dy = np.zeros(y_local_shape) + P_y.rank + 1
+    ## dy = cp.zeros(y_local_shape) + P_y.rank + 1
+    dy = torch.zeros(*y_local_shape, device=dy.device) + (P_y.rank + 1)
+    ## dy = torch.from_numpy(dy)
+    ## dy = torch.as_tensor(dy, device='cuda')
+    ## dy = from_dlpack(dy.toDlpack())
 
-        y = layer(x)
-        print(f"P_world.rank {P_world.rank}; P_y.index {P_y.index}; y value: \n{y}\n")
+print(f"P_world.rank {P_world.rank}; P_y.index {P_y.index}; dy value: \n{dy}\n")
 
-        # Setup the adjoint input tensor.  Any worker in P_y will generate its part of
-        # the adjoint input tensor.  Any worker not in P_y will have a zero-volume
-        # tensor.
-        #
-        # Adjoint input tensor will be (on a 1 x 1 partition):
-        # [ [ 1 1 1 1 1 ]
-        #   [ 1 1 1 1 1 ]
-        #   [ 1 1 1 1 1 ]
-        #   [ 1 1 1 1 1 ]
-        #   [ 1 1 1 1 1 ]
-        #   [ 1 1 1 1 1 ]
-        #   [ 1 1 1 1 1 ] ]
-        dy = zero_volume_tensor(device=cp.cuda.runtime.getDevice())
-        if P_y.active:
-            y_local_shape = slicing.compute_subshape(P_y.shape,
-                                                     P_y.index,
-                                                     x_global_shape)
-            ## dy = np.zeros(y_local_shape) + P_y.rank + 1
-            ## dy = cp.zeros(y_local_shape) + P_y.rank + 1
-            dy = torch.zeros(*y_local_shape, device=dy.device) + (P_y.rank + 1)
-            ## dy = torch.from_numpy(dy)
-            ## dy = torch.as_tensor(dy, device='cuda')
-            ## dy = from_dlpack(dy.toDlpack())
+# Apply the adjoint of the layer.
+#
+# Adjoint output tensor will be (on a 2 x 2 partition):
+# [ [ 1 1 1 | 1 1 ]
+#   [ 1 1 1 | 1 1 ]
+#   [ 1 1 1 | 1 1 ]
+#   [ 1 1 1 | 1 1 ]
+#   -------------
+#   [ 1 1 1 | 1 1 ]
+#   [ 1 1 1 | 1 1 ]
+#   [ 1 1 1 | 1 1 ] ]
+y.backward(dy)
+dx = x.grad
 
-        print(f"P_world.rank {P_world.rank}; P_y.index {P_y.index}; dy value: \n{dy}\n")
+print(f"P_world.rank {P_world.rank}; P_x.index {P_x.index}; dx value: \n{dx}\n")
 
-        # Apply the adjoint of the layer.
-        #
-        # Adjoint output tensor will be (on a 2 x 2 partition):
-        # [ [ 1 1 1 | 1 1 ]
-        #   [ 1 1 1 | 1 1 ]
-        #   [ 1 1 1 | 1 1 ]
-        #   [ 1 1 1 | 1 1 ]
-        #   -------------
-        #   [ 1 1 1 | 1 1 ]
-        #   [ 1 1 1 | 1 1 ]
-        #   [ 1 1 1 | 1 1 ] ]
-        y.backward(dy)
-        dx = x.grad
-
-        print(f"P_world.rank {P_world.rank}; P_x.index {P_x.index}; dx value: \n{dx}\n")
-
-print(f"Average elapsed time from P_world.rank {P_world.rank}: ",
-      ((timeit.default_timer() - start_time)/REPEAT) * 1000, " ms")
+# print(f"Average elapsed time from P_world.rank {P_world.rank}: ",
+#       ((timeit.default_timer() - start_time)/REPEAT) * 1000, " ms")

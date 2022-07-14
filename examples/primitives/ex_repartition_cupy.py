@@ -20,6 +20,9 @@ from distdl.utilities.torch import zero_volume_tensor
 P_world = MPIPartition(MPI.COMM_WORLD)
 P_world._comm.Barrier()
 
+# On the assumption of 1-to-1 mapping between ranks and GPUs
+cp.cuda.runtime.setDevice(P_world.rank % cp.cuda.runtime.getDeviceCount())
+
 # Create the input partition (using the first 4 workers)
 in_shape = (4, 1)
 in_size = np.prod(in_shape)
@@ -62,77 +65,76 @@ layer = Repartition(P_x, P_y, preserve_batch=False)
 #   -------------
 #   [ 4 4 4 4 4 ] ]
 
-# TODO: P_x.rank or P_world.rank?
-with cp.cuda.Device(P_x.rank):
+x = zero_volume_tensor(device=cp.cuda.runtime.getDevice())
 
-    x = zero_volume_tensor(device=cp.cuda.runtime.getDevice())  # resided on GPU or not? most probably host.
+if P_x.active:
+    x_local_shape = slicing.compute_subshape(P_x.shape,
+                                                P_x.index,
+                                                x_global_shape)
+    ## x = np.zeros(x_local_shape) + P_x.rank + 1
+    ## x = cp.zeros(x_local_shape) + P_x.rank + 1
+    ## x = torch.from_numpy(x)
+    ## x = torch.as_tensor(x, device='cuda')
+    x = torch.zeros(*x_local_shape, device=x.device) + (P_x.rank + 1)
+    
 
-    if P_x.active:
-        x_local_shape = slicing.compute_subshape(P_x.shape,
-                                                 P_x.index,
-                                                 x_global_shape)
-        # x = np.zeros(x_local_shape) + P_x.rank + 1 # It didn't show up in profile
-        x = cp.zeros(x_local_shape) + P_x.rank + 1
-        # I hope torch is intelligent enough!
-        # Edit: No, it's not! The following line returns error.
-        ## x = torch.from_numpy(x)
-        x = torch.as_tensor(x, device='cuda')
+x.requires_grad = True
+print(f"rank {P_world.rank}; index {P_x.index}; value {x}")
 
-    x.requires_grad = True
-    print(f"rank {P_world.rank}; index {P_x.index}; value {x}")
+# Apply the layer.
+#
+# Output tensor will be (on a 2 x 2 partition):
+# [ [ 1 1 1 | 1 1 ]
+#   [ 1 1 1 | 1 1 ]
+#   [ 2 2 2 | 2 2 ]
+#   [ 2 2 2 | 2 2 ]
+#   -------------
+#   [ 3 3 3 | 3 3 ]
+#   [ 3 3 3 | 3 3 ]
+#   [ 4 4 4 | 4 4 ] ]
+y = layer(x)
+print(f"rank {P_world.rank}; index {P_y.index}; value {y}")
 
-    # Apply the layer.
-    #
-    # Output tensor will be (on a 2 x 2 partition):
-    # [ [ 1 1 1 | 1 1 ]
-    #   [ 1 1 1 | 1 1 ]
-    #   [ 2 2 2 | 2 2 ]
-    #   [ 2 2 2 | 2 2 ]
-    #   -------------
-    #   [ 3 3 3 | 3 3 ]
-    #   [ 3 3 3 | 3 3 ]
-    #   [ 4 4 4 | 4 4 ] ]
-    y = layer(x)
-    print(f"rank {P_world.rank}; index {P_y.index}; value {y}")
+# Setup the adjoint input tensor.  Any worker in P_y will generate its part of
+# the adjoint input tensor.  Any worker not in P_y will have a zero-volume
+# tensor.
+#
+# Adjoint input tensor will be (on a 2 x 2 partition):
+# [ [ 1 1 1 | 2 2 ]
+#   [ 1 1 1 | 2 2 ]
+#   [ 1 1 1 | 2 2 ]
+#   [ 1 1 1 | 2 2 ]
+#   -------------
+#   [ 3 3 3 | 4 4 ]
+#   [ 3 3 3 | 4 4 ]
+#   [ 3 3 3 | 4 4 ] ]
+dy = zero_volume_tensor(device=cp.cuda.runtime.getDevice())
 
-    # Setup the adjoint input tensor.  Any worker in P_y will generate its part of
-    # the adjoint input tensor.  Any worker not in P_y will have a zero-volume
-    # tensor.
-    #
-    # Adjoint input tensor will be (on a 2 x 2 partition):
-    # [ [ 1 1 1 | 2 2 ]
-    #   [ 1 1 1 | 2 2 ]
-    #   [ 1 1 1 | 2 2 ]
-    #   [ 1 1 1 | 2 2 ]
-    #   -------------
-    #   [ 3 3 3 | 4 4 ]
-    #   [ 3 3 3 | 4 4 ]
-    #   [ 3 3 3 | 4 4 ] ]
-    dy = zero_volume_tensor(device=cp.cuda.runtime.getDevice())
-    if P_y.active:
-        y_local_shape = slicing.compute_subshape(P_y.shape,
-                                                 P_y.index,
-                                                 x_global_shape)
-        ## dy = np.zeros(y_local_shape) + P_y.rank + 1
-        dy = cp.zeros(y_local_shape) + P_y.rank + 1
-        ## dy = torch.from_numpy(dy)
-        dy = torch.as_tensor(dy, device='cuda')
+if P_y.active:
+    y_local_shape = slicing.compute_subshape(P_y.shape,
+                                                P_y.index,
+                                                x_global_shape)
+    ## dy = np.zeros(y_local_shape) + P_y.rank + 1
+    ## dy = cp.zeros(y_local_shape) + P_y.rank + 1
+    ## dy = torch.from_numpy(dy)
+    ## dy = torch.as_tensor(dy, device='cuda')
+    dy = torch.zeros(*y_local_shape, device=dy.device) + (P_y.rank + 1)
+    
+print(f"rank {P_world.rank}; index {P_y.index}; value {dy}")
 
-    print(f"rank {P_world.rank}; index {P_y.index}; value {dy}")
-
-    # Apply the adjoint of the layer.
-    #
-    # Adjoint output tensor will be (on a 4 x 1 partition):
-    # [ [ 1 1 1 2 2 ]
-    #   [ 1 1 1 2 2 ]
-    #   -------------
-    #   [ 1 1 1 2 2 ]
-    #   [ 1 1 1 2 2 ]
-    #   -------------
-    #   [ 3 3 3 4 4 ]
-    #   [ 3 3 3 4 4 ]
-    #   -------------
-    #   [ 3 3 3 4 4 ] ]
-    y.backward(dy)
-    dx = x.grad
-    print(f"rank {P_world.rank}; index {P_x.index}; value {dx}")
+# Apply the adjoint of the layer.
+#
+# Adjoint output tensor will be (on a 4 x 1 partition):
+# [ [ 1 1 1 2 2 ]
+#   [ 1 1 1 2 2 ]
+#   -------------
+#   [ 1 1 1 2 2 ]
+#   [ 1 1 1 2 2 ]
+#   -------------
+#   [ 3 3 3 4 4 ]
+#   [ 3 3 3 4 4 ]
+#   -------------
+#   [ 3 3 3 4 4 ] ]
+y.backward(dy)
+dx = x.grad
+print(f"rank {P_world.rank}; index {P_x.index}; value {dx}")
