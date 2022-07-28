@@ -23,6 +23,7 @@ P_world._comm.Barrier()
 # Intra-node communicator -> ranks [1 ... num_devices]
 # On the assumption of 1-to-1 mapping between ranks and GPUs
 cp.cuda.runtime.setDevice(P_world.rank % cp.cuda.runtime.getDeviceCount())
+P_world.device = cp.cuda.runtime.getDevice()
 
 # Create the input/output partition (using the first 2 workers)
 in_shape = (2, 1)
@@ -58,9 +59,10 @@ x_global_shape = np.array([5, 2])
 
 
 # % cp.cuda.runtime.getDeviceCount()
-x = zero_volume_tensor(device=cp.cuda.runtime.getDevice())
+## x = zero_volume_tensor(device=cp.cuda.runtime.getDevice())
+x = zero_volume_tensor(device=P_x.device)
 
-# print("x.device ", x.device)
+print("x.device ", x.device)
 
 if P_x.active:
     x_local_shape = slicing.compute_subshape(P_x.shape,
@@ -104,7 +106,10 @@ y_global_shape = assemble_global_tensor_structure(y, P_y).shape
 #   [ 4 4 | 5 5 | 6 6 ]
 #   [ 4 4 | 5 5 | 6 6 ]
 #   [ 4 4 | 5 5 | 6 6 ] ]
-dy = zero_volume_tensor(device=cp.cuda.runtime.getDevice())
+
+## dy = zero_volume_tensor(device=cp.cuda.runtime.getDevice())
+dy = zero_volume_tensor(device=P_y.device)
+
 if P_y.active:
     y_local_shape = slicing.compute_subshape(P_y.shape,
                                              P_y.index,
@@ -127,7 +132,9 @@ print(f"rank {P_world.rank}; index {P_y.index}; value {dy}")
 #   -------
 #   [ 15 15 ]
 #   [ 15 15 ] ]
-# print(dy.device)
+
+print("dy.device: ", dy.device)
+
 y.backward(dy)
 dx = x.grad
 print(f"rank {P_world.rank}; index {P_x.index}; value {dx}")
