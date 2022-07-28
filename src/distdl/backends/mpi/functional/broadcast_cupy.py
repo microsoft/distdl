@@ -1,5 +1,7 @@
 __all__ = ["BroadcastFunction"]
 
+import threading
+import time
 import numpy as np
 import cupy as cp
 import torch
@@ -8,6 +10,12 @@ from mpi4py import MPI
 ## from distdl.utilities.dtype import torch_to_numpy_dtype_dict
 from distdl.utilities.dtype import torch_to_cupy_dtype_dict
 from distdl.utilities.torch import zero_volume_tensor
+
+# A better idea is to implement a progress engine for this purpose
+def reduce_function(partition, src, dst):
+    partition._comm.Reduce(src, dst, root=0, op=MPI.SUM)
+    # print("In the helper thread!")
+    # time.sleep(5)
 
 
 class BroadcastFunction(torch.autograd.Function):
@@ -107,7 +115,7 @@ class BroadcastFunction(torch.autograd.Function):
 
         # MPI requests to clear
         requests = []
-
+        
         # Send all of the data
         if P_send.active:
             ## input_numpy = input.detach().cpu().numpy()
@@ -201,6 +209,9 @@ class BroadcastFunction(torch.autograd.Function):
             grad_input = zero_volume_tensor(device=device)
 
         requests = []
+        
+        # Creating threads (maybe moving them in the init only)
+        helper_thread = threading.Thread(target=reduce_function)
 
         # If I received data (either from a remote worker or just from myself)
         # I need to reduce that data.  If I send and receive to myself, this
@@ -227,8 +238,11 @@ class BroadcastFunction(torch.autograd.Function):
             #         # requests should be done, before the reduction. (?)
             #     step <<= 1
                     
-            # requests.append(req)
-            P_recv._comm.Reduce(grad_output_cupy, reduced_data_recv, op=MPI.SUM, root=0)
+            ## requests.append(req)
+            ## P_recv._comm.Reduce(grad_output_cupy, reduced_data_recv, op=MPI.SUM, root=0)
+            helper_thread = threading.Thread(target=reduce_function, 
+                                             args=(P_recv, grad_output_cupy, reduced_data_recv));
+            helper_thread.start()
             
 
         # If I sent data in the forward, I have to receive it here.  Unless I
@@ -242,8 +256,10 @@ class BroadcastFunction(torch.autograd.Function):
             P_send._comm.Reduce(MPI.IN_PLACE, reduced_data_send, op=MPI.SUM, root=0)
             # requests.append(req)
 
-        # TODO: If waitall, then why non-blocking reduce?
-        MPI.Request.Waitall(requests)
+        ## MPI.Request.Waitall(requests)
+        
+        if helper_thread.is_alive():
+            helper_thread.join()
 
         # If we had to receive data, we need to tensorify it.
         if P_send.active:
