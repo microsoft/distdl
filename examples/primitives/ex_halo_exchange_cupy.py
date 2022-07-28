@@ -5,6 +5,7 @@
 # Run with, e.g.,
 #     > mpirun -np 4 python ex_halo_exchange.py
 
+import debugpy
 import numpy as np
 import cupy as cp
 import torch
@@ -16,7 +17,6 @@ from distdl.nn.halo_exchange import HaloExchange
 from distdl.nn.mixins.conv_mixin import ConvMixin
 from distdl.nn.mixins.halo_mixin import HaloMixin
 from distdl.utilities.slicing import compute_subshape
-
 
 # We need a layer to induce the halo size.  To make this convenient, we mock
 # a layer that has the right mixins to do the trick.
@@ -34,6 +34,13 @@ dilation = [1, 1, 1, 1]
 # Set up MPI cartesian communicator
 P_world = MPIPartition(MPI.COMM_WORLD)
 P_world._comm.Barrier()
+
+# On the assumption of 1-to-1 mapping between ranks and GPUs
+cp.cuda.runtime.setDevice(P_world.rank % cp.cuda.runtime.getDeviceCount())
+
+# debugpy.listen(('localhost', 5678 + P_world.rank))
+# debugpy.wait_for_client()
+# debugpy.breakpoint()
 
 # Create the input partition (using the first 4 workers)
 in_shape = (1, 1, 2, 2)
@@ -72,76 +79,77 @@ x_local_shape = compute_subshape(P_x.shape, P_x.index, x_global_shape)
 #       [ 3, 3, 0],      |       [ 0, 4, 4],
 #       [ 3, 3, 0] ] ] ] |       [ 0, 4, 4] ] ] ]
 
-with cp.cuda.Device(P_world.rank):
-    ## x = np.zeros(x_local_shape) + P_x.rank + 1
-    ## x = torch.from_numpy(x)
-    ## x = cp.zeros(x_local_shape) + P_x.rank + 1
-    ## x = torch.as_tensor(x, device='cuda')
-    x = torch.zeros(*x_local_shape, device=cp.cuda.runtime.getDevice()) + (P_x.rank + 1)
 
-    x.requires_grad = True
+## x = np.zeros(x_local_shape) + P_x.rank + 1
+## x = torch.from_numpy(x)
+## x = cp.zeros(x_local_shape) + P_x.rank + 1
+## x = torch.as_tensor(x, device='cuda')
+x = torch.zeros(*x_local_shape, device=cp.cuda.runtime.getDevice()) + (P_x.rank + 1)
 
-    # x has to be padded to make space for the halo.  Torch's pad function takes
-    # its arguments in very specific order and for pooling and convolutions,
-    # sometimes we need to trick the layers to do the computation the way we
-    # want.  So sometimes the padding only partially comes from the halo
-    # exchange.  Here it is from the halo exchange only.  The next operation
-    # gets the padding in the format that the torch pad function requires.
-    ## torch_padding = tuple(np.array(list(reversed(halo_shape)), dtype=int).flatten())
-    torch_padding = tuple(np.array(list(reversed(halo_shape)), dtype=int).flatten())
+x.requires_grad = True
 
-    # We pad with "constant" mode here because it matches our internal behavior.
-    x = F.pad(x, pad=torch_padding, mode="constant", value=0)
+# x has to be padded to make space for the halo.  Torch's pad function takes
+# its arguments in very specific order and for pooling and convolutions,
+# sometimes we need to trick the layers to do the computation the way we
+# want.  So sometimes the padding only partially comes from the halo
+# exchange.  Here it is from the halo exchange only.  The next operation
+# gets the padding in the format that the torch pad function requires.
+torch_padding = tuple(np.array(list(reversed(halo_shape)), dtype=int).flatten())
+## torch_padding = tuple(cp.asarray(list(reversed(halo_shape)), dtype=int).flatten())
 
-    # Not a leaf tensor (can't be because halo exchange is in-place) so
-    # we need to retain its gradient to see the adjoint effect later
-    x.retain_grad()
+# We pad with "constant" mode here because it matches our internal behavior.
+## x = cp.pad(x, pad_width=torch_padding, mode="constant", constant_values=(0,))
+x = F.pad(x, pad=torch_padding, mode="constant", value=0)
 
-    print(f"rank {P_world.rank}; index {P_x.index}; value {x.to(int)}")
+# Not a leaf tensor (can't be because halo exchange is in-place) so
+# we need to retain its gradient to see the adjoint effect later
+x.retain_grad()
 
-    # Define the exchange itself.  We let the operator define its own buffers,
-    # though we could give it a buffer manager.
-    halo_layer = HaloExchange(P_x, halo_shape, recv_buffer_shape, send_buffer_shape)
+print(f"rank {P_world.rank}; index {P_x.index}; value {x.to(int)}")
 
-    # Output tensor will be (on a 1 x 1 x 2 x 2 partition):
-    # [ [ [ [ 1, 1, 2],      | [ [ [ [ 1, 2, 2],
-    #       [ 1, 1, 2],      |       [ 1, 2, 2],
-    #       [ 1, 1, 2],      |       [ 1, 2, 2],
-    #       [ 3, 3, 4] ] ] ] |       [ 3, 4, 4] ] ] ]
-    #       -----------------------------------
-    # [ [ [ [ 1, 1, 2],      | [ [ [ [ 1, 2, 2],
-    #       [ 3, 3, 4],      |       [ 3, 4, 4],
-    #       [ 3, 3, 4] ] ] ] |       [ 3, 4, 4] ] ] ]
-    y = halo_layer(x)
+# Define the exchange itself.  We let the operator define its own buffers,
+# though we could give it a buffer manager.
+halo_layer = HaloExchange(P_x, halo_shape, recv_buffer_shape, send_buffer_shape)
 
-    print(f"rank {P_world.rank}; index {P_x.index}; value {y.to(int)}")
+# Output tensor will be (on a 1 x 1 x 2 x 2 partition):
+# [ [ [ [ 1, 1, 2],      | [ [ [ [ 1, 2, 2],
+#       [ 1, 1, 2],      |       [ 1, 2, 2],
+#       [ 1, 1, 2],      |       [ 1, 2, 2],
+#       [ 3, 3, 4] ] ] ] |       [ 3, 4, 4] ] ] ]
+#       -----------------------------------
+# [ [ [ [ 1, 1, 2],      | [ [ [ [ 1, 2, 2],
+#       [ 3, 3, 4],      |       [ 3, 4, 4],
+#       [ 3, 3, 4] ] ] ] |       [ 3, 4, 4] ] ] ]
+y = halo_layer(x)
 
-    # Setup the adjoint input tensor.  Here we setup
-    #
-    # Adjoint input tensor will be (on a 1 x 1 x 2 x 2 partition):
-    # [ [ [ [ 1, 1, 1],      | [ [ [ [ 2, 2, 2],
-    #       [ 1, 1, 1],      |       [ 2, 2, 2],
-    #       [ 1, 1, 1],      |       [ 2, 2, 2],
-    #       [ 1, 1, 1] ] ] ] |       [ 2, 2, 2] ] ] ]
-    #       -----------------------------------
-    # [ [ [ [ 3, 3, 3],      | [ [ [ [ 4, 4, 4],
-    #       [ 3, 3, 3],      |       [ 4, 4, 4],
-    #       [ 3, 3, 3] ] ] ] |       [ 4, 4, 4] ] ] ]
-    dy = torch.zeros(y.shape) + (P_x.rank + 1)
+print(f"rank {P_world.rank}; index {P_x.index}; value {y.to(int)}")
 
-    print(f"rank {P_world.rank}; index {P_x.index}; value {dy}")
+# Setup the adjoint input tensor.  Here we setup
+#
+# Adjoint input tensor will be (on a 1 x 1 x 2 x 2 partition):
+# [ [ [ [ 1, 1, 1],      | [ [ [ [ 2, 2, 2],
+#       [ 1, 1, 1],      |       [ 2, 2, 2],
+#       [ 1, 1, 1],      |       [ 2, 2, 2],
+#       [ 1, 1, 1] ] ] ] |       [ 2, 2, 2] ] ] ]
+#       -----------------------------------
+# [ [ [ [ 3, 3, 3],      | [ [ [ [ 4, 4, 4],
+#       [ 3, 3, 3],      |       [ 4, 4, 4],
+#       [ 3, 3, 3] ] ] ] |       [ 4, 4, 4] ] ] ]
+dy = torch.zeros(y.shape, device=cp.cuda.runtime.getDevice()) + (P_x.rank + 1)
 
-    # Apply the adjoint of the layer.
-    #
-    # Adjoint output tensor will be (on a 1 x 1 x 2 x 2 partition):
-    # [ [ [ [ 1,  3, 0],      | [ [ [ [ 0,  3, 2],
-    #       [ 1,  3, 0],      |       [ 0,  3, 2],
-    #       [ 4, 10, 0],      |       [ 0, 10, 6],
-    #       [ 0,  0, 0] ] ] ] |       [ 0,  0, 0] ] ] ]
-    #       -----------------------------------
-    # [ [ [ [ 0,  0, 0],      | [ [ [ [ 0,  0, 0],
-    #       [ 4, 10, 0],      |       [ 0, 10, 6],
-    #       [ 3,  7, 0] ] ] ] |       [ 0,  7, 4] ] ] ]
-    y.backward(dy)
-    dx = x.grad
-    print(f"rank {P_world.rank}; index {P_x.index}; value {dx}")
+print(f"rank {P_world.rank}; index {P_x.index}; value {dy}")
+
+# Apply the adjoint of the layer.
+#
+# Adjoint output tensor will be (on a 1 x 1 x 2 x 2 partition):
+# [ [ [ [ 1,  3, 0],      | [ [ [ [ 0,  3, 2],
+#       [ 1,  3, 0],      |       [ 0,  3, 2],
+#       [ 4, 10, 0],      |       [ 0, 10, 6],
+#       [ 0,  0, 0] ] ] ] |       [ 0,  0, 0] ] ] ]
+#       -----------------------------------
+# [ [ [ [ 0,  0, 0],      | [ [ [ [ 0,  0, 0],
+#       [ 4, 10, 0],      |       [ 0, 10, 6],
+#       [ 3,  7, 0] ] ] ] |       [ 0,  7, 4] ] ] ]
+y.backward(dy)
+dx = x.grad
+print(f"rank {P_world.rank}; index {P_x.index}; value {dx}")
