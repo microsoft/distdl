@@ -1,8 +1,7 @@
 from mpi4py import MPI as _MPI
 
 from . import functional  # noqa: F401
-## from . import halo_exchange  # noqa: F401
-from . import halo_exchange_cupy  # noqa: F401
+from . import halo_exchange  # noqa: F401
 from . import partition  # noqa: F401
 ## from . import repartition  # noqa: F401
 from . import repartition_cupy  # noqa: F401
