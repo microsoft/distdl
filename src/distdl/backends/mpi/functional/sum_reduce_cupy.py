@@ -1,5 +1,7 @@
 __all__ = ["SumReduceFunction"]
 
+import threading
+import time
 import numpy as np
 import cupy as cp
 import torch
@@ -8,6 +10,12 @@ from mpi4py import MPI
 # from distdl.utilities.dtype import torch_to_numpy_dtype_dict
 from distdl.utilities.dtype import torch_to_cupy_dtype_dict
 from distdl.utilities.torch import zero_volume_tensor
+
+# A better idea is to implement a progress engine for this purpose
+def reduce_function(partition, src, dst):
+    partition._comm.Reduce(src, dst, root=0, op=MPI.SUM)
+    # print("In the helper thread!")
+    # time.sleep(5)
 
 
 class SumReduceFunction(torch.autograd.Function):
@@ -104,6 +112,9 @@ class SumReduceFunction(torch.autograd.Function):
 
         requests = []
 
+        # Creating threads (maybe moving them in the init only)
+        helper_thread = threading.Thread(target=reduce_function)
+
         # By design, the roots are always 0 in the cross-communicators
         # If I receive data (either from a remote worker or just from myself)
         # I need to reduce that data.  If I send and receive to myself, this
@@ -114,15 +125,18 @@ class SumReduceFunction(torch.autograd.Function):
             ## cupy_dtype = torch_to_cupy_dtype_dict[input_tensor_structure.dtype]
             ## reduced_data_send = np.zeros(input_tensor_structure.shape, dtype=numpy_dtype)
             ## reduced_data_send = cp.zeros(input_tensor_structure.shape, dtype=cupy_dtype)
-            reduced_data_send = torch.zeros(*input_tensor_structure.shape, 
-                                            dtype=input_tensor_structure.dtype, 
+            reduced_data_send = torch.zeros(*input_tensor_structure.shape,
+                                            dtype=input_tensor_structure.dtype,
                                             device=cp.cuda.runtime.getDevice())
             ## input_numpy = input.detach().cpu().numpy()
             ## input_cupy = cp.array(input.detach())
             ## req = P_send._comm.Ireduce(input_numpy, reduced_data_send, root=0, op=MPI.SUM)
             ## req = P_send._comm.Ireduce(input_cupy, reduced_data_send, root=0, op=MPI.SUM)
-            ## requests.append(req)
-            P_send._comm.Reduce(input.detach(), reduced_data_send, root=0, op=MPI.SUM)
+            # requests.append(req)
+            ## P_send._comm.Reduce(input.detach(), reduced_data_send, root=0, op=MPI.SUM)
+            helper_thread = threading.Thread(target=reduce_function, 
+                                             args=(P_send, input.detach(), reduced_data_send));
+            helper_thread.start()
 
         # If I sent data in the forward, I have to receive it here.
         if P_send != P_recv and P_recv.active:
@@ -130,15 +144,18 @@ class SumReduceFunction(torch.autograd.Function):
             ## cupy_dtype = torch_to_cupy_dtype_dict[output_tensor_structure.dtype]
             ## reduced_data_recv = np.zeros(output_tensor_structure.shape, dtype=numpy_dtype)
             ## reduced_data_recv = cp.zeros(output_tensor_structure.shape, dtype=cupy_dtype)
-            reduced_data_recv = torch.zeros(*output_tensor_structure.shape, 
-                                            dtype=output_tensor_structure.dtype, 
+            reduced_data_recv = torch.zeros(*output_tensor_structure.shape,
+                                            dtype=output_tensor_structure.dtype,
                                             device=cp.cuda.runtime.getDevice())
             ## req = P_recv._comm.Ireduce(MPI.IN_PLACE, reduced_data_recv, root=0, op=MPI.SUM)
-            ## requests.append(req)
+            # requests.append(req)
             P_recv._comm.Reduce(MPI.IN_PLACE, reduced_data_recv, root=0, op=MPI.SUM)
 
         # MPI.Request.Waitall(requests)
 
+        if helper_thread.is_alive():
+            helper_thread.join()
+        
         # If we had to receive data, we need to tensorify it.
         if P_recv.active:
             if P_send == P_recv:
