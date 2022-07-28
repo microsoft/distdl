@@ -73,7 +73,7 @@ class MPIPartition:
         Lexicographic identifiers in each Cartesian dimension.
     """
 
-    def __init__(self, comm=MPI.COMM_NULL, group=MPI.GROUP_NULL, root=None):
+    def __init__(self, comm=MPI.COMM_NULL, group=MPI.GROUP_NULL, root=None, device=None):
 
         # MPI communicator to communicate within
         self._comm = comm
@@ -109,6 +109,8 @@ class MPIPartition:
         # like Cartesian partitions, so we need to give a shape and index.
         self.shape = np.array([self.size], dtype=np.int)
         self.dim = len(self.shape)
+
+        self.device = device
 
     def deactivate(self):
         r"""Deactivates this partition by releasing any resources and
@@ -175,7 +177,8 @@ class MPIPartition:
 
         return (check_identical_comm(self._comm, other._comm) and
                 check_identical_group(self._group, other._group) and
-                self.rank == other.rank)
+                self.rank == other.rank and
+                self.device == other.device)
 
     def print_sequential(self, val):
 
@@ -209,7 +212,7 @@ class MPIPartition:
 
         comm = self._comm.Create_group(group)
 
-        return MPIPartition(comm, group, root=self._root)
+        return MPIPartition(comm, group, root=self._root, device=self.device)
 
     def create_partition_union(self, other):
         r"""Creates new partition from the union of two partitions.
@@ -242,7 +245,8 @@ class MPIPartition:
 
         comm = self._root.Create_group(group)
 
-        return MPIPartition(comm, group, root=self._root)
+        # TODO: self.device or other.device?
+        return MPIPartition(comm, group, root=self._root, device=self.device)
 
     def create_cartesian_topology_partition(self, shape, **options):
         r"""Creates new partition with Cartesian topology.
@@ -277,11 +281,11 @@ class MPIPartition:
                 raise Exception()
 
             # group = self._group
-            return MPICartesianPartition(comm, group, self._root, shape)
+            return MPICartesianPartition(comm, group, self._root, shape, device=self.device)
 
         else:
             comm = MPI.COMM_NULL
-            return MPICartesianPartition(comm, self._group, self._root, shape)
+            return MPICartesianPartition(comm, self._group, self._root, shape, device=self.device)
 
     def _build_cross_partition_groups(self, P, P_union,
                                       root_index, src_indices, dest_indices):
@@ -407,32 +411,33 @@ class MPIPartition:
             # first.  This way, we should be able to guarantee that deadlock
             # cannot happen.  It may be linear time, but this is part of the
             # setup phase anyway.
+            # TODO: P_union.device or self.device?
             if recv_ranks[0] < send_ranks[0]:
                 comm_recv = P_union._comm.Create_group(group_recv, tag=recv_ranks[0])
                 P_recv = MPIPartition(comm_recv, group_recv,
-                                      root=P_union._root)
+                                      root=P_union._root, device=P_union.device)
                 comm_send = P_union._comm.Create_group(group_send, tag=send_ranks[0])
                 P_send = MPIPartition(comm_send, group_send,
-                                      root=P_union._root)
+                                      root=P_union._root, device=P_union.device)
             else:
                 comm_send = P_union._comm.Create_group(group_send, tag=send_ranks[0])
                 P_send = MPIPartition(comm_send, group_send,
-                                      root=P_union._root)
+                                      root=P_union._root, device=P_union.device)
                 comm_recv = P_union._comm.Create_group(group_recv, tag=recv_ranks[0])
                 P_recv = MPIPartition(comm_recv, group_recv,
-                                      root=P_union._root)
+                                      root=P_union._root, device=P_union.device)
         elif has_send_group and not has_recv_group and not same_send_recv_group:
             comm_send = P_union._comm.Create_group(group_send, tag=send_ranks[0])
             P_send = MPIPartition(comm_send, group_send,
-                                  root=P_union._root)
+                                  root=P_union._root, device=P_union.device)
         elif not has_send_group and has_recv_group and not same_send_recv_group:
             comm_recv = P_union._comm.Create_group(group_recv, tag=recv_ranks[0])
             P_recv = MPIPartition(comm_recv, group_recv,
-                                  root=P_union._root)
+                                  root=P_union._root, device=P_union.device)
         else:  # if has_send_group and has_recv_group and same_send_recv_group
             comm_send = P_union._comm.Create_group(group_send, tag=send_ranks[0])
             P_send = MPIPartition(comm_send, group_send,
-                                  root=P_union._root)
+                                  root=P_union._root, device=P_union.device)
             P_recv = P_send
 
         return P_send, P_recv
@@ -531,7 +536,6 @@ class MPIPartition:
                 src_flat_index = cartesian_index_c(src_shape[match_loc],
                                                    src_cart_index[match_loc])
 
-        # TODO : check
         data = np.array([src_flat_index], dtype=np.int)
         src_flat_indices = P_union.allgather_data(data)
 
@@ -709,7 +713,7 @@ class MPIPartition:
             else:
                 src_flat_index = cartesian_index_c(src_shape[match_loc],
                                                    src_cart_index[match_loc])
-        # TODO: Check
+
         data = np.array([src_flat_index], dtype=np.int)
         src_flat_indices = P_union.allgather_data(data)
 
@@ -759,7 +763,6 @@ class MPIPartition:
 
         return P_send, P_recv
 
-    # TODO: Check
     def broadcast_data(self, data, root=0, P_data=None):
         r"""Copy arbitrary data from one worker to all workers in a partition.
 
@@ -954,9 +957,9 @@ class MPICartesianPartition(MPIPartition):
         Lexicographic identifiers in each Cartesian dimension.
     """
 
-    def __init__(self, comm, group, root, shape):
+    def __init__(self, comm, group, root, shape, device):
 
-        super(MPICartesianPartition, self).__init__(comm, group, root)
+        super(MPICartesianPartition, self).__init__(comm, group, root, device)
 
         self.shape = np.asarray(shape).astype(np.int)
         self.dim = len(self.shape)
@@ -1019,11 +1022,12 @@ class MPICartesianPartition(MPIPartition):
 
             return MPICartesianPartition(comm, group,
                                          self._root,
-                                         self.shape[remain_shape])
+                                         self.shape[remain_shape],
+                                         self.device)
 
         else:
             comm = MPI.COMM_NULL
-            return MPIPartition(comm, root=self._root)
+            return MPIPartition(comm, root=self._root, device=self.device)
 
     def cartesian_index(self, rank):
         r"""Given the rank, returns the Cartesian coordinates of the worker.
