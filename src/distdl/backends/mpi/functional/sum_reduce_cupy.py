@@ -127,7 +127,7 @@ class SumReduceFunction(torch.autograd.Function):
             ## reduced_data_send = cp.zeros(input_tensor_structure.shape, dtype=cupy_dtype)
             reduced_data_send = torch.zeros(*input_tensor_structure.shape,
                                             dtype=input_tensor_structure.dtype,
-                                            device=cp.cuda.runtime.getDevice())
+                                            device=device)
             ## input_numpy = input.detach().cpu().numpy()
             ## input_cupy = cp.array(input.detach())
             ## req = P_send._comm.Ireduce(input_numpy, reduced_data_send, root=0, op=MPI.SUM)
@@ -146,7 +146,7 @@ class SumReduceFunction(torch.autograd.Function):
             ## reduced_data_recv = cp.zeros(output_tensor_structure.shape, dtype=cupy_dtype)
             reduced_data_recv = torch.zeros(*output_tensor_structure.shape,
                                             dtype=output_tensor_structure.dtype,
-                                            device=cp.cuda.runtime.getDevice())
+                                            device=device)
             ## req = P_recv._comm.Ireduce(MPI.IN_PLACE, reduced_data_recv, root=0, op=MPI.SUM)
             # requests.append(req)
             P_recv._comm.Reduce(MPI.IN_PLACE, reduced_data_recv, root=0, op=MPI.SUM)
@@ -159,13 +159,16 @@ class SumReduceFunction(torch.autograd.Function):
         # If we had to receive data, we need to tensorify it.
         if P_recv.active:
             if P_send == P_recv:
-                output = torch.tensor(reduced_data_send,
-                                      requires_grad=output_tensor_structure.requires_grad,
-                                      device=device)
+                ## output = torch.tensor(reduced_data_send,
+                ##                       requires_grad=output_tensor_structure.requires_grad,
+                ##                       device=device)
+                output = reduced_data_send.detach().requires_grad_(output_tensor_structure.requires_grad)
             else:
-                output = torch.tensor(reduced_data_recv,
-                                      requires_grad=output_tensor_structure.requires_grad,
-                                      device=device)
+                ## output = torch.tensor(reduced_data_recv,
+                ##                      requires_grad=output_tensor_structure.requires_grad,
+                ##                      device=device)
+                output = reduced_data_recv.detach().requires_grad_(output_tensor_structure.requires_grad)
+                
 
         return output
 
