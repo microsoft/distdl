@@ -210,7 +210,7 @@ class BroadcastFunction(torch.autograd.Function):
 
         requests = []
         
-        # Creating threads (maybe moving them in the init only)
+        # Creating the thread, not passed the args yet
         helper_thread = threading.Thread(target=reduce_function)
 
         # If I received data (either from a remote worker or just from myself)
@@ -225,19 +225,6 @@ class BroadcastFunction(torch.autograd.Function):
             ## grad_output_numpy = grad_output.detach().cpu().numpy()
             grad_output_cupy = cp.array(grad_output.detach())
             ## req = P_recv._comm.Ireduce(grad_output_numpy, reduced_data_recv, root=0, op=MPI.SUM)
-
-            # cupy_temp_buff = cp.zeros(grad_output.shape)
-            # step = 2
-            # while step < P_recv._comm.size :
-            #     dist = step / 2
-            #     if(P_recv.rank % step == 0) :
-            #         req = P_recv._comm.Isend(grad_output_cupy, dest=P_recv.rank - dist, tag=321)
-            #     elif ((P_recv.rank % step == step / 2)):
-            #         req = P_recv._comm.Irecv(cupy_temp_buff, source=P_recv.rank + dist, tag=321)
-            #         # Perform the reduction
-            #         # requests should be done, before the reduction. (?)
-            #     step <<= 1
-                    
             ## requests.append(req)
             ## P_recv._comm.Reduce(grad_output_cupy, reduced_data_recv, op=MPI.SUM, root=0)
             helper_thread = threading.Thread(target=reduce_function, 
