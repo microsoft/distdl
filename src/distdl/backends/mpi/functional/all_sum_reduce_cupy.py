@@ -1,5 +1,7 @@
 __all__ = ["AllSumReduceFunction"]
 
+import threading
+import time
 import numpy as np
 import cupy as cp
 import torch
@@ -9,6 +11,11 @@ from mpi4py import MPI
 from distdl.utilities.dtype import torch_to_cupy_dtype_dict
 from distdl.utilities.torch import zero_volume_tensor
 
+# A better idea is to implement a progress engine for this purpose
+def allreduce_function(partition, src, dst):
+    partition._comm.Allreduce(src, dst, root=0, op=MPI.SUM)
+    print("In the helper thread!")
+    time.sleep(5)
 
 class AllSumReduceFunction(torch.autograd.Function):
     r"""MPI-based functional implementation of a distributed all-sum-reduce layer.
@@ -142,6 +149,15 @@ class AllSumReduceFunction(torch.autograd.Function):
             ## requests.append(req)
 
         ## MPI.Request.Waitall(requests)
+        
+        # TODO:
+        # I don't think we don't need nonblocking allreduce in this case, but if needed:
+        # Creating the thread
+        ## helper_thread = threading.Thread(target=allreduce_function, 
+        ##                                  args=(P_allreduce, grad_output_cupy, reduced_data))
+        ## helper_thread.start()
+        ## if helper_thread.is_alive():
+        ##     helper_thread.join()
 
         # If we had to receive data, we need to tensorify it.
         if P_allreduce.active:
