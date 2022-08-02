@@ -5,9 +5,7 @@
 # Run with, e.g.,
 #     > mpirun -np 4 python ex_halo_exchange.py
 
-import debugpy
 import numpy as np
-import cupy as cp
 import torch
 import torch.nn.functional as F
 from mpi4py import MPI
@@ -36,11 +34,8 @@ P_world = MPIPartition(MPI.COMM_WORLD)
 P_world._comm.Barrier()
 
 # On the assumption of 1-to-1 mapping between ranks and GPUs
-cp.cuda.runtime.setDevice(P_world.rank % cp.cuda.runtime.getDeviceCount())
-
-# debugpy.listen(('localhost', 5678 + P_world.rank))
-# debugpy.wait_for_client()
-# debugpy.breakpoint()
+torch.cuda.set_device(P_world.rank % torch.cuda.device_count())
+P_world.device = torch.cuda.current_device()
 
 # Create the input partition (using the first 4 workers)
 in_shape = (1, 1, 2, 2)
@@ -84,7 +79,7 @@ x_local_shape = compute_subshape(P_x.shape, P_x.index, x_global_shape)
 ## x = torch.from_numpy(x)
 ## x = cp.zeros(x_local_shape) + P_x.rank + 1
 ## x = torch.as_tensor(x, device='cuda')
-x = torch.zeros(*x_local_shape, device=cp.cuda.runtime.getDevice()) + (P_x.rank + 1)
+x = torch.zeros(*x_local_shape, device=P_x.device) + (P_x.rank + 1)
 
 x.requires_grad = True
 
@@ -95,7 +90,6 @@ x.requires_grad = True
 # exchange.  Here it is from the halo exchange only.  The next operation
 # gets the padding in the format that the torch pad function requires.
 torch_padding = tuple(np.array(list(reversed(halo_shape)), dtype=int).flatten())
-## torch_padding = tuple(cp.asarray(list(reversed(halo_shape)), dtype=int).flatten())
 
 # We pad with "constant" mode here because it matches our internal behavior.
 ## x = cp.pad(x, pad_width=torch_padding, mode="constant", constant_values=(0,))
@@ -135,7 +129,7 @@ print(f"rank {P_world.rank}; index {P_x.index}; value {y.to(int)}")
 # [ [ [ [ 3, 3, 3],      | [ [ [ [ 4, 4, 4],
 #       [ 3, 3, 3],      |       [ 4, 4, 4],
 #       [ 3, 3, 3] ] ] ] |       [ 4, 4, 4] ] ] ]
-dy = torch.zeros(y.shape, device=cp.cuda.runtime.getDevice()) + (P_x.rank + 1)
+dy = torch.zeros(y.shape, device=P_x.device) + (P_x.rank + 1)
 
 print(f"rank {P_world.rank}; index {P_x.index}; value {dy}")
 

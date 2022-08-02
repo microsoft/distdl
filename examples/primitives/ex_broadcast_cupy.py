@@ -6,7 +6,6 @@
 #     > mpirun -np 6 python ex_broadcast.py
 
 import numpy as np
-import cupy as cp
 import torch
 from mpi4py import MPI
 
@@ -22,8 +21,8 @@ P_world._comm.Barrier()
 
 # Intra-node communicator -> ranks [1 ... num_devices]
 # On the assumption of 1-to-1 mapping between ranks and GPUs
-cp.cuda.runtime.setDevice(P_world.rank % cp.cuda.runtime.getDeviceCount())
-P_world.device = cp.cuda.runtime.getDevice()
+torch.cuda.set_device(P_world.rank % torch.cuda.device_count())
+P_world.device = torch.cuda.current_device()
 
 # Create the input/output partition (using the first 2 workers)
 in_shape = (2, 1)
@@ -132,8 +131,6 @@ print(f"rank {P_world.rank}; index {P_y.index}; value {dy}")
 #   -------
 #   [ 15 15 ]
 #   [ 15 15 ] ]
-
-print("dy.device: ", dy.device)
 
 y.backward(dy)
 dx = x.grad

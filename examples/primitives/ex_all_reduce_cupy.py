@@ -6,7 +6,6 @@
 #     > mpirun -np 6 python ex_all_reduce.py
 
 import numpy as np
-import cupy as cp
 import torch
 from mpi4py import MPI
 
@@ -20,7 +19,10 @@ P_world = MPIPartition(MPI.COMM_WORLD)
 P_world._comm.Barrier()
 
 # On the assumption of 1-to-1 mapping between ranks and GPUs
-cp.cuda.runtime.setDevice(P_world.rank % cp.cuda.runtime.getDeviceCount())
+# cp.cuda.runtime.setDevice(P_world.rank % cp.cuda.runtime.getDeviceCount())
+# P_world.device = cp.cuda.runtime.getDevice()
+torch.cuda.set_device(P_world.rank % torch.cuda.device_count())
+P_world.device = torch.cuda.current_device()
 
 # Create the input/output partition (using the first worker)
 ## in_shape = (2, 3)
@@ -51,15 +53,17 @@ x_global_shape = np.array([6, 6])
 #   [ 4 4 | 5 5 | 6 6 ]
 #   [ 4 4 | 5 5 | 6 6 ] ]
 
-x = zero_volume_tensor(device=cp.cuda.runtime.getDevice())
+x = zero_volume_tensor(device=P_x.device)
+
 if P_x.active:
     x_local_shape = slicing.compute_subshape(P_x.shape,
-                                                P_x.index,
-                                                x_global_shape)
+                                             P_x.index,
+                                             x_global_shape)
     ## x = np.zeros(x_local_shape) + P_x.rank + 1
-    x = cp.zeros(x_local_shape) + P_x.rank + 1
+    ## x = cp.zeros(x_local_shape) + P_x.rank + 1
     ## x = torch.from_numpy(x)
-    x = torch.as_tensor(x, device='cuda')
+    ## x = torch.as_tensor(x, device='cuda')
+    x = torch.zeros(*x_local_shape, device=x.device) + (P_x.rank + 1)
 
 x.requires_grad = True
 
@@ -143,18 +147,18 @@ x_global_shape = np.array([5, 7])
 #   -------------------
 #   [ 4 4 4 | 5 5 | 6 6 ]
 #   [ 4 4 4 | 5 5 | 6 6 ] ]
-x = zero_volume_tensor(device=cp.cuda.runtime.getDevice())
+x = zero_volume_tensor(device=P_x.device)
 
 if P_x.active:
     x_local_shape = slicing.compute_subshape(P_x.shape,
-                                                P_x.index,
-                                                x_global_shape)
+                                             P_x.index,
+                                             x_global_shape)
     ## x = np.zeros(x_local_shape) + P_x.rank + 1
     ## x = torch.from_numpy(x)
     ## x = cp.zeros(x_local_shape) + P_x.rank + 1
     ## x = torch.as_tensor(x, device='cuda')
     x = torch.zeros(*x_local_shape, device=x.device) + (P_x.rank + 1)
-    
+
 
 x.requires_grad = True
 print(f"P_world.rank {P_world.rank}; P_x.index {P_x.index}; x value: \n{x}\n")
@@ -168,6 +172,7 @@ print(f"P_world.rank {P_world.rank}; P_x.index {P_x.index}; x value: \n{x}\n")
 # Recall the layer definition.  `axes_reduce` matches the arguments to torch.sum
 # all_reduce_cols = AllSumReduce(P_x, axes_reduce=(1,))
 x_prime = torch.sum(x, (1,), keepdim=True)
+
 # New tensor will be (on a 2 x 3 partition):
 # [ [  3 |  4 |  6 ]
 #   [  3 |  4 |  6 ]

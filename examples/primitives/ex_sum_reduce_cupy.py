@@ -5,7 +5,6 @@
 # Run with, e.g.,
 #     > mpirun -np 6 python ex_sum_reduce.py
 
-import cupy as cp
 import numpy as np
 import torch
 from mpi4py import MPI
@@ -21,8 +20,8 @@ P_world = MPIPartition(MPI.COMM_WORLD)
 P_world._comm.Barrier()
 
 # On the assumption of 1-to-1 mapping between ranks and GPUs
-cp.cuda.runtime.setDevice(P_world.rank % cp.cuda.runtime.getDeviceCount())
-P_world.device = cp.cuda.runtime.getDevice()
+torch.cuda.set_device(P_world.rank % torch.cuda.device_count())
+P_world.device = torch.cuda.current_device()
 
 # Create the input/output partition (using the first 2 workers)
 in_shape = (2, 3)
@@ -40,7 +39,7 @@ out_workers = np.arange(P_world.size-out_size, P_world.size)
 P_y_base = P_world.create_partition_inclusive(out_workers)
 P_y = P_y_base.create_cartesian_topology_partition(out_shape)
 
-x_global_shape = np.array([5, 6])
+x_global_shape = np.array([6, 6])
 
 # Setup the input tensor.  Any worker in P_x will generate its part of the
 # input tensor.  Any worker not in P_x will have a zero-volume tensor.

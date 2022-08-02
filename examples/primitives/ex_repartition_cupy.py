@@ -6,7 +6,6 @@
 #     > mpirun -np 4 python ex_transpose.py
 
 import numpy as np
-import cupy as cp
 import torch
 from mpi4py import MPI
 
@@ -21,7 +20,8 @@ P_world = MPIPartition(MPI.COMM_WORLD)
 P_world._comm.Barrier()
 
 # On the assumption of 1-to-1 mapping between ranks and GPUs
-cp.cuda.runtime.setDevice(P_world.rank % cp.cuda.runtime.getDeviceCount())
+torch.cuda.set_device(P_world.rank % torch.cuda.device_count())
+P_world.device = torch.cuda.current_device()
 
 # Create the input partition (using the first 4 workers)
 in_shape = (4, 1)
@@ -65,7 +65,7 @@ layer = Repartition(P_x, P_y, preserve_batch=False)
 #   -------------
 #   [ 4 4 4 4 4 ] ]
 
-x = zero_volume_tensor(device=cp.cuda.runtime.getDevice())
+x = zero_volume_tensor(device=P_x.device)
 
 if P_x.active:
     x_local_shape = slicing.compute_subshape(P_x.shape,
@@ -108,7 +108,7 @@ print(f"rank {P_world.rank}; index {P_y.index}; value {y}")
 #   [ 3 3 3 | 4 4 ]
 #   [ 3 3 3 | 4 4 ]
 #   [ 3 3 3 | 4 4 ] ]
-dy = zero_volume_tensor(device=cp.cuda.runtime.getDevice())
+dy = zero_volume_tensor(device=P_y.device)
 
 if P_y.active:
     y_local_shape = slicing.compute_subshape(P_y.shape,
