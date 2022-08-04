@@ -1,9 +1,9 @@
 __all__ = ["BroadcastFunction"]
 
 import threading
-import time
-import numpy as np
-import cupy as cp
+## import time
+## import numpy as np
+## import cupy as cp
 import torch
 from mpi4py import MPI
 
@@ -12,6 +12,8 @@ from distdl.utilities.dtype import torch_to_cupy_dtype_dict
 from distdl.utilities.torch import zero_volume_tensor
 
 # A better idea is to implement a progress engine for this purpose
+
+
 def reduce_function(partition, src, dst):
     partition._comm.Reduce(src, dst, root=0, op=MPI.SUM)
     # print("In the helper thread!")
@@ -115,13 +117,14 @@ class BroadcastFunction(torch.autograd.Function):
 
         # MPI requests to clear
         requests = []
-        
+
         # Send all of the data
         if P_send.active:
             ## input_numpy = input.detach().cpu().numpy()
-            input_cupy = cp.array(input.detach())
+            ## input_cupy = cp.array(input.detach())
             ## req = P_send._comm.Ibcast(input_numpy, root=0)
-            req = P_send._comm.Ibcast(input_cupy, root=0)
+            ## req = P_send._comm.Ibcast(input_cupy, root=0)
+            req = P_send._comm.Ibcast(input.detach(), root=0)
             requests.append(req)
 
         if P_recv.active:
@@ -131,13 +134,16 @@ class BroadcastFunction(torch.autograd.Function):
             # If I just receive, receive the broadcast
             else:
                 ## numpy_dtype = torch_to_numpy_dtype_dict[output_tensor_structure.dtype]
-                cupy_dtype = torch_to_cupy_dtype_dict[output_tensor_structure.dtype]
+                ## cupy_dtype = torch_to_cupy_dtype_dict[output_tensor_structure.dtype]
                 ## output = np.zeros(output_tensor_structure.shape, dtype=numpy_dtype)
-                output = cp.zeros(output_tensor_structure.shape, dtype=cupy_dtype)
+                ## output = cp.zeros(output_tensor_structure.shape, dtype=cupy_dtype)
+                output = torch.zeros(*output_tensor_structure.shape, dtype=output_tensor_structure.dtype,
+                                     device=P_recv.device)
 
-                req = P_recv._comm.Ibcast(output, root=0)
+                req = P_recv._comm.Ibcast(output.detach(), root=0)
                 req.Wait()
-                output = torch.tensor(output, requires_grad=output_tensor_structure.requires_grad, device=device)
+                ## output = torch.tensor(output, requires_grad=output_tensor_structure.requires_grad, device=device)
+                output.requires_grad_(output_tensor_structure.requires_grad)
 
         # Complete all broadcast operations.
         MPI.Request.Waitall(requests)
@@ -209,7 +215,7 @@ class BroadcastFunction(torch.autograd.Function):
             grad_input = zero_volume_tensor(device=device)
 
         requests = []
-        
+
         # Creating the thread, not passed the args yet
         helper_thread = threading.Thread(target=reduce_function)
 
@@ -219,44 +225,51 @@ class BroadcastFunction(torch.autograd.Function):
         # above.
         if P_recv.active:
             ## numpy_dtype = torch_to_numpy_dtype_dict[output_tensor_structure.dtype]
-            cupy_dtype = torch_to_cupy_dtype_dict[output_tensor_structure.dtype]
+            ## cupy_dtype = torch_to_cupy_dtype_dict[output_tensor_structure.dtype]
             ## reduced_data_recv = np.zeros(output_tensor_structure.shape, dtype=numpy_dtype)
-            reduced_data_recv = cp.zeros(output_tensor_structure.shape, dtype=cupy_dtype)
+            ## reduced_data_recv = cp.zeros(output_tensor_structure.shape, dtype=cupy_dtype)
+            reduced_data_recv = torch.zeros(*output_tensor_structure.shape, dtype=output_tensor_structure.dtype,
+                                            device=P_recv.device)
             ## grad_output_numpy = grad_output.detach().cpu().numpy()
-            grad_output_cupy = cp.array(grad_output.detach())
+            ## grad_output_cupy = cp.array(grad_output.detach())
             ## req = P_recv._comm.Ireduce(grad_output_numpy, reduced_data_recv, root=0, op=MPI.SUM)
-            ## requests.append(req)
+            # requests.append(req)
             ## P_recv._comm.Reduce(grad_output_cupy, reduced_data_recv, op=MPI.SUM, root=0)
-            helper_thread = threading.Thread(target=reduce_function, 
-                                             args=(P_recv, grad_output_cupy, reduced_data_recv));
+            ## helper_thread = threading.Thread(target=reduce_function,
+            ##                                  args=(P_recv, grad_output_cupy, reduced_data_recv))
+            helper_thread = threading.Thread(target=reduce_function,
+                                             args=(P_recv, grad_output.detach(), reduced_data_recv))
             helper_thread.start()
-            
 
         # If I sent data in the forward, I have to receive it here.  Unless I
         # also received that data, then I already have it from above.
         if P_send != P_recv and P_send.active:
             ## numpy_dtype = torch_to_numpy_dtype_dict[input_tensor_structure.dtype]
-            cupy_dtype = torch_to_cupy_dtype_dict[input_tensor_structure.dtype]
+            ## cupy_dtype = torch_to_cupy_dtype_dict[input_tensor_structure.dtype]
             ## reduced_data_send = np.zeros(input_tensor_structure.shape, dtype=numpy_dtype)
-            reduced_data_send = cp.zeros(input_tensor_structure.shape, dtype=cupy_dtype)
+            ## reduced_data_send = cp.zeros(input_tensor_structure.shape, dtype=cupy_dtype)
+            reduced_data_send = torch.zeros(*input_tensor_structure.shape, dtype=input_tensor_structure.dtype,
+                                            device=P_send.device)
             ## req = P_send._comm.Ireduce(MPI.IN_PLACE, reduced_data_send, root=0, op=MPI.SUM)
             P_send._comm.Reduce(MPI.IN_PLACE, reduced_data_send, op=MPI.SUM, root=0)
             # requests.append(req)
 
-        ## MPI.Request.Waitall(requests)
-        
+        # MPI.Request.Waitall(requests)
+
         if helper_thread.is_alive():
             helper_thread.join()
 
         # If we had to receive data, we need to tensorify it.
         if P_send.active:
             if P_send == P_recv:
-                grad_input = torch.tensor(reduced_data_recv,
-                                          requires_grad=input_tensor_structure.requires_grad,
-                                          device=device)
+                # grad_input = torch.tensor(reduced_data_recv,
+                #                           requires_grad=input_tensor_structure.requires_grad,
+                #                           device=device)
+                grad_input = reduced_data_recv.detach().requires_grad_(input_tensor_structure.requires_grad)
             else:
-                grad_input = torch.tensor(reduced_data_send,
-                                          requires_grad=input_tensor_structure.requires_grad,
-                                          device=device)
+                # grad_input = torch.tensor(reduced_data_send,
+                #                           requires_grad=input_tensor_structure.requires_grad,
+                #                           device=device)
+                grad_input = reduced_data_send.detach().requires_grad_(input_tensor_structure.requires_grad)
 
         return grad_input, None, None, None, None, None
