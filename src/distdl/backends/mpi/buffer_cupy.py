@@ -1,4 +1,5 @@
 import os
+import numpy as np
 
 try:
     if os.environ["DISTDL_DEVICE"] == "GPU":
@@ -53,7 +54,7 @@ class MPIExpandableBuffer:
         self.capacity = initial_capacity
 
         # The actual storage buffer
-        self.raw_buffer = cp.empty(self.capacity, dtype=dtype)
+        self.raw_buffer = xp.empty(self.capacity, dtype=dtype)
 
         # Map between array shapes and numpy views of contiguous chunks of the
         # raw buffer
@@ -79,11 +80,11 @@ class MPIExpandableBuffer:
 
         # print(new_capacity)
         # Otherwise, create a new buffer.
-        new_buffer = cp.empty([new_capacity], dtype=self.dtype)
+        new_buffer = xp.empty([new_capacity], dtype=self.dtype)
 
         # And copy the contents of the old buffer into the new one.
 
-        cp.copyto(new_buffer[:len(self.raw_buffer)], self.raw_buffer)
+        xp.copyto(new_buffer[:len(self.raw_buffer)], self.raw_buffer)
 
         # The new buffer is now the current buffer
         self.capacity = new_capacity
