@@ -1,5 +1,6 @@
 import os
 import numpy as np
+import torch
 
 try:
     if os.environ["DISTDL_DEVICE"] == "GPU":
