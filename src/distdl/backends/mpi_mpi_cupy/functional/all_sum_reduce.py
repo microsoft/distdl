@@ -1,11 +1,23 @@
 __all__ = ["AllSumReduceFunction"]
 
-import numpy as np
+import threading
+import time
+## import numpy as np
+## import cupy as cp
 import torch
 from mpi4py import MPI
 
-from distdl.utilities.dtype import torch_to_numpy_dtype_dict
+## from distdl.utilities.dtype import torch_to_numpy_dtype_dict
+from distdl.utilities.dtype import torch_to_cupy_dtype_dict
 from distdl.utilities.torch import zero_volume_tensor
+
+# A better idea is to implement a progress engine for this purpose
+
+
+def allreduce_function(partition, src, dst):
+    partition._comm.Allreduce(src, dst, root=0, op=MPI.SUM)
+    print("In the helper thread!")
+    time.sleep(5)
 
 
 class AllSumReduceFunction(torch.autograd.Function):
@@ -73,20 +85,29 @@ class AllSumReduceFunction(torch.autograd.Function):
 
         # There is no need to specificy a root.
         if P_allreduce.active:
-            numpy_dtype = torch_to_numpy_dtype_dict[input_tensor_structure.dtype]
+            ## numpy_dtype = torch_to_numpy_dtype_dict[input_tensor_structure.dtype]
+            ## cupy_dtype = torch_to_cupy_dtype_dict[input_tensor_structure.dtype]
+            ## reduced_data = np.zeros(input_tensor_structure.shape, dtype=numpy_dtype)
+            ## reduced_data = cp.zeros(input_tensor_structure.shape, dtype=cupy_dtype)
+            reduced_data = torch.zeros(*input_tensor_structure.shape, dtype=input_tensor_structure.dtype,
+                                       device=P_allreduce.device)
 
-            reduced_data = np.zeros(input_tensor_structure.shape, dtype=numpy_dtype)
-            input_numpy = input.detach().cpu().numpy()
-            req = P_allreduce._comm.Iallreduce(input_numpy, reduced_data, op=MPI.SUM)
-            requests.append(req)
+            ## input_numpy = input.detach().cpu().numpy()
+            ## input_cupy = cp.array(input.detach())
+            ## req = P_allreduce._comm.Iallreduce(input_numpy, reduced_data, op=MPI.SUM)
+            ## req = P_allreduce._comm.Iallreduce(input_cupy, reduced_data, op=MPI.SUM)
+            ## P_allreduce._comm.Allreduce(input_cupy, reduced_data, op=MPI.SUM)
+            P_allreduce._comm.Allreduce(input.detach(), reduced_data, op=MPI.SUM)
+            # requests.append(req)
 
-        MPI.Request.Waitall(requests)
+        # MPI.Request.Waitall(requests)
 
         # If we had to receive data, we need to tensorify it.
         if P_allreduce.active:
-            output = torch.tensor(reduced_data,
-                                  requires_grad=output_tensor_structure.requires_grad,
-                                  device=device)
+            # output = torch.tensor(reduced_data,
+            #                       requires_grad=output_tensor_structure.requires_grad,
+            #                       device=device)
+            output = reduced_data.detach().requires_grad_(output_tensor_structure.requires_grad)
 
         return output
 
@@ -124,19 +145,27 @@ class AllSumReduceFunction(torch.autograd.Function):
 
         # All-sum-reduce is self-adjoint
         if P_allreduce.active:
-            numpy_dtype = torch_to_numpy_dtype_dict[input_tensor_structure.dtype]
+            ## numpy_dtype = torch_to_numpy_dtype_dict[input_tensor_structure.dtype]
+            ## cupy_dtype = torch_to_cupy_dtype_dict[input_tensor_structure.dtype]
+            ## reduced_data = np.zeros(input_tensor_structure.shape, dtype=numpy_dtype)
+            ## reduced_data = cp.zeros(input_tensor_structure.shape, dtype=cupy_dtype)
+            reduced_data = torch.zeros(*input_tensor_structure.shape, dtype=input_tensor_structure.dtype,
+                                       device=P_allreduce.device)
+            ## grad_output_numpy = grad_output.detach().cpu().numpy()
+            ## grad_output_cupy = cp.array(grad_output.detach())
+            ## req = P_allreduce._comm.Iallreduce(grad_output_numpy, reduced_data, op=MPI.SUM)
+            ## req = P_allreduce._comm.Iallreduce(grad_output_cupy, reduced_data, op=MPI.SUM)
+            ## P_allreduce._comm.Allreduce(grad_output_cupy, reduced_data, op=MPI.SUM)
+            P_allreduce._comm.Allreduce(grad_output.detach(), reduced_data, op=MPI.SUM)
+            # requests.append(req)
 
-            reduced_data = np.zeros(input_tensor_structure.shape, dtype=numpy_dtype)
-            grad_output_numpy = grad_output.detach().cpu().numpy()
-            req = P_allreduce._comm.Iallreduce(grad_output_numpy, reduced_data, op=MPI.SUM)
-            requests.append(req)
-
-        MPI.Request.Waitall(requests)
+        # MPI.Request.Waitall(requests)
 
         # If we had to receive data, we need to tensorify it.
         if P_allreduce.active:
-            grad_input = torch.tensor(reduced_data,
-                                      requires_grad=input_tensor_structure.requires_grad,
-                                      device=device)
+            # grad_input = torch.tensor(reduced_data,
+            #                           requires_grad=input_tensor_structure.requires_grad,
+            #                           device=device)
+            grad_input = reduced_data.detach().requires_grad_(input_tensor_structure.requires_grad)
 
         return grad_input, None, None, None

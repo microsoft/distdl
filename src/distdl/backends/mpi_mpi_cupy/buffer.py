@@ -1,4 +1,20 @@
+import os
 import numpy as np
+import torch
+
+try:
+    if os.environ["DISTDL_DEVICE"] == "GPU":
+        import cupy as xp
+        USE_GPU = True
+        print("---- Using GPU ----")
+    elif os.environ["DISTDL_DEVICE"] == "CPU":
+        import numpy as xp
+        USE_GPU = False
+        print("---- Using CPU ----")
+except:
+    USE_GPU = False
+    import numpy as xp
+    print("---- Not valide device. Enter either CPU or GPU. Using CPU for now. ----")
 
 
 class MPIExpandableBuffer:
@@ -13,18 +29,18 @@ class MPIExpandableBuffer:
 
     Parameters
     ----------
-    dtype : numpy.dtype
+    dtype : cupy.dtype
         The data type of the buffer
     initial_capacity : integer, optional
         The initial capacity of the raw buffer
 
     Attributes
     ----------
-    dtype : numpy.dtype
+    dtype : cupy.dtype
         The data type of the buffer
     capacity : integer, optional
         The capacity of the raw buffer
-    raw_buffer : numpy.ndarray
+    raw_buffer : cupy.ndarray
         The underlying 1D storage buffer
     views : dict
         Dictionary mapping shapes to contiguous numpy array views
@@ -39,7 +55,7 @@ class MPIExpandableBuffer:
         self.capacity = initial_capacity
 
         # The actual storage buffer
-        self.raw_buffer = np.empty(self.capacity, dtype=dtype)
+        self.raw_buffer = xp.empty(self.capacity, dtype=dtype)
 
         # Map between array shapes and numpy views of contiguous chunks of the
         # raw buffer
@@ -63,11 +79,13 @@ class MPIExpandableBuffer:
         if new_capacity <= self.capacity:
             return
 
+        # print(new_capacity)
         # Otherwise, create a new buffer.
-        new_buffer = np.empty(new_capacity, dtype=self.dtype)
+        new_buffer = xp.empty([new_capacity], dtype=self.dtype)
 
         # And copy the contents of the old buffer into the new one.
-        np.copyto(new_buffer[:len(self.raw_buffer)], self.raw_buffer)
+
+        xp.copyto(new_buffer[:len(self.raw_buffer)], self.raw_buffer)
 
         # The new buffer is now the current buffer
         self.capacity = new_capacity
@@ -126,6 +144,10 @@ class MPIExpandableBuffer:
 
         # If new shape is larger than the buffer, expand the buffer
         view_volume = np.prod(view_shape)
+        # print("view_volume: ", view_volume)
+        # print("view_shape: ", view_shape)
+        # print("Self.capacity: ", self.capacity)
+
         if view_volume > self.capacity:
             self.expand(view_volume)
 

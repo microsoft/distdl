@@ -1,6 +1,7 @@
 __all__ = ["HaloExchangeFunction"]
 
 import numpy as np
+# import cupy as cp
 import torch
 from mpi4py import MPI
 
@@ -44,17 +45,24 @@ class HaloExchangeFunction(torch.autograd.Function):
             lrank, rrank = neighbor_ranks[i]
 
             if lbb is not None:
-                np.copyto(lbb, input.detach()[lbs].cpu().numpy())
+                ## np.copyto(lbb, input.detach()[lbs].cpu().numpy())
+                ## cp.copyto(lbb, cp.array(input.detach()[lbs]))
+                # TODO: Keep as torch tensor (should be alias or deep copy?)
+                lbb = input[lbs].contiguous()
             if rbb is not None:
-                np.copyto(rbb, input.detach()[rbs].cpu().numpy())
+                ## np.copyto(rbb, input.detach()[rbs].cpu().numpy())
+                ## cp.copyto(rbb, cp.array(input.detach()[rbs]))
+                # TODO: Keep as torch tensor (should be alias or deep copy?)
+                # rbb = torch.tensor(input.detach()[rbs], device=input.device, dtype=input.dtype)
+                rbb = input[rbs].contiguous()
 
             ltag = 0
             rtag = 1
 
             lrecv_req = P_x._comm.Irecv(lgb, source=lrank, tag=rtag) if lgb is not None else MPI.REQUEST_NULL
             rrecv_req = P_x._comm.Irecv(rgb, source=rrank, tag=ltag) if rgb is not None else MPI.REQUEST_NULL
-            lsend_req = P_x._comm.Isend(lbb, dest=lrank, tag=ltag) if lbb is not None else MPI.REQUEST_NULL
-            rsend_req = P_x._comm.Isend(rbb, dest=rrank, tag=rtag) if rbb is not None else MPI.REQUEST_NULL
+            lsend_req = P_x._comm.Isend(lbb.detach(), dest=lrank, tag=ltag) if lbb is not None else MPI.REQUEST_NULL
+            rsend_req = P_x._comm.Isend(rbb.detach(), dest=rrank, tag=rtag) if rbb is not None else MPI.REQUEST_NULL
 
             reqs = [lrecv_req, rrecv_req, lsend_req, rsend_req]
             n_reqs_completed = 0
@@ -65,9 +73,12 @@ class HaloExchangeFunction(torch.autograd.Function):
 
                 if index != MPI.UNDEFINED:
                     if index == 0:
-                        input[lgs] = torch.tensor(lgb, device=device)
+                        # TODO: Should change these lines to zero copy
+                        # input[lgs] = torch.tensor(lgb, device=device)
+                        input[lgs] = lgb.detach().requires_grad_(input.requires_grad)
                     elif index == 1:
-                        input[rgs] = torch.tensor(rgb, device=device)
+                        # input[rgs] = torch.tensor(rgb, device=device)
+                        input[rgs] = rgb.detach().requires_grad_(input.requires_grad)
 
                 n_reqs_completed += 1
 
@@ -108,10 +119,18 @@ class HaloExchangeFunction(torch.autograd.Function):
             lrank, rrank = neighbor_ranks[i]
 
             if lgb is not None:
-                np.copyto(lgb, grad_output.detach()[lgs].cpu().numpy())
+                ## np.copyto(lgb, grad_output.detach()[lgs].cpu().numpy())
+                ## cp.copyto(lgb, cp.array(grad_output.detach()[lgs]))
+                # TODO: Keep as torch tensor (should be alias or deep copy?)
+                # lgb = torch.tensor(grad_output.detach()[lgs], device=grad_output.device)
+                lgb = grad_output[lgs].contiguous()
                 grad_output[lgs] = 0.0
             if rgb is not None:
-                np.copyto(rgb, grad_output.detach()[rgs].cpu().numpy())
+                ## np.copyto(rgb, grad_output.detach()[rgs].cpu().numpy())
+                ## cp.copyto(rgb, cp.array(grad_output.detach()[rgs]))
+                # TODO: Keep as torch tensor (should be alias or deep copy?)
+                # rgb = torch.tensor(grad_output.detach()[rgs], device=grad_output.device)
+                rgb = grad_output[rgs].contiguous()
                 grad_output[rgs] = 0.0
 
             ltag = 0
@@ -119,8 +138,8 @@ class HaloExchangeFunction(torch.autograd.Function):
 
             lrecv_req = P_x._comm.Irecv(lbb, source=lrank, tag=rtag) if lbb is not None else MPI.REQUEST_NULL
             rrecv_req = P_x._comm.Irecv(rbb, source=rrank, tag=ltag) if rbb is not None else MPI.REQUEST_NULL
-            lsend_req = P_x._comm.Isend(lgb, dest=lrank, tag=ltag) if lgb is not None else MPI.REQUEST_NULL
-            rsend_req = P_x._comm.Isend(rgb, dest=rrank, tag=rtag) if rgb is not None else MPI.REQUEST_NULL
+            lsend_req = P_x._comm.Isend(lgb.detach(), dest=lrank, tag=ltag) if lgb is not None else MPI.REQUEST_NULL
+            rsend_req = P_x._comm.Isend(rgb.detach(), dest=rrank, tag=rtag) if rgb is not None else MPI.REQUEST_NULL
 
             reqs = [lrecv_req, rrecv_req, lsend_req, rsend_req]
             n_reqs_completed = 0
