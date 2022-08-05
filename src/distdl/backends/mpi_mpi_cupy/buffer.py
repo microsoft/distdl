@@ -1,20 +1,7 @@
 import os
 import numpy as np
+import cupy as cp
 import torch
-
-try:
-    if os.environ["DISTDL_DEVICE"] == "GPU":
-        import cupy as xp
-        USE_GPU = True
-        print("---- Using GPU ----")
-    elif os.environ["DISTDL_DEVICE"] == "CPU":
-        import numpy as xp
-        USE_GPU = False
-        print("---- Using CPU ----")
-except:
-    USE_GPU = False
-    import numpy as xp
-    print("---- Not valide device. Enter either CPU or GPU. Using CPU for now. ----")
 
 
 class MPIExpandableBuffer:
@@ -55,7 +42,7 @@ class MPIExpandableBuffer:
         self.capacity = initial_capacity
 
         # The actual storage buffer
-        self.raw_buffer = xp.empty(self.capacity, dtype=dtype)
+        self.raw_buffer = cp.empty(self.capacity, dtype=dtype)
 
         # Map between array shapes and numpy views of contiguous chunks of the
         # raw buffer
@@ -81,11 +68,11 @@ class MPIExpandableBuffer:
 
         # print(new_capacity)
         # Otherwise, create a new buffer.
-        new_buffer = xp.empty([new_capacity], dtype=self.dtype)
+        new_buffer = cp.empty([new_capacity], dtype=self.dtype)
 
         # And copy the contents of the old buffer into the new one.
 
-        xp.copyto(new_buffer[:len(self.raw_buffer)], self.raw_buffer)
+        cp.copyto(new_buffer[:len(self.raw_buffer)], self.raw_buffer)
 
         # The new buffer is now the current buffer
         self.capacity = new_capacity

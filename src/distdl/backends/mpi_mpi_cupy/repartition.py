@@ -1,4 +1,3 @@
-## from distdl.utilities.dtype import torch_to_numpy_dtype_dict
 from distdl.utilities.dtype import torch_to_cupy_dtype_dict
 
 
@@ -18,8 +17,6 @@ def allocate_repartition_buffers(buffer_manager, P_x_to_y_overlaps, P_y_to_x_ove
 
     """
 
-    # TODO : check
-    ## numpy_dtype = torch_to_numpy_dtype_dict[dtype]
     cupy_dtype = torch_to_cupy_dtype_dict[dtype]
 
     # count the buffers we need
@@ -31,7 +28,6 @@ def allocate_repartition_buffers(buffer_manager, P_x_to_y_overlaps, P_y_to_x_ove
         if sl is not None and partner != "self":
             count += 1
 
-    ## buffers = buffer_manager.request_buffers(count, dtype=numpy_dtype)
     buffers = buffer_manager.request_buffers(count, dtype=cupy_dtype)
 
     i = 0
