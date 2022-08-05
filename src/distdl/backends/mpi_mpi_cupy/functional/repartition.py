@@ -5,7 +5,6 @@ import numpy as np
 import torch
 from mpi4py import MPI
 
-from distdl.utilities.dtype import torch_to_numpy_dtype_dict
 from distdl.utilities.dtype import torch_to_cupy_dtype_dict
 from distdl.utilities.torch import zero_volume_tensor
 
@@ -162,10 +161,7 @@ class RepartitionFunction(torch.autograd.Function):
             for (sl, sh, partner), buff in zip(P_x_to_y_overlaps, P_x_to_y_buffers):
                 if buff is not None:
                     xfer_buff = buff.get_view(sh)
-                    # ToDO - check later (is compatible with the previous Irecv?)
-                    ## np.copyto(xfer_buff, input.detach()[sl].cpu().numpy())
-                    ## cp.copyto(xfer_buff, cp.array(input.detach()[sl]))
-                    xfer_buff = input.detach()[sl]
+                    cp.copyto(xfer_buff, cp.array(input.detach()[sl]))
                     req = P_union._comm.Isend(xfer_buff, dest=partner, tag=111)
                     requests.append(req)
                 else:
@@ -176,12 +172,8 @@ class RepartitionFunction(torch.autograd.Function):
         # We do this after the sends so that they can get started before local
         # allocations.
         if P_y.active:
-            ## numpy_dtype = torch_to_numpy_dtype_dict[x_global_structure.dtype]
-            ## cupy_dtype = torch_to_cupy_dtype_dict[x_global_structure.dtype]
-            ## output = np.zeros(y_local_structure.shape, dtype=numpy_dtype)
-            ## output = cp.zeros(y_local_structure.shape, dtype=cupy_dtype)
-            output = torch.zeros(*y_local_structure.shape, dtype=x_global_structure.dtype,
-                                 device=P_y.device)
+            cupy_dtype = torch_to_cupy_dtype_dict[x_global_structure.dtype]
+            output = cp.zeros(y_local_structure.shape, dtype=cupy_dtype)
 
         # Handle the self-copy
         if P_x.active and P_y.active:
@@ -190,10 +182,7 @@ class RepartitionFunction(torch.autograd.Function):
                 if x2ypartner == "self":
                     for (ysl, ysh, y2xpartner) in P_y_to_x_overlaps:
                         if y2xpartner == "self":
-                            ## np.copyto(output[ysl], input.detach()[xsl].cpu().numpy())
-                            ## cp.copyto(output[ysl], cp.array(input.detach()[xsl]))
-                            # TODO: check this with Philipp
-                            torch._copy_from(input.detach()[xsl], output[ysl])
+                            cp.copyto(output[ysl], cp.array(input.detach()[xsl]))
                             # There is only one case where this can happen
                             break
                     # There is only one case where this can happen
@@ -213,9 +202,7 @@ class RepartitionFunction(torch.autograd.Function):
                 buff = P_y_to_x_buffers[index]
                 if buff is not None:
                     xfer_buff = buff.get_view(sh)
-                    ## np.copyto(output[sl], xfer_buff)
-                    ## cp.copyto(output[sl], xfer_buff)
-                    torch._copy_from(xfer_buff, output[sl])
+                    cp.copyto(output[sl], xfer_buff)
 
             completed_count += 1
 
@@ -312,11 +299,7 @@ class RepartitionFunction(torch.autograd.Function):
             for (sl, sh, partner), buff in zip(P_y_to_x_overlaps, P_y_to_x_buffers):
                 if buff is not None:
                     xfer_buff = buff.get_view(sh)
-                    ## np.copyto(xfer_buff, grad_output.detach()[sl].cpu().numpy())
-                    ## cp.copyto(xfer_buff, cp.array(grad_output.detach()[sl]))
-                    # TODO:
-                    # torch._copy_from(grad_output.detach()[sl], xfer_buff)
-                    
+                    cp.copyto(xfer_buff, cp.array(grad_output.detach()[sl]))
                     req = P_union._comm.Isend(xfer_buff, dest=partner, tag=113)
                     requests.append(req)
                 else:
@@ -325,9 +308,7 @@ class RepartitionFunction(torch.autograd.Function):
                 send_count += 1
 
         if P_x.active:
-            ## numpy_dtype = torch_to_numpy_dtype_dict[x_global_structure.dtype]
             cupy_dtype = torch_to_cupy_dtype_dict[x_global_structure.dtype]
-            ## grad_input = np.zeros(x_local_structure.shape, dtype=numpy_dtype)
             grad_input = cp.zeros(x_local_structure.shape, dtype=cupy_dtype)
 
         # Handle the self-copy
@@ -337,8 +318,6 @@ class RepartitionFunction(torch.autograd.Function):
                 if y2xpartner == "self":
                     for (xsl, xsh, x2ypartner) in P_x_to_y_overlaps:
                         if x2ypartner == "self":
-                            # ToDO: same as before
-                            ## np.copyto(grad_input[xsl], grad_output.detach()[ysl].cpu().numpy())
                             cp.copyto(grad_input[xsl], cp.array(grad_output.detach()[ysl]))
                             # There is only one case where this can happen
                             break
@@ -361,7 +340,6 @@ class RepartitionFunction(torch.autograd.Function):
                     xfer_buff = buff.get_view(sh)
                     # This would normally be an add into the grad_input tensor
                     # but we just created it, so a copy is sufficient.
-                    ## np.copyto(grad_input[sl], xfer_buff)
                     cp.copyto(grad_input[sl], xfer_buff)
 
             completed_count += 1
