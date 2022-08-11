@@ -7,7 +7,6 @@ from distdl.backends.mpi_mpi_cupy.compare import check_null_comm
 from distdl.backends.mpi_mpi_cupy.compare import check_null_group
 from distdl.backends.mpi_mpi_cupy.compare import check_null_rank
 from distdl.utilities.debug import print_sequential
-# TODO: check these conversions
 from distdl.utilities.dtype import intID_to_cupy_dtype_dict
 from distdl.utilities.dtype import numpy_to_intID_dtype_dict
 from distdl.utilities.index_tricks import cartesian_index_c
