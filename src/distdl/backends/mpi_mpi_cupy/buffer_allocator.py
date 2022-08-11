@@ -1,6 +1,5 @@
 import numpy as np
 
-from distdl.utilities.dtype import torch_to_numpy_dtype_dict
 from distdl.utilities.dtype import torch_to_cupy_dtype_dict
 from distdl.utilities.slicing import compute_nd_slice_shape
 
