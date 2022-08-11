@@ -1,7 +1,7 @@
 from mpi4py import MPI as _MPI
 
 from . import functional  # noqa: F401
-from . import halo_exchange  # noqa: F401
+from ..common import buffer_allocator  # noqa: F401
 from . import partition  # noqa: F401
 from . import repartition  # noqa: F401
 from . import tensor_comm  # noqa: F401
@@ -16,8 +16,8 @@ from .partition import MPICartesianPartition as CartesianPartition  # noqa: F401
 from .partition import MPIPartition as Partition  # noqa: F401
 #
 #
-from .tensor_comm import assemble_global_tensor_structure  # noqa: F401
-from .tensor_comm import broadcast_tensor_structure  # noqa: F401
+from ..common.tensor_comm import assemble_global_tensor_structure  # noqa: F401
+from ..common.tensor_comm import broadcast_tensor_structure  # noqa: F401
 
 operation_map = {
     "min": _MPI.MIN,
