@@ -1,11 +1,11 @@
 import numpy as np
 from mpi4py import MPI
 
-from distdl.backends.mpi_mpi_numpy.compare import check_identical_comm
-from distdl.backends.mpi_mpi_numpy.compare import check_identical_group
-from distdl.backends.mpi_mpi_numpy.compare import check_null_comm
-from distdl.backends.mpi_mpi_numpy.compare import check_null_group
-from distdl.backends.mpi_mpi_numpy.compare import check_null_rank
+from distdl.backends.common.compare import check_identical_comm
+from distdl.backends.common.compare import check_identical_group
+from distdl.backends.common.compare import check_null_comm
+from distdl.backends.common.compare import check_null_group
+from distdl.backends.common.compare import check_null_rank
 from distdl.utilities.debug import print_sequential
 from distdl.utilities.dtype import intID_to_numpy_dtype_dict
 from distdl.utilities.dtype import numpy_to_intID_dtype_dict
