@@ -10,8 +10,8 @@ import torch
 from mpi4py import MPI
 
 import distdl.utilities.slicing as slicing
-from distdl.backends.mpi.partition import MPIPartition
-from distdl.nn.repartition_cupy import Repartition
+from distdl.backends.mpi_mpi_cupy.partition import MPIPartition
+from distdl.nn.repartition import Repartition
 from distdl.utilities.torch import zero_volume_tensor
 
 
