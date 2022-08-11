@@ -1,23 +1,12 @@
 import os
 import numpy as np
+import cupy as cp
 import torch
 
-try:
-    if os.environ["DISTDL_DEVICE"] == "GPU":
-        import cupy as xp
-        USE_GPU = True
-        print("---- Using GPU ----")
-    elif os.environ["DISTDL_DEVICE"] == "CPU":
-        import numpy as xp
-        USE_GPU = False
-        print("---- Using CPU ----")
-except:
-    USE_GPU = False
-    import numpy as xp
-    print("---- Not valide device. Enter either CPU or GPU. Using CPU for now. ----")
+from abc import ABC, abstractmethod
 
 
-class MPIExpandableBuffer:
+class MPIExpandableBuffer(ABC):
     r"""NumPy (mpi4py compatible) implementation of expandable buffers.
 
     For use as intermediate communication buffers, as is common in MPI-based
@@ -46,21 +35,11 @@ class MPIExpandableBuffer:
         Dictionary mapping shapes to contiguous numpy array views
     """
 
+    @abstractmethod
     def __init__(self, dtype, initial_capacity=0):
+        pass
 
-        # Data type of this buffer
-        self.dtype = dtype
-
-        # Current capacity
-        self.capacity = initial_capacity
-
-        # The actual storage buffer
-        self.raw_buffer = xp.empty(self.capacity, dtype=dtype)
-
-        # Map between array shapes and numpy views of contiguous chunks of the
-        # raw buffer
-        self.views = dict()
-
+    @abstractmethod
     def expand(self, new_capacity):
         r"""Expands the underlying buffer, creating a new view map.
 
@@ -74,30 +53,7 @@ class MPIExpandableBuffer:
             Proposed new capacity of the buffer.
 
         """
-
-        # If the current capacity is large enough, do nothing.
-        if new_capacity <= self.capacity:
-            return
-
-        # print(new_capacity)
-        # Otherwise, create a new buffer.
-        new_buffer = xp.empty([new_capacity], dtype=self.dtype)
-
-        # And copy the contents of the old buffer into the new one.
-
-        xp.copyto(new_buffer[:len(self.raw_buffer)], self.raw_buffer)
-
-        # The new buffer is now the current buffer
-        self.capacity = new_capacity
-        self.raw_buffer = new_buffer
-
-        # Loop over all existing views and recreate them in the new buffer.
-        new_views = dict()
-        for view_shape, view in self.views.items():
-            view_volume = np.prod(view_shape)
-            new_views[view_shape] = self.raw_buffer[:view_volume].reshape(view_shape)
-
-        self.views = new_views
+        pass
 
     def allocate_view(self, view_shape):
         r"""Reserves a new view, with provided the shape, into the buffer.
@@ -144,9 +100,6 @@ class MPIExpandableBuffer:
 
         # If new shape is larger than the buffer, expand the buffer
         view_volume = np.prod(view_shape)
-        # print("view_volume: ", view_volume)
-        # print("view_shape: ", view_shape)
-        # print("Self.capacity: ", self.capacity)
 
         if view_volume > self.capacity:
             self.expand(view_volume)
@@ -157,7 +110,7 @@ class MPIExpandableBuffer:
         return self.views[view_shape]
 
 
-class MPIBufferManager:
+class MPIBufferManager(ABC):
     r"""NumPy (mpi4py compatible) implementation of an expandable buffer
     manager.
 
@@ -178,6 +131,7 @@ class MPIBufferManager:
 
         self.buffers_map = dict()
 
+    @abstractmethod
     def request_buffers(self, n_buffers, dtype, **kwargs):
         r"""Acquire a list of buffers of a specific dtype, creating them if
         required.
@@ -194,16 +148,4 @@ class MPIBufferManager:
         List of `n_buffers` buffers with `dtype` data type.
 
         """
-
-        if dtype not in self.buffers_map:
-            self.buffers_map[dtype] = list()
-
-        # Extract a list of all existing buffers with matching dtype
-        dtype_buffers = self.buffers_map[dtype]
-
-        # If there are not enough, create more buffers with that dtype
-        for i in range(n_buffers - len(dtype_buffers)):
-            dtype_buffers.append(MPIExpandableBuffer(dtype, **kwargs))
-
-        # Return the requested number of buffers
-        return dtype_buffers[:n_buffers]
+        pass
