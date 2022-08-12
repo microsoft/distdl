@@ -3,7 +3,7 @@ import numpy as np
 import azure.storage.blob
 from mpi4py import MPI
 from pfno import ParallelFNO4d
-from distdl.backends.mpi.partition import MPIPartition
+from distdl.backends.mpi_mpi_numpy.partition import MPIPartition
 from sleipner_dataset import DistributedSleipnerDataset3D
 from distdl.nn.repartition import Repartition
 import matplotlib.pyplot as plt

@@ -10,8 +10,8 @@ import torch
 from mpi4py import MPI
 
 import distdl.utilities.slicing as slicing
-from distdl.backends.mpi.partition import MPIPartition
-from distdl.backends.mpi.tensor_comm import assemble_global_tensor_structure
+from distdl.backends.mpi_mpi_cupy.partition import MPIPartition
+from distdl.backends.common.tensor_comm import assemble_global_tensor_structure
 from distdl.nn.broadcast import Broadcast
 from distdl.utilities.torch import zero_volume_tensor
 

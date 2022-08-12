@@ -1,4 +1,4 @@
-from distdl.backends.mpi.buffer import MPIBufferManager
+from distdl.backends.mpi_mpi_numpy.buffer_numpy import MPIBufferManager
 import numpy as np
 
 # Create buffer manager (when network is created)

@@ -3,7 +3,7 @@ import numpy as np
 import azure.storage.blob
 from mpi4py import MPI
 from pfno import ParallelFNO4d, DistributedRelativeLpLoss
-from distdl.backends.mpi.partition import MPIPartition
+from distdl.backends.mpi_mpi_numpy.partition import MPIPartition
 from sleipner_dataset import DistributedSleipnerDataset3D
 
 # Init MPI

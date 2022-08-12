@@ -1,4 +1,4 @@
-from distdl.backends.mpi.buffer_cupy import MPIBufferManager
+from distdl.backends.mpi_mpi_cupy.buffer_cupy import MPIBufferManager
 import cupy as cp
 import numpy as np
 
