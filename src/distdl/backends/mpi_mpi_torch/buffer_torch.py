@@ -106,6 +106,9 @@ class MPITorchBufferManager(MPIBufferManager):
     buffers : list
         List of buffer objects
     """
+    
+    def __init__(self):
+        super().__init__()
 
     def request_buffers(self, n_buffers, dtype, **kwargs):
         r"""Acquire a list of buffers of a specific dtype, creating them if
