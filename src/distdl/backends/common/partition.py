@@ -830,6 +830,7 @@ class MPIPartition:
         data_dtype = np.zeros(1, dtype=np.int)
         if P_data.active and self.rank == data_root:
             # Ensure that data is a numpy array
+            # TODO: What should be done regarding the dictionaries?
             data_dtype[0] = numpy_to_intID_dtype_dict[data.dtype]
         self._comm.Bcast(data_dtype, root=data_root)
         data_dtype = intID_to_numpy_dtype_dict[data_dtype[0]]
@@ -891,7 +892,7 @@ class MPIPartition:
 
         """
 
-        from distdl.backends.mpi_mpi_numpy import operation_map
+        from distdl.backends.common import operation_map
 
         if data.dtype.kind in ['i', 'u']:
             dtype_info = np.iinfo(data.dtype)
