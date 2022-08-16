@@ -127,7 +127,7 @@ class Repartition(Module):
         self.P_y_ranks = P_union.allgather_data(data)
 
         # Get some types and functions from the back-end
-        self.allocate_repartition_buffers = self._distdl_backend.repartition_cupy.allocate_repartition_buffers
+        self.allocate_repartition_buffers = self._distdl_backend.repartition.allocate_repartition_buffers
 
     def _distdl_module_setup(self, input):
         r"""Repartition module setup function.
@@ -214,6 +214,7 @@ class Repartition(Module):
         # either input or output data, or neither.  Hence the active guard.
         if self.P_x.active:
             x_slice = tuple([slice(i, i+1) for i in self.P_x.index] + [slice(None)])
+            # ToDO: We have equivallent squeeze() in cupy - check later
             x_start_index = x_subtensor_start_indices[x_slice].squeeze()
             x_stop_index = x_subtensor_stop_indices[x_slice].squeeze()
 
@@ -231,13 +232,18 @@ class Repartition(Module):
                     sh = compute_nd_slice_shape(sl)
                     # If it is a self-copy, mark it so we don't have to create
                     # a potentially large buffer
+                    # ToDO: index is only a field, but is it on the device? - done
+                    # ToDO: Is it needed to use cupy.all() ? - done
                     if self.P_y.active and np.all(P_y_index == self.P_y.index):
                         partner = "self"
                     # Otherwise, reverse the mapping to get the output
                     # partner's rank in the common partition.
                     else:
+                        # ToDO: The same question as cupy.all() - done 
                         partner = np.where(self.P_y_ranks == rank)[0][0]
 
+                    # ToDO: We don't have ndarray.append in cupy, instead we have cupy.append,
+                    # ToDO: so the buffers should be appended using different calls on cupy.append(arr, values) - no need to
                     self.P_x_to_y_overlaps.append((sl, sh, partner))
 
                 else:
@@ -264,11 +270,13 @@ class Repartition(Module):
                     sh = compute_nd_slice_shape(sl)
                     # If it is a self-copy, mark it so we don't have to create
                     # a potentially large buffer
+                    # ToDO: same as before - done
                     if self.P_x.active and np.all(P_x_index == self.P_x.index):
                         partner = "self"
                     # Otherwise, reverse the mapping to get the output
                     # partner's rank in the common partition.
                     else:
+                        # ToDO: same as before - done 
                         partner = np.where(self.P_x_ranks == rank)[0][0]
 
                     self.P_y_to_x_overlaps.append((sl, sh, partner))
@@ -335,7 +343,7 @@ class Repartition(Module):
 
         """
 
-        Function = self._distdl_backend.functional.repartition_cupy.RepartitionFunction
+        Function = self._distdl_backend.functional.repartition.RepartitionFunction
 
         # If this is an identity operation (no communication necessary),
         # simply return a clone of the input.

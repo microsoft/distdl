@@ -154,7 +154,7 @@ class AllSumReduce(Module):
 
         """
 
-        Function = self._distdl_backend.functional.all_sum_reduce_cupy.AllSumReduceFunction
+        Function = self._distdl_backend.functional.all_sum_reduce.AllSumReduceFunction
 
         if self.identity:
             return input.clone()
