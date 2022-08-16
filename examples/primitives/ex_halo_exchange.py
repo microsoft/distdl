@@ -10,7 +10,7 @@ import torch
 import torch.nn.functional as F
 from mpi4py import MPI
 
-from distdl.backends.mpi_mpi_numpy.partition import MPIPartition
+from distdl.backends.common.partition import MPIPartition
 from distdl.nn.halo_exchange import HaloExchange
 from distdl.nn.mixins.conv_mixin import ConvMixin
 from distdl.nn.mixins.halo_mixin import HaloMixin
