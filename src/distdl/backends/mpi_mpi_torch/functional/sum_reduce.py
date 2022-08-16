@@ -270,6 +270,7 @@ class SumReduceFunction(torch.autograd.Function):
             # tmp_tensor = torch.tensor(grad_output, device=P_recv.device, dtype=grad_output.dtype,
             #                           requires_grad=grad_output.requires_grad)
             
+            # We had to do this clone due to UCX runtime error (invalid context) - 2022-08-11
             tmp_tensor = grad_output.clone().detach().requires_grad_(grad_output.requires_grad)
             
             # req = P_recv._comm.Ibcast(grad_output.detach(), root=0)

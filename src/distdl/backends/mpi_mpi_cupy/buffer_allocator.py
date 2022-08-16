@@ -31,7 +31,9 @@ def allocate_repartition_buffers(buffer_manager, P_x_to_y_overlaps, P_y_to_x_ove
         if sl is not None and partner != "self":
             count += 1
 
+    # TODO: pass device to buffer manager?
     buffers = buffer_manager.request_buffers(count, dtype=cupy_dtype)
+    # torch.get_current_device()
 
     i = 0
 
