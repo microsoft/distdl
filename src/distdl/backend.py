@@ -9,37 +9,40 @@ import cupy as cp
 
 backend = mpi_mpi_numpy
 
-try:
-    if os.environ["DISTDL_BACKEND"] == "Cupy":
-        backend = mpi_mpi_cupy
-        print("---- Using Cupy as the backend ----")
-    elif os.environ["DISTDL_BACKEND"] == "Numpy":
-        backend = mpi_mpi_numpy
-        print("---- Using Numpy as the backend ----")
-    elif os.environ["DISTDL_BACKEND"] == "Torch":
-        backend = mpi_mpi_torch
-        print("---- Using Torch as the backend ----")
+
+def get_device(device=None, rank=None):
+    if backend == mpi_mpi_cupy:
+        # TODO: handle mapping configuration from user input
+        cp.cuda.runtime.setDevice(rank % cp.cuda.runtime.getDeviceCount())
+        return cp.cuda.runtime.getDevice()
+    elif backend == mpi_mpi_numpy:
+        return torch.device("cpu")
+    elif backend == mpi_mpi_torch and device == "cpu":
+        return torch.device("cpu")
+    elif backend == mpi_mpi_torch and device == "cuda":
+        torch.cuda.set_device(rank % torch.cuda.device_count())
+        return torch.cuda.current_device()
     else:
-        backend = mpi_mpi_numpy
-        print("---- Invalid Backend. Using Numpy for now. ----")
+        return torch.device("cpu")
 
-except:
-    backend = mpi_mpi_numpy
-    print("---- No backends specified, using Numpy for now ----")
 
-# TODO: do we need sth like this?
-def set_backend(device):
+def set_backend(requested_backend=None, device=None):
     global backend
-    if type(device) == cp.cuda.device.Device:
-        backend = mpi_mpi_cupy
-        print("---- Using Cupy as the backend ----")
-    elif type(device) == torch.device and device.type == 'cuda':
-        backend = mpi_mpi_torch
-        print("---- Using Torch as the backend ----")
-    elif type(device) == torch.device and device.type == 'cpu':
-        backend = mpi_mpi_numpy
-        print("---- Using Cupy as the backend ----")
+    if(requested_backend != None):
+        backend = requested_backend
     else:
-        print("No valid device type detected, setting the backend to Numpy.")
-        backend = mpi_mpi_numpy
-
+        if device == None:
+            print("---- Either parameters should have value, using Cupy as the backend ----")
+            backend = mpi_mpi_cupy
+        elif type(device) == cp.cuda.device.Device:
+            backend = mpi_mpi_cupy
+            print("---- Using Cupy as the backend ----")
+        elif type(device) == torch.device and device.type == 'cuda':
+            backend = mpi_mpi_torch
+            print("---- Using Torch as the backend ----")
+        elif type(device) == torch.device and device.type == 'cpu':
+            backend = mpi_mpi_numpy
+            print("---- Using Cupy as the backend ----")
+        else:
+            print("No valid device type detected, setting the backend to Numpy.")
+            backend = mpi_mpi_numpy
