@@ -7,19 +7,25 @@ import distdl.backends.mpi_mpi_torch as mpi_mpi_torch
 import torch
 import cupy as cp
 
-backend = mpi_mpi_numpy
+backend = None
 
 
-def get_device(device=None, rank=None):
+def get_device(requested_device=None, rank=None):
+    global backend
+    if backend == None:
+        init()
     if backend == mpi_mpi_cupy:
         # TODO: handle mapping configuration from user input
         cp.cuda.runtime.setDevice(rank % cp.cuda.runtime.getDeviceCount())
         return cp.cuda.runtime.getDevice()
     elif backend == mpi_mpi_numpy:
         return torch.device("cpu")
-    elif backend == mpi_mpi_torch and device == "cpu":
+    elif backend == mpi_mpi_torch and requested_device == None:
+        torch.cuda.set_device(rank % torch.cuda.device_count())
+        return torch.cuda.current_device()
+    elif backend == mpi_mpi_torch and requested_device == "cpu":
         return torch.device("cpu")
-    elif backend == mpi_mpi_torch and device == "cuda":
+    elif backend == mpi_mpi_torch and requested_device == "cuda":
         torch.cuda.set_device(rank % torch.cuda.device_count())
         return torch.cuda.current_device()
     else:
@@ -30,6 +36,7 @@ def set_backend(requested_backend=None, device=None):
     global backend
     if(requested_backend != None):
         backend = requested_backend
+        print(f"Backend: {backend} selected.")
     else:
         if device == None:
             print("---- Either parameters should have value, using Cupy as the backend ----")
@@ -46,3 +53,18 @@ def set_backend(requested_backend=None, device=None):
         else:
             print("No valid device type detected, setting the backend to Numpy.")
             backend = mpi_mpi_numpy
+
+
+def init():
+    try:
+        if os.environ["DISTDL_BACKEND"] == "Cupy":
+            set_backend(requested_backend=mpi_mpi_cupy)
+        elif os.environ["DISTDL_BACKEND"] == "Numpy":
+            set_backend(requested_backend=mpi_mpi_numpy)
+        elif os.environ["DISTDL_BACKEND"] == "Torch":
+            set_backend(requested_backend=mpi_mpi_torch)
+        else:
+            set_backend(requested_backend=mpi_mpi_numpy)
+
+    except:
+        set_backend(requested_backend=mpi_mpi_numpy)
