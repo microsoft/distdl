@@ -19,8 +19,6 @@ import distdl.utilities.slicing as slicing
 from distdl.backends.common.partition import MPIPartition
 from distdl.nn.repartition import Repartition
 from distdl.utilities.torch import zero_volume_tensor
-from torch.utils.dlpack import to_dlpack
-from torch.utils.dlpack import from_dlpack
 
 # Set up MPI cartesian communicator
 P_world = MPIPartition(MPI.COMM_WORLD)
