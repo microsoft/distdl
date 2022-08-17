@@ -5,6 +5,7 @@
 # Run with, e.g.,
 #     > mpirun -np 4 python ex_halo_exchange.py
 
+import cupy as cp
 import numpy as np
 import torch
 import torch.nn.functional as F
@@ -18,6 +19,8 @@ from distdl.utilities.slicing import compute_subshape
 
 # We need a layer to induce the halo size.  To make this convenient, we mock
 # a layer that has the right mixins to do the trick.
+
+
 class MockConvLayer(HaloMixin, ConvMixin):
     pass
 
@@ -34,8 +37,8 @@ P_world = MPIPartition(MPI.COMM_WORLD)
 P_world._comm.Barrier()
 
 # On the assumption of 1-to-1 mapping between ranks and GPUs
-torch.cuda.set_device(P_world.rank % torch.cuda.device_count())
-P_world.device = torch.cuda.current_device()
+cp.cuda.runtime.setDevice(P_world.rank % cp.cuda.runtime.getDeviceCount())
+P_world.device = cp.cuda.runtime.getDevice()
 
 # Create the input partition (using the first 4 workers)
 in_shape = (1, 1, 2, 2)
@@ -75,11 +78,8 @@ x_local_shape = compute_subshape(P_x.shape, P_x.index, x_global_shape)
 #       [ 3, 3, 0] ] ] ] |       [ 0, 4, 4] ] ] ]
 
 
-## x = np.zeros(x_local_shape) + P_x.rank + 1
-## x = torch.from_numpy(x)
-## x = cp.zeros(x_local_shape) + P_x.rank + 1
-## x = torch.as_tensor(x, device='cuda')
-x = torch.zeros(*x_local_shape, device=P_x.device) + (P_x.rank + 1)
+x = cp.zeros(x_local_shape) + P_x.rank + 1
+x = torch.as_tensor(x, device=P_x.device)
 
 x.requires_grad = True
 
@@ -92,8 +92,7 @@ x.requires_grad = True
 torch_padding = tuple(np.array(list(reversed(halo_shape)), dtype=int).flatten())
 
 # We pad with "constant" mode here because it matches our internal behavior.
-## x = cp.pad(x, pad_width=torch_padding, mode="constant", constant_values=(0,))
-x = F.pad(x, pad=torch_padding, mode="constant", value=0)
+x = cp.pad(x, pad_width=torch_padding, mode="constant", constant_values=(0,))
 
 # Not a leaf tensor (can't be because halo exchange is in-place) so
 # we need to retain its gradient to see the adjoint effect later

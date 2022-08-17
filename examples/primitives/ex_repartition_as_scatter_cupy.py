@@ -6,6 +6,7 @@
 # Run with, e.g.,
 #     > mpirun -np 4 python ex_transpose_as_scatter.py
 
+import cupy as cp
 import numpy as np
 import torch
 from mpi4py import MPI
@@ -20,8 +21,8 @@ P_world = MPIPartition(MPI.COMM_WORLD)
 P_world._comm.Barrier()
 
 # On the assumption of 1-to-1 mapping between ranks and GPUs
-torch.cuda.set_device(P_world.rank % torch.cuda.device_count())
-P_world.device = torch.cuda.current_device()
+cp.cuda.runtime.setDevice(P_world.rank % cp.cuda.runtime.getDeviceCount())
+P_world.device = cp.cuda.runtime.getDevice()
 
 # Create the input partition (using the first worker)
 in_shape = (1, 1)
@@ -63,11 +64,8 @@ if P_x.active:
     x_local_shape = slicing.compute_subshape(P_x.shape,
                                                 P_x.index,
                                                 x_global_shape)
-    ## x = np.zeros(x_local_shape) + P_x.rank + 1
-    ## x = cp.zeros(x_local_shape) + P_x.rank + 1
-    ## x = torch.from_numpy(x)
-    ## x = torch.as_tensor(x, device='cuda')
-    x = torch.zeros(*x_local_shape, device=x.device) + (P_x.rank + 1)
+    x = cp.zeros(x_local_shape) + (P_x.rank + 1)
+    x = torch.as_tensor(x, device=P_x.device)
     
 
 x.requires_grad = True
@@ -106,11 +104,8 @@ if P_y.active:
     y_local_shape = slicing.compute_subshape(P_y.shape,
                                                 P_y.index,
                                                 x_global_shape)
-    ## dy = np.zeros(y_local_shape) + P_y.rank + 1
-    ## dy = cp.zeros(y_local_shape) + P_y.rank + 1
-    ## dy = torch.from_numpy(dy)
-    ## dy = torch.as_tensor(dy, device='cuda')
-    dy = torch.zeros(*y_local_shape, device=dy.device) + (P_y.rank + 1)
+    dy = cp.zeros(y_local_shape) + P_y.rank + 1
+    dy = torch.as_tensor(dy, device=P_y.device)
     
 
 print(f"rank {P_world.rank}; index {P_y.index}; value {dy}")
