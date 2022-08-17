@@ -57,15 +57,12 @@ x_global_shape = np.array([5, 6])
 #   [ 4 4 | 5 5 | 6 6 ]
 #   [ 4 4 | 5 5 | 6 6 ] ]
 
-## x = zero_volume_tensor(device=cp.cuda.runtime.getDevice())
 x = zero_volume_tensor(device=P_x.device)
 
 if P_x.active:
     x_local_shape = slicing.compute_subshape(P_x.shape,
                                              P_x.index,
                                              x_global_shape)
-    ## x = np.zeros(x_local_shape) + P_x.rank + 1
-    ## x = torch.from_numpy(x)
     x = torch.zeros(*x_local_shape, device=P_x.device) + (P_x.rank + 1)
 
 x.requires_grad = True
@@ -98,7 +95,6 @@ y_global_shape = assemble_global_tensor_structure(y, P_y).shape
 #   [ 2 2 ]
 #   [ 2 2 ] ]
 
-## dy = zero_volume_tensor(device=cp.cuda.runtime.getDevice())
 dy = zero_volume_tensor(device=P_y.device)
 
 # print(f"P_y.rank: {P_y.rank}, P_y.device: {P_y.device}, P_x.rank: {P_x.rank}, P_x.device: ",
@@ -108,8 +104,6 @@ if P_y.active:
     y_local_shape = slicing.compute_subshape(P_y.shape,
                                              P_y.index,
                                              y_global_shape)
-    ## dy = np.zeros(y_local_shape) + P_y.rank + 1
-    ## dy = torch.from_numpy(dy)
     dy = torch.zeros(*y_local_shape, device=P_y.device) + (P_y.rank + 1)
 
 

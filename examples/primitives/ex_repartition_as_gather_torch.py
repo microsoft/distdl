@@ -68,17 +68,12 @@ layer = Repartition(P_x, P_y, preserve_batch=False)
 # start_time = timeit.default_timer()
 # REPEAT = 1
 # for i in range(REPEAT):
-    
+
 x = zero_volume_tensor(device=P_x.device)
 if P_x.active:
     x_local_shape = slicing.compute_subshape(P_x.shape,
-                                                P_x.index,
-                                                x_global_shape)
-    ## x = np.zeros(x_local_shape) + P_x.rank + 1
-    ## x = cp.zeros(x_local_shape) + P_x.rank + 1
-    ## x = torch.from_numpy(x)
-    ## x = torch.as_tensor(x, device='cuda')
-    ## x = from_dlpack(x.toDlpack())
+                                             P_x.index,
+                                             x_global_shape)
     x = torch.zeros(*x_local_shape, device=x.device) + (P_x.rank + 1)
 
 x.requires_grad = True
@@ -113,14 +108,9 @@ print(f"P_world.rank {P_world.rank}; P_y.index {P_y.index}; y value: \n{y}\n")
 dy = zero_volume_tensor(device=P_y.device)
 if P_y.active:
     y_local_shape = slicing.compute_subshape(P_y.shape,
-                                                P_y.index,
-                                                x_global_shape)
-    ## dy = np.zeros(y_local_shape) + P_y.rank + 1
-    ## dy = cp.zeros(y_local_shape) + P_y.rank + 1
+                                             P_y.index,
+                                             x_global_shape)
     dy = torch.zeros(*y_local_shape, device=dy.device) + (P_y.rank + 1)
-    ## dy = torch.from_numpy(dy)
-    ## dy = torch.as_tensor(dy, device='cuda')
-    ## dy = from_dlpack(dy.toDlpack())
 
 print(f"P_world.rank {P_world.rank}; P_y.index {P_y.index}; dy value: \n{dy}\n")
 

@@ -18,6 +18,8 @@ from distdl.utilities.slicing import compute_subshape
 
 # We need a layer to induce the halo size.  To make this convenient, we mock
 # a layer that has the right mixins to do the trick.
+
+
 class MockConvLayer(HaloMixin, ConvMixin):
     pass
 
@@ -46,7 +48,6 @@ P_x_base = P_world.create_partition_inclusive(in_workers)
 P_x = P_x_base.create_cartesian_topology_partition(in_shape)
 
 # Pick a global shape that is big enough to require a halo.
-## x_global_shape = np.array([1, 1, 5, 4])
 x_global_shape = np.array([1, 1, 5, 4])
 
 # Compute the necessary information about the exchange buffer sizes
@@ -74,11 +75,6 @@ x_local_shape = compute_subshape(P_x.shape, P_x.index, x_global_shape)
 #       [ 3, 3, 0],      |       [ 0, 4, 4],
 #       [ 3, 3, 0] ] ] ] |       [ 0, 4, 4] ] ] ]
 
-
-## x = np.zeros(x_local_shape) + P_x.rank + 1
-## x = torch.from_numpy(x)
-## x = cp.zeros(x_local_shape) + P_x.rank + 1
-## x = torch.as_tensor(x, device='cuda')
 x = torch.zeros(*x_local_shape, device=P_x.device) + (P_x.rank + 1)
 
 x.requires_grad = True
@@ -92,7 +88,6 @@ x.requires_grad = True
 torch_padding = tuple(np.array(list(reversed(halo_shape)), dtype=int).flatten())
 
 # We pad with "constant" mode here because it matches our internal behavior.
-## x = cp.pad(x, pad_width=torch_padding, mode="constant", constant_values=(0,))
 x = F.pad(x, pad=torch_padding, mode="constant", value=0)
 
 # Not a leaf tensor (can't be because halo exchange is in-place) so

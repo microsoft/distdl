@@ -69,14 +69,10 @@ x = zero_volume_tensor(device=P_x.device)
 
 if P_x.active:
     x_local_shape = slicing.compute_subshape(P_x.shape,
-                                                P_x.index,
-                                                x_global_shape)
-    ## x = np.zeros(x_local_shape) + P_x.rank + 1
-    ## x = cp.zeros(x_local_shape) + P_x.rank + 1
-    ## x = torch.from_numpy(x)
-    ## x = torch.as_tensor(x, device='cuda')
+                                             P_x.index,
+                                             x_global_shape)
     x = torch.zeros(*x_local_shape, device=x.device) + (P_x.rank + 1)
-    
+
 
 x.requires_grad = True
 print(f"rank {P_world.rank}; index {P_x.index}; value {x}")
@@ -112,14 +108,10 @@ dy = zero_volume_tensor(device=P_y.device)
 
 if P_y.active:
     y_local_shape = slicing.compute_subshape(P_y.shape,
-                                                P_y.index,
-                                                x_global_shape)
-    ## dy = np.zeros(y_local_shape) + P_y.rank + 1
-    ## dy = cp.zeros(y_local_shape) + P_y.rank + 1
-    ## dy = torch.from_numpy(dy)
-    ## dy = torch.as_tensor(dy, device='cuda')
+                                             P_y.index,
+                                             x_global_shape)
     dy = torch.zeros(*y_local_shape, device=dy.device) + (P_y.rank + 1)
-    
+
 print(f"rank {P_world.rank}; index {P_y.index}; value {dy}")
 
 # Apply the adjoint of the layer.
