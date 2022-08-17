@@ -10,6 +10,13 @@ import cupy as cp
 backend = None
 
 
+def get_backend():
+    global backend
+    if backend == None:
+        init()
+    return backend
+
+
 def get_device(requested_device=None, rank=None):
     global backend
     if backend == None:

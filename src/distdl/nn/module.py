@@ -1,6 +1,6 @@
 import torch
 
-from distdl.backend import backend
+from distdl.backend import get_backend
 
 
 class Module(torch.nn.Module):
@@ -20,7 +20,7 @@ class Module(torch.nn.Module):
 
     """
 
-    _distdl_backend = backend
+    _distdl_backend = get_backend()
 
     def __init__(self):
 
