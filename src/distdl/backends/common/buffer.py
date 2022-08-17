@@ -37,7 +37,7 @@ class MPIExpandableBuffer(ABC):
 
     @abstractmethod
     def __init__(self, dtype, initial_capacity=0):
-        pass
+        raise NotImplementedError(self.__class__.__name__ + '.init')
 
     @abstractmethod
     def expand(self, new_capacity):
@@ -53,7 +53,7 @@ class MPIExpandableBuffer(ABC):
             Proposed new capacity of the buffer.
 
         """
-        pass
+        raise NotImplementedError(self.__class__.__name__ + '.expand')
 
     def allocate_view(self, view_shape):
         r"""Reserves a new view, with provided the shape, into the buffer.
@@ -149,4 +149,4 @@ class MPIBufferManager(ABC):
         List of `n_buffers` buffers with `dtype` data type.
 
         """
-        pass
+        raise NotImplementedError(self.__class__.__name__ + '.request_buffers')
