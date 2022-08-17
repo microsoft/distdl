@@ -1,14 +1,29 @@
 # TODO: this source should move to backends package
 
+from enum import Enum
 import os
 import distdl.backends.mpi_mpi_numpy as mpi_mpi_numpy
 import distdl.backends.mpi_mpi_cupy as mpi_mpi_cupy
 import distdl.backends.mpi_mpi_torch as mpi_mpi_torch
 import torch
 import cupy as cp
+    
+class FrontEndProtocol(Enum):
+    MPI = 1
 
+class BackendProtocol(Enum):
+    MPI = 1
+    NCCL = 1
+    
+class ModelProtocol(Enum):
+    CUPY = 1
+    NUMPY = 1
+    TORCH = 1
+    
 backend = None
-
+model_protocol = ModelProtocol.CUPY
+backend_protocol = BackendProtocol.MPI
+frontend_protocol = FrontEndProtocol.MPI
 
 def get_backend():
     global backend
@@ -21,21 +36,28 @@ def get_device(requested_device=None, rank=None):
     global backend
     if backend == None:
         init()
-    if backend == mpi_mpi_cupy:
+    
+    if model_protocol == ModelProtocol.CUPY:
+        print(f"1 - backend: {backend}, requested device: {requested_device}")
         # TODO: handle mapping configuration from user input
         cp.cuda.runtime.setDevice(rank % cp.cuda.runtime.getDeviceCount())
         return cp.cuda.runtime.getDevice()
-    elif backend == mpi_mpi_numpy:
+    elif model_protocol == ModelProtocol.NUMPY:
+        print(f"2 - backend: {backend}, requested device: {requested_device}")
         return torch.device("cpu")
-    elif backend == mpi_mpi_torch and requested_device == None:
+    elif model_protocol == ModelProtocol.TORCH and requested_device == None:
+        print(f"3 - backend: {backend}, requested device: {requested_device}")
         torch.cuda.set_device(rank % torch.cuda.device_count())
         return torch.cuda.current_device()
-    elif backend == mpi_mpi_torch and requested_device == "cpu":
+    elif model_protocol == ModelProtocol.TORCH and requested_device == "cpu":
+        print(f"4 - backend: {backend}, requested device: {requested_device}")
         return torch.device("cpu")
-    elif backend == mpi_mpi_torch and requested_device == "cuda":
+    elif model_protocol == ModelProtocol.TORCH and requested_device == "cuda":
+        print(f"5 - backend: {backend}, requested device: {requested_device}")
         torch.cuda.set_device(rank % torch.cuda.device_count())
         return torch.cuda.current_device()
     else:
+        print(f"6 - backend: {backend}, requested device: {requested_device}")
         return torch.device("cpu")
 
 
