@@ -1,5 +1,6 @@
 import numpy as np
 from mpi4py import MPI
+from distdl import backend
 
 from distdl.backends.common.compare import check_identical_comm
 from distdl.backends.common.compare import check_identical_group
@@ -110,7 +111,7 @@ class MPIPartition:
         self.shape = np.array([self.size], dtype=np.int)
         self.dim = len(self.shape)
 
-        self.device = device
+        self.device = backend.get_device(requested_device=device, rank=self.rank)
 
     def deactivate(self):
         r"""Deactivates this partition by releasing any resources and
