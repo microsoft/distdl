@@ -1,6 +1,6 @@
 import numpy as np
+import distdl.backend as backend
 from mpi4py import MPI
-from distdl import backend
 
 from distdl.backends.common.compare import check_identical_comm
 from distdl.backends.common.compare import check_identical_group
@@ -51,6 +51,9 @@ class MPIPartition:
     root : MPI communicator, optional
         MPI communicator tracking the original communicator used to create
         all ancestors of this partition.
+    device : Device name, optional
+        This field is inherited through all the partition's descendents to
+        make sure that the tensors are allocated on the same device.
 
     Attributes
     ----------
@@ -111,7 +114,10 @@ class MPIPartition:
         self.shape = np.array([self.size], dtype=np.int)
         self.dim = len(self.shape)
 
-        self.device = backend.get_device(requested_device=device, rank=self.rank)
+        if device != None:
+            self.device = device
+        else:
+            self.device = backend.get_device(requested_device=device, rank=self.rank)
 
     def deactivate(self):
         r"""Deactivates this partition by releasing any resources and
