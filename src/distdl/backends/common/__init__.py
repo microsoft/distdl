@@ -1,13 +1,11 @@
 from mpi4py import MPI as _MPI
 
-from . import tensor_comm  # noqa: F401
-from . import tensor_decomposition  # noqa: F401
-#
-# Expose the partition types
+from . import tensor_comm
+from . import tensor_decomposition
+
 from .partition import MPICartesianPartition as CartesianPartition 
 from .partition import MPIPartition as Partition
-#
-#
+
 from .tensor_comm import assemble_global_tensor_structure
 from .tensor_comm import broadcast_tensor_structure
 

@@ -1,6 +1,7 @@
 # TODO: this source should move to backends package
 
 import os
+import traceback as tb
 from enum import Enum
 import distdl.backends.mpi_mpi_numpy as mpi_mpi_numpy
 import distdl.backends.mpi_mpi_cupy as mpi_mpi_cupy
@@ -25,11 +26,6 @@ class ModelProtocol(Enum):
     TORCH = 3
 
 
-class ModelDevice(Enum):
-    CPU = 1
-    GPU = 1
-
-
 # defult options
 backend = None
 _model_protocol = ModelProtocol.CUPY
@@ -45,6 +41,8 @@ FRONTEND_ENVAR_NAME = "DISTDL_FRONTEND"
 def get_backend():
     global backend
     if backend == None:
+        print("Uninitialized backend deteced, in get_backend()")
+        # tb.print_stack()
         _init_distdl()
     return backend
 
@@ -69,10 +67,15 @@ def get_device(requested_device=None, rank=None):
         # print(f"3 - backend: {backend}, model: {_model_protocol}")
         torch.cuda.set_device(rank % torch.cuda.device_count())
         return torch.cuda.current_device()
-    elif _model_protocol == ModelProtocol.TORCH and requested_device == ModelDevice.CPU:
+    elif _model_protocol == ModelProtocol.TORCH and requested_device == "cpu":
+        # TODO: this configuration should be handled more properly in partition.py
+        # Right now, if the user wants to create the buffer manager as Torch tensors
+        # on cpu, they should do something like this:
+        # P_world = MPIPartition(MPI.COMM_WORLD, device="cpu")
+        
         # print(f"4 - backend: {backend}, model: {_model_protocol}")
         return torch.device("cpu")
-    elif _model_protocol == ModelProtocol.TORCH and requested_device == ModelDevice.GPU:
+    elif _model_protocol == ModelProtocol.TORCH and requested_device == "cuda":
         # print(f"5 - backend: {backend}, model: {_model_protocol}")
         torch.cuda.set_device(rank % torch.cuda.device_count())
         return torch.cuda.current_device()
@@ -117,6 +120,8 @@ def init_distdl(frontend_protocol=None, backend_protocol=None, model_protocol=No
         print("Configuration MPI_MPI_TORCH has been selected.")
     else:
         # Invalid configuration
+        print("Invalid Configuration has been selected.")
+        tb.print_exc()
         backend = mpi_mpi_numpy
 
 
