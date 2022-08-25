@@ -29,54 +29,54 @@ import torch
 
 # Dict of NumPy dtype -> torch dtype (when the correspondence exists)
 numpy_to_torch_dtype_dict = {
-    np.dtype(np.bool)       : torch.bool,  # noqa E203
-    np.dtype(np.uint8)      : torch.uint8,  # noqa E203
-    np.dtype(np.int8)       : torch.int8,  # noqa E203
-    np.dtype(np.int16)      : torch.int16,  # noqa E203
-    np.dtype(np.int32)      : torch.int32,  # noqa E203
-    np.dtype(np.int64)      : torch.int64,  # noqa E203
-    np.dtype(np.float16)    : torch.float16,  # noqa E203
-    np.dtype(np.float32)    : torch.float32,  # noqa E203
-    np.dtype(np.float64)    : torch.float64,  # noqa E203
-    np.dtype(np.complex64)  : torch.complex64,  # noqa E203
-    np.dtype(np.complex128) : torch.complex128,  # noqa E203
-    np.bool       : torch.bool,  # noqa E203
-    np.uint8      : torch.uint8,  # noqa E203
-    np.int8       : torch.int8,  # noqa E203
-    np.int16      : torch.int16,  # noqa E203
-    np.int32      : torch.int32,  # noqa E203
-    np.int64      : torch.int64,  # noqa E203
-    np.float16    : torch.float16,  # noqa E203
-    np.float32    : torch.float32,  # noqa E203
-    np.float64    : torch.float64,  # noqa E203
-    np.complex64  : torch.complex64,  # noqa E203
-    np.complex128 : torch.complex128,  # noqa E203
+    np.dtype(np.bool8): torch.bool,  # noqa E203
+    np.dtype(np.uint8): torch.uint8,  # noqa E203
+    np.dtype(np.int8): torch.int8,  # noqa E203
+    np.dtype(np.int16): torch.int16,  # noqa E203
+    np.dtype(np.int32): torch.int32,  # noqa E203
+    np.dtype(np.int64): torch.int64,  # noqa E203
+    np.dtype(np.float16): torch.float16,  # noqa E203
+    np.dtype(np.float32): torch.float32,  # noqa E203
+    np.dtype(np.float64): torch.float64,  # noqa E203
+    np.dtype(np.complex64): torch.complex64,  # noqa E203
+    np.dtype(np.complex128): torch.complex128,  # noqa E203
+    np.bool8: torch.bool,  # noqa E203
+    np.uint8: torch.uint8,  # noqa E203
+    np.int8: torch.int8,  # noqa E203
+    np.int16: torch.int16,  # noqa E203
+    np.int32: torch.int32,  # noqa E203
+    np.int64: torch.int64,  # noqa E203
+    np.float16: torch.float16,  # noqa E203
+    np.float32: torch.float32,  # noqa E203
+    np.float64: torch.float64,  # noqa E203
+    np.complex64: torch.complex64,  # noqa E203
+    np.complex128: torch.complex128,  # noqa E203
 }
 
 # Dict of cupy dtype -> torch dtype (when the correspondence exists)
 cupy_to_torch_dtype_dict = {
-    cp.dtype(cp.bool)       : torch.bool,  # noqa E203
-    cp.dtype(cp.uint8)      : torch.uint8,  # noqa E203
-    cp.dtype(cp.int8)       : torch.int8,  # noqa E203
-    cp.dtype(cp.int16)      : torch.int16,  # noqa E203
-    cp.dtype(cp.int32)      : torch.int32,  # noqa E203
-    cp.dtype(cp.int64)      : torch.int64,  # noqa E203
-    cp.dtype(cp.float16)    : torch.float16,  # noqa E203
-    cp.dtype(cp.float32)    : torch.float32,  # noqa E203
-    cp.dtype(cp.float64)    : torch.float64,  # noqa E203
-    cp.dtype(cp.complex64)  : torch.complex64,  # noqa E203
-    cp.dtype(cp.complex128) : torch.complex128,  # noqa E203
-    cp.bool       : torch.bool,  # noqa E203
-    cp.uint8      : torch.uint8,  # noqa E203
-    cp.int8       : torch.int8,  # noqa E203
-    cp.int16      : torch.int16,  # noqa E203
-    cp.int32      : torch.int32,  # noqa E203
-    cp.int64      : torch.int64,  # noqa E203
-    cp.float16    : torch.float16,  # noqa E203
-    cp.float32    : torch.float32,  # noqa E203
-    cp.float64    : torch.float64,  # noqa E203
-    cp.complex64  : torch.complex64,  # noqa E203
-    cp.complex128 : torch.complex128,  # noqa E203
+    cp.dtype(cp.bool8): torch.bool,  # noqa E203
+    cp.dtype(cp.uint8): torch.uint8,  # noqa E203
+    cp.dtype(cp.int8): torch.int8,  # noqa E203
+    cp.dtype(cp.int16): torch.int16,  # noqa E203
+    cp.dtype(cp.int32): torch.int32,  # noqa E203
+    cp.dtype(cp.int64): torch.int64,  # noqa E203
+    cp.dtype(cp.float16): torch.float16,  # noqa E203
+    cp.dtype(cp.float32): torch.float32,  # noqa E203
+    cp.dtype(cp.float64): torch.float64,  # noqa E203
+    cp.dtype(cp.complex64): torch.complex64,  # noqa E203
+    cp.dtype(cp.complex128): torch.complex128,  # noqa E203
+    cp.bool8: torch.bool,  # noqa E203
+    cp.uint8: torch.uint8,  # noqa E203
+    cp.int8: torch.int8,  # noqa E203
+    cp.int16: torch.int16,  # noqa E203
+    cp.int32: torch.int32,  # noqa E203
+    cp.int64: torch.int64,  # noqa E203
+    cp.float16: torch.float16,  # noqa E203
+    cp.float32: torch.float32,  # noqa E203
+    cp.float64: torch.float64,  # noqa E203
+    cp.complex64: torch.complex64,  # noqa E203
+    cp.complex128: torch.complex128,  # noqa E203
 }
 
 # Dict of torch dtype -> NumPy dtype

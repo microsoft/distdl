@@ -5,6 +5,7 @@ from enum import Enum
 import distdl.backends.mpi_mpi_numpy as mpi_mpi_numpy
 import distdl.backends.mpi_mpi_cupy as mpi_mpi_cupy
 import distdl.backends.mpi_mpi_torch as mpi_mpi_torch
+import distdl.utilities.dtype as dtype_utils
 import cupy as cp
 import torch
 
@@ -133,3 +134,41 @@ def _init_distdl():
 
     except:
         init_distdl(model_protocol=ModelProtocol.NUMPY)
+
+def convert_torch_to_model_dtype(dtype):
+    if _model_protocol == ModelProtocol.CUPY:
+        return dtype_utils.torch_to_cupy_dtype_dict[dtype]
+    if _model_protocol == ModelProtocol.NUMPY:
+        return dtype_utils.torch_to_numpy_dtype_dict[dtype]
+    if _model_protocol == ModelProtocol.TORCH:
+        return dtype
+    # raise exception
+
+
+def convert_model_to_torch_dtype(dtype):
+    if _model_protocol == ModelProtocol.CUPY:
+        return dtype_utils.cupy_to_torch_dtype_dict[dtype]
+    if _model_protocol == ModelProtocol.NUMPY:
+        return dtype_utils.numpy_to_torch_dtype_dict[dtype]
+    if _model_protocol == ModelProtocol.TORCH:
+        return dtype
+    # raise exception
+
+
+def convert_intID_to_model_dtype_dict(intID):
+    if _model_protocol == ModelProtocol.CUPY:
+        return dtype_utils.intID_to_cupy_dtype_dict[intID]
+    if _model_protocol == ModelProtocol.NUMPY:
+        return dtype_utils.intID_to_numpy_dtype_dict[intID]
+    if _model_protocol == ModelProtocol.TORCH:
+        return dtype_utils.intID_to_torch_dtype_dict[intID]
+    # raise exception
+
+def convert_model_to_intID_dtype_dict(dtype):
+    if _model_protocol == ModelProtocol.CUPY:
+        return dtype_utils.cupy_to_intID_dtype_dict[dtype]
+    if _model_protocol == ModelProtocol.NUMPY:
+        return dtype_utils.numpy_to_intID_dtype_dict[dtype]
+    if _model_protocol == ModelProtocol.TORCH:
+        return dtype_utils.torch_to_intID_dtype_dict[dtype]
+    # raise exception

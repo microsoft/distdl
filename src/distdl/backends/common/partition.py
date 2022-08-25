@@ -838,6 +838,8 @@ class MPIPartition:
         if P_data.active and self.rank == data_root:
             # Ensure that data is a numpy array
             # TODO: What should be done regarding the dictionaries?
+            # Should I use the model-based converter? like this:
+            # data_dtype[0] = backend.convert_model_to_intID_dtype_dict(data.dtype)
             data_dtype[0] = numpy_to_intID_dtype_dict[data.dtype]
         self._comm.Bcast(data_dtype, root=data_root)
         data_dtype = intID_to_numpy_dtype_dict[data_dtype[0]]
