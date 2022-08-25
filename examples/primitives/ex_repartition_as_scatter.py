@@ -14,14 +14,15 @@ import distdl.utilities.slicing as slicing
 from distdl.backends.common.partition import MPIPartition
 from distdl.nn.repartition import Repartition
 from distdl.utilities.torch import zero_volume_tensor
+from distdl.backend import BackendProtocol, FrontEndProtocol, ModelProtocol, init_distdl
+
+init_distdl(frontend_protocol=FrontEndProtocol.MPI,
+            backend_protocol=BackendProtocol.MPI,
+            model_protocol=ModelProtocol.CUPY)
 
 # Set up MPI cartesian communicator
 P_world = MPIPartition(MPI.COMM_WORLD)
 P_world._comm.Barrier()
-
-# On the assumption of 1-to-1 mapping between ranks and GPUs
-torch.cuda.set_device(P_world.rank % torch.cuda.device_count())
-P_world.device = torch.cuda.current_device()
 
 # Create the input partition (using the first worker)
 in_shape = (1, 1)
@@ -67,7 +68,7 @@ if P_x.active:
 
 
 x.requires_grad = True
-print(f"rank {P_world.rank}; index {P_x.index}; value {x}")
+print(f"rank {P_world.rank}; index {P_x.index}; value \n{x}")
 
 # Apply the layer.
 #
@@ -82,7 +83,7 @@ print(f"rank {P_world.rank}; index {P_x.index}; value {x}")
 #   [ 1 1 1 | 1 1 ] ]
 
 y = layer(x)
-print(f"rank {P_world.rank}; index {P_y.index}; value {y}")
+print(f"rank {P_world.rank}; index {P_y.index}; value \n{y}")
 
 # Setup the adjoint input tensor.  Any worker in P_y will generate its part of
 # the adjoint input tensor.  Any worker not in P_y will have a zero-volume
@@ -105,7 +106,7 @@ if P_y.active:
     dy = torch.zeros(*y_local_shape, device=dy.device) + (P_y.rank + 1)
 
 
-print(f"rank {P_world.rank}; index {P_y.index}; value {dy}")
+print(f"rank {P_world.rank}; index {P_y.index}; value \n{dy}")
 
 # Apply the adjoint of the layer.
 #
@@ -119,4 +120,4 @@ print(f"rank {P_world.rank}; index {P_y.index}; value {dy}")
 #   [ 3 3 3 4 4 ] ]
 y.backward(dy)
 dx = x.grad
-print(f"rank {P_world.rank}; index {P_x.index}; value {dx}")
+print(f"rank {P_world.rank}; index {P_x.index}; value \n{dx}")
