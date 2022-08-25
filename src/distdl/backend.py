@@ -51,7 +51,7 @@ def get_backend():
 # Currently we have n-to-1 relationship between ranks and GPUs
 # Each rank works on only one GPU at a time, and each GPU may be
 # the defult device of multiple ranks
-def get_device(requested_device=None, rank=None):
+def set_device(requested_device=None, rank=None):
     global backend
     if backend == None:
         _init_distdl()
@@ -72,7 +72,6 @@ def get_device(requested_device=None, rank=None):
         # Right now, if the user wants to create the buffer manager as Torch tensors
         # on cpu, they should do something like this:
         # P_world = MPIPartition(MPI.COMM_WORLD, device="cpu")
-        
         # print(f"4 - backend: {backend}, model: {_model_protocol}")
         return torch.device("cpu")
     elif _model_protocol == ModelProtocol.TORCH and requested_device == "cuda":
@@ -81,6 +80,21 @@ def get_device(requested_device=None, rank=None):
         return torch.cuda.current_device()
     else:
         # print(f"6 - backend: {backend}, model: {_model_protocol}")
+        return torch.device("cpu")
+
+
+def get_current_device(requested_device=None):
+    if _model_protocol == ModelProtocol.CUPY:
+        return cp.cuda.runtime.getDevice()
+    elif _model_protocol == ModelProtocol.NUMPY:
+        return torch.device("cpu")
+    elif _model_protocol == ModelProtocol.TORCH and requested_device == "cpu":
+        return torch.device("cpu")
+    elif _model_protocol == ModelProtocol.TORCH and requested_device == "cuda":
+        return torch.cuda.current_device()
+    elif _model_protocol == ModelProtocol.TORCH and requested_device == None:
+        return torch.cuda.current_device()
+    else:
         return torch.device("cpu")
 
 
@@ -140,6 +154,7 @@ def _init_distdl():
     except:
         init_distdl(model_protocol=ModelProtocol.NUMPY)
 
+
 def convert_torch_to_model_dtype(dtype):
     if _model_protocol == ModelProtocol.CUPY:
         return dtype_utils.torch_to_cupy_dtype_dict[dtype]
@@ -168,6 +183,7 @@ def convert_intID_to_model_dtype_dict(intID):
     if _model_protocol == ModelProtocol.TORCH:
         return dtype_utils.intID_to_torch_dtype_dict[intID]
     # raise exception
+
 
 def convert_model_to_intID_dtype_dict(dtype):
     if _model_protocol == ModelProtocol.CUPY:

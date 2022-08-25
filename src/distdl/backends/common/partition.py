@@ -117,7 +117,8 @@ class MPIPartition:
         if device != None:
             self.device = device
         else:
-            self.device = backend.get_device(requested_device=device, rank=self.rank)
+            backend.set_device(requested_device=device, rank=self.rank)
+            self.device = backend.get_current_device()
 
     def deactivate(self):
         r"""Deactivates this partition by releasing any resources and
