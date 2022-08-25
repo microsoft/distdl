@@ -5,7 +5,6 @@
 # Run with, e.g.,
 #     > mpirun -np 6 python ex_broadcast.py
 
-import cupy as cp
 import numpy as np
 import torch
 from mpi4py import MPI
@@ -15,15 +14,15 @@ from distdl.backends.common.partition import MPIPartition
 from distdl.backends.common.tensor_comm import assemble_global_tensor_structure
 from distdl.nn.broadcast import Broadcast
 from distdl.utilities.torch import zero_volume_tensor
+from distdl.backend import BackendProtocol, FrontEndProtocol, ModelProtocol, init_distdl
+
+init_distdl(frontend_protocol=FrontEndProtocol.MPI,
+            backend_protocol=BackendProtocol.MPI,
+            model_protocol=ModelProtocol.TORCH)
 
 # Set up MPI cartesian communicator
 P_world = MPIPartition(MPI.COMM_WORLD)
 P_world._comm.Barrier()
-
-# Intra-node communicator -> ranks [1 ... num_devices]
-# On the assumption of 1-to-1 mapping between ranks and GPUs
-cp.cuda.runtime.setDevice(P_world.rank % cp.cuda.runtime.getDeviceCount())
-P_world.device = cp.cuda.runtime.getDevice()
 
 # Create the input/output partition (using the first 2 workers)
 in_shape = (2, 1)
@@ -41,9 +40,6 @@ out_workers = np.arange(P_world.size-out_size, P_world.size)
 P_y_base = P_world.create_partition_inclusive(out_workers)
 P_y = P_y_base.create_cartesian_topology_partition(out_shape)
 
-print("P_world.rank = %d, P_x_base.rank = %d, P_x.rank = %d, P_y_base.rank = %d, P_y.rank = %d" %
-      (P_world.rank, P_x_base.rank, P_x.rank, P_y_base.rank, P_y.rank))
-
 x_global_shape = np.array([5, 2])
 
 # Setup the input tensor.  Any worker in P_x will generate its part of the
@@ -59,14 +55,11 @@ x_global_shape = np.array([5, 2])
 
 x = zero_volume_tensor(device=P_x.device)
 
-print("x.device ", x.device)
-
 if P_x.active:
     x_local_shape = slicing.compute_subshape(P_x.shape,
                                              P_x.index,
                                              x_global_shape)
-    x = cp.zeros(x_local_shape) + (P_x.rank + 1)
-    x = torch.as_tensor(x, device=P_x.device)
+    x = torch.zeros(*x_local_shape, device=x.device) + (P_x.rank + 1)
 
 x.requires_grad = True
 print(f"rank {P_world.rank}; index {P_x.index}; value {x}")
@@ -107,8 +100,8 @@ if P_y.active:
     y_local_shape = slicing.compute_subshape(P_y.shape,
                                              P_y.index,
                                              y_global_shape)
-    dy = cp.zeros(y_local_shape) + (P_y.rank + 1)
-    dy = torch.as_tensor(dy, device=P_y.device)
+    dy = torch.zeros(*y_local_shape, device=dy.device) + (P_y.rank + 1)
+
 
 print(f"rank {P_world.rank}; index {P_y.index}; value {dy}")
 
