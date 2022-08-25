@@ -190,7 +190,7 @@ class SumReduce(Module):
 
         """
 
-        Function = self._distdl_backend.functional.sum_reduce_cupy.SumReduceFunction
+        Function = self._distdl_backend.functional.sum_reduce.SumReduceFunction
 
         if self.identity:
             return input.clone()
