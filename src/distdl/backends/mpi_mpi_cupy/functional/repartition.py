@@ -161,7 +161,9 @@ class RepartitionFunction(torch.autograd.Function):
             for (sl, sh, partner), buff in zip(P_x_to_y_overlaps, P_x_to_y_buffers):
                 if buff is not None:
                     xfer_buff = buff.get_view(sh)
-                    cp.copyto(xfer_buff, cp.array(input.detach()[sl]))
+                    # np.copyto(xfer_buff, input.detach()[sl].cpu().numpy())
+                    # TODO: Is it ok to make the buffer contiguous like this?
+                    cp.copyto(xfer_buff, cp.array(input.detach()[sl].contiguous()))
                     req = P_union._comm.Isend(xfer_buff, dest=partner, tag=111)
                     requests.append(req)
                 else:
@@ -182,7 +184,7 @@ class RepartitionFunction(torch.autograd.Function):
                 if x2ypartner == "self":
                     for (ysl, ysh, y2xpartner) in P_y_to_x_overlaps:
                         if y2xpartner == "self":
-                            cp.copyto(output[ysl], cp.array(input.detach()[xsl]))
+                            cp.copyto(output[ysl], cp.array(input.detach()[xsl].contiguous()))
                             # There is only one case where this can happen
                             break
                     # There is only one case where this can happen
