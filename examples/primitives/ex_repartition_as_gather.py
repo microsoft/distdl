@@ -6,10 +6,6 @@
 # Run with, e.g.,
 #     > mpirun -np 4 python ex_repartition_as_gather_cupy.py
 
-# import timeit
-# import time
-# import debugpy
-
 import numpy as np
 import torch
 from mpi4py import MPI
@@ -20,14 +16,15 @@ from distdl.nn.repartition import Repartition
 from distdl.utilities.torch import zero_volume_tensor
 from torch.utils.dlpack import to_dlpack
 from torch.utils.dlpack import from_dlpack
+from distdl.backend import BackendProtocol, FrontEndProtocol, ModelProtocol, init_distdl
+
+init_distdl(frontend_protocol=FrontEndProtocol.MPI,
+            backend_protocol=BackendProtocol.MPI,
+            model_protocol=ModelProtocol.CUPY)
 
 # Set up MPI cartesian communicator
 P_world = MPIPartition(MPI.COMM_WORLD)
 P_world._comm.Barrier()
-
-# On the assumption of 1-to-1 mapping between ranks and GPUs
-torch.cuda.set_device(P_world.rank % torch.cuda.device_count())
-P_world.device = torch.cuda.current_device()
 
 # Create the input partition (using the first 4 workers)
 in_shape = (2, 2)
@@ -64,10 +61,6 @@ layer = Repartition(P_x, P_y, preserve_batch=False)
 #   [ 3 3 3 | 4 4 ]
 #   [ 3 3 3 | 4 4 ] ]
 # print("From P_world.rank ", P_world.rank, ": ", P_x.shape)
-
-# start_time = timeit.default_timer()
-# REPEAT = 1
-# for i in range(REPEAT):
 
 x = zero_volume_tensor(device=P_x.device)
 if P_x.active:
@@ -129,6 +122,3 @@ y.backward(dy)
 dx = x.grad
 
 print(f"P_world.rank {P_world.rank}; P_x.index {P_x.index}; dx value: \n{dx}\n")
-
-# print(f"Average elapsed time from P_world.rank {P_world.rank}: ",
-#       ((timeit.default_timer() - start_time)/REPEAT) * 1000, " ms")
