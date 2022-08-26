@@ -97,7 +97,6 @@ class SumReduceFunction(torch.autograd.Function):
 
         """
 
-        # TODO: should we handle device like this? or within partition?
         device = input.device
         # device = P_send.device
         
@@ -240,9 +239,7 @@ class SumReduceFunction(torch.autograd.Function):
         P_recv = ctx.P_recv
         preserve_batch = ctx.preserve_batch
         input_tensor_structure = ctx.input_tensor_structure
-        # TODO: check with Philipp - What is the difference?
         device = ctx.device
-        # device = P_send.device
 
         assert grad_output.device == device
 
