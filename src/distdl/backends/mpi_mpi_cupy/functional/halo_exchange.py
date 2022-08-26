@@ -1,5 +1,6 @@
 __all__ = ["HaloExchangeFunction"]
 
+import numpy as np
 import cupy as cp
 import torch
 from mpi4py import MPI
@@ -109,11 +110,9 @@ class HaloExchangeFunction(torch.autograd.Function):
 
             if lgb is not None:
                 cp.copyto(lgb, cp.array(grad_output.detach()[lgs]))
-                lgb = torch.tensor(grad_output.detach()[lgs], device=grad_output.device)
                 grad_output[lgs] = 0.0
             if rgb is not None:
                 cp.copyto(rgb, cp.array(grad_output.detach()[rgs]))
-                rgb = torch.tensor(grad_output.detach()[rgs], device=grad_output.device)
                 grad_output[rgs] = 0.0
 
             ltag = 0
