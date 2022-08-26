@@ -58,14 +58,11 @@ def set_device(requested_device=None, rank=None):
         _init_distdl()
 
     if _model_protocol == ModelProtocol.CUPY:
-        # print(f"1 - backend: {backend}, model: {_model_protocol}")
         cp.cuda.runtime.setDevice(rank % cp.cuda.runtime.getDeviceCount())
         return cp.cuda.runtime.getDevice()
     elif _model_protocol == ModelProtocol.NUMPY:
-        # print(f"2 - backend: {backend}, model: {_model_protocol}")
         return torch.device("cpu")
     elif _model_protocol == ModelProtocol.TORCH and requested_device == None:
-        # print(f"3 - backend: {backend}, model: {_model_protocol}")
         torch.cuda.set_device(rank % torch.cuda.device_count())
         return torch.cuda.current_device()
     elif _model_protocol == ModelProtocol.TORCH and requested_device == "cpu":
@@ -73,14 +70,12 @@ def set_device(requested_device=None, rank=None):
         # Right now, if the user wants to create the buffer manager as Torch tensors
         # on cpu, they should do something like this:
         # P_world = MPIPartition(MPI.COMM_WORLD, device="cpu")
-        # print(f"4 - backend: {backend}, model: {_model_protocol}")
         return torch.device("cpu")
     elif _model_protocol == ModelProtocol.TORCH and requested_device == "cuda":
-        # print(f"5 - backend: {backend}, model: {_model_protocol}")
         torch.cuda.set_device(rank % torch.cuda.device_count())
         return torch.cuda.current_device()
     else:
-        # print(f"6 - backend: {backend}, model: {_model_protocol}")
+        logger.warning("Invalid protocols are requested.")
         return torch.device("cpu")
 
 
@@ -150,9 +145,10 @@ def _init_distdl():
         elif os.environ[MODEL_ENVAR_NAME] == "torch":
             init_distdl(model_protocol=ModelProtocol.TORCH)
         else:
+            logger.warning("No Configuration has been specified in env vars, Numpy will be selected.")
             init_distdl(model_protocol=ModelProtocol.NUMPY)
-
     except:
+        logger.error("Invalid model protocol was specified in env vars, Numpy will be selected.")
         init_distdl(model_protocol=ModelProtocol.NUMPY)
 
 
@@ -163,7 +159,8 @@ def convert_torch_to_model_dtype(dtype):
         return dtype_utils.torch_to_numpy_dtype_dict[dtype]
     if _model_protocol == ModelProtocol.TORCH:
         return dtype
-    # raise exception
+    logger.error("Selected model doesn't exist!")
+
 
 
 def convert_model_to_torch_dtype(dtype):
@@ -173,7 +170,7 @@ def convert_model_to_torch_dtype(dtype):
         return dtype_utils.numpy_to_torch_dtype_dict[dtype]
     if _model_protocol == ModelProtocol.TORCH:
         return dtype
-    # raise exception
+    logger.error("Selected model doesn't exist!")
 
 
 def convert_intID_to_model_dtype_dict(intID):
@@ -183,7 +180,8 @@ def convert_intID_to_model_dtype_dict(intID):
         return dtype_utils.intID_to_numpy_dtype_dict[intID]
     if _model_protocol == ModelProtocol.TORCH:
         return dtype_utils.intID_to_torch_dtype_dict[intID]
-    # raise exception
+    logger.error("Selected model doesn't exist!")
+
 
 
 def convert_model_to_intID_dtype_dict(dtype):
@@ -193,4 +191,5 @@ def convert_model_to_intID_dtype_dict(dtype):
         return dtype_utils.numpy_to_intID_dtype_dict[dtype]
     if _model_protocol == ModelProtocol.TORCH:
         return dtype_utils.torch_to_intID_dtype_dict[dtype]
-    # raise exception
+    logger.error("Selected model doesn't exist!")
+
