@@ -4,8 +4,6 @@ from mpi4py import MPI
 
 from distdl.utilities.dtype import intID_to_torch_dtype_dict
 from distdl.utilities.dtype import torch_to_intID_dtype_dict
-# from distdl.backend import convert_intID_to_model_dtype_dict
-# from distdl.backend import convert_model_to_intID_dtype_dict
 from distdl.utilities.torch import TensorStructure
 
 
@@ -21,9 +19,6 @@ def broadcast_tensor_structure(input_tensor_structure, P_send, P_recv):
 
     if P_send.active:
         # Share the torch dtype code, converted to an int.
-        
-        # TODO: should this be changed to sth like this:
-        # intID_dtype = convert_model_to_intID_dtype_dict(input_tensor_structure.dtype)
         intID_dtype = torch_to_intID_dtype_dict[input_tensor_structure.dtype]
         
         send_intID_dtype = np.array([intID_dtype], dtype=np.int)
@@ -86,9 +81,6 @@ def broadcast_tensor_structure(input_tensor_structure, P_send, P_recv):
     # receiving ranks that do not have the data originally should enter here.
     if P_recv.active and (P_send != P_recv):
         output_tensor_structure.shape = torch.Size(recv_tensor_shape)
-        
-        # TODO: should this be changed to sth like this:
-        # output_tensor_structure.dtype = convert_intID_to_model_dtype_dict(recv_intID_dtype[0])
         output_tensor_structure.dtype = intID_to_torch_dtype_dict[recv_intID_dtype[0]]
         output_tensor_structure.requires_grad = bool(rg_int_recv[0])
 
@@ -130,8 +122,6 @@ def assemble_global_tensor_structure(local_tensor_structure, P_in, P_out=None):
             P_sub.deactivate()
 
         # Get a communicable integer representing the dtype
-        # TODO: should this be changed to sth like this:
-        # intID_dtype = convert_model_to_intID_dtype_dict(input_tensor_structure.dtype)
         intID_dtype = torch_to_intID_dtype_dict[local_tensor_structure.dtype]
         
         intID_dtype = np.array([intID_dtype], dtype=np.int)
@@ -149,9 +139,6 @@ def assemble_global_tensor_structure(local_tensor_structure, P_in, P_out=None):
 
         # Share the dtype
         intID_dtype = P_out.broadcast_data(intID_dtype, P_data=P_in)
-        
-        # TODO: should this be changed to sth like this:
-        # global_tensor_structure.dtype = convert_intID_to_model_dtype_dict(intID_dtype[0])
         global_tensor_structure.dtype = intID_to_torch_dtype_dict[intID_dtype[0]]
 
         # Share the requires_grad status

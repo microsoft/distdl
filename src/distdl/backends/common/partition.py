@@ -253,7 +253,6 @@ class MPIPartition:
 
         comm = self._root.Create_group(group)
 
-        # TODO: self.device or other.device?
         return MPIPartition(comm, group, root=self._root, device=self.device)
 
     def create_cartesian_topology_partition(self, shape, **options):
@@ -419,7 +418,6 @@ class MPIPartition:
             # first.  This way, we should be able to guarantee that deadlock
             # cannot happen.  It may be linear time, but this is part of the
             # setup phase anyway.
-            # TODO: P_union.device or self.device?
             if recv_ranks[0] < send_ranks[0]:
                 comm_recv = P_union._comm.Create_group(group_recv, tag=recv_ranks[0])
                 P_recv = MPIPartition(comm_recv, group_recv,
@@ -838,9 +836,6 @@ class MPIPartition:
         data_dtype = np.zeros(1, dtype=np.int)
         if P_data.active and self.rank == data_root:
             # Ensure that data is a numpy array
-            # TODO: What should be done regarding the dictionaries?
-            # Should I use the model-based converter? like this:
-            # data_dtype[0] = backend.convert_model_to_intID_dtype_dict(data.dtype)
             data_dtype[0] = numpy_to_intID_dtype_dict[data.dtype]
         self._comm.Bcast(data_dtype, root=data_root)
         data_dtype = intID_to_numpy_dtype_dict[data_dtype[0]]
