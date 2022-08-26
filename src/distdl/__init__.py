@@ -1,9 +1,11 @@
 __version__ = '0.5.0-dev'
 
-import os
-import distdl.nn  # noqa: F401
+from .logger import logger
 
-from . import backends  # noqa: F401
-from . import nn  # noqa: F401
-from . import utilities  # noqa: F401
+import distdl.nn
+
+from . import backends
+from . import nn
+from . import utilities
 from . import backend
+

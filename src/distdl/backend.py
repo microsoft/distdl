@@ -3,6 +3,7 @@
 import os
 import traceback as tb
 from enum import Enum
+import distdl.logger as logger
 import distdl.backends.mpi_mpi_numpy as mpi_mpi_numpy
 import distdl.backends.mpi_mpi_cupy as mpi_mpi_cupy
 import distdl.backends.mpi_mpi_torch as mpi_mpi_torch
@@ -41,7 +42,7 @@ FRONTEND_ENVAR_NAME = "DISTDL_FRONTEND"
 def get_backend():
     global backend
     if backend == None:
-        print("Uninitialized backend deteced, in get_backend()")
+        logger.warning("Uninitialized backend deteced!")
         # tb.print_stack()
         _init_distdl()
     return backend
@@ -121,20 +122,20 @@ def init_distdl(frontend_protocol=None, backend_protocol=None, model_protocol=No
        _backend_protocol == BackendProtocol.MPI and
        _model_protocol == ModelProtocol.CUPY):
         backend = mpi_mpi_cupy
-        print("Configuration MPI_MPI_CUPY has been selected.")
+        logger.info("Configuration MPI_MPI_CUPY has been selected.")
     elif(_frontend_protocol == FrontEndProtocol.MPI and
          _backend_protocol == BackendProtocol.MPI and
          _model_protocol == ModelProtocol.NUMPY):
         backend = mpi_mpi_numpy
-        print("Configuration MPI_MPI_NUMPY has been selected.")
+        logger.info("Configuration MPI_MPI_NUMPY has been selected.")
     elif(_frontend_protocol == FrontEndProtocol.MPI and
          _backend_protocol == BackendProtocol.MPI and
          _model_protocol == ModelProtocol.TORCH):
         backend = mpi_mpi_torch
-        print("Configuration MPI_MPI_TORCH has been selected.")
+        logger.info("Configuration MPI_MPI_TORCH has been selected.")
     else:
         # Invalid configuration
-        print("Invalid Configuration has been selected.")
+        logger.error("Invalid Configuration has been selected.")
         tb.print_exc()
         backend = mpi_mpi_numpy
 
