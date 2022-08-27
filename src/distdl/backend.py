@@ -1,6 +1,8 @@
 # TODO: this source should move to backends package
 
+from inspect import trace
 import os
+from pickle import FALSE
 import traceback as tb
 from enum import Enum
 import distdl.logger as logger
@@ -38,6 +40,9 @@ MODEL_ENVAR_NAME = "DISTDL_MODEL"
 BACKEND_ENVAR_NAME = "DISTDL_BACKEND"
 FRONTEND_ENVAR_NAME = "DISTDL_FRONTEND"
 
+# Devices should be initialized only once, so this flag takes care of that
+device_initialized = False
+
 
 def get_backend():
     global backend
@@ -52,8 +57,10 @@ def get_backend():
 # Currently we have n-to-1 relationship between ranks and GPUs
 # Each rank works on only one GPU at a time, and each GPU may be
 # the defult device of multiple ranks
-def set_device(requested_device=None, rank=None):
+def init_device(requested_device=None, rank=None):
     global backend
+    logger.info(f"Requested device: {requested_device}")
+
     if backend == None:
         _init_distdl()
 
@@ -65,21 +72,26 @@ def set_device(requested_device=None, rank=None):
     elif _model_protocol == ModelProtocol.TORCH and requested_device == None:
         torch.cuda.set_device(rank % torch.cuda.device_count())
         return torch.cuda.current_device()
+    elif _model_protocol == ModelProtocol.TORCH and requested_device == "cuda":
+        torch.cuda.set_device(rank % torch.cuda.device_count())
+        return torch.cuda.current_device()
     elif _model_protocol == ModelProtocol.TORCH and requested_device == "cpu":
-        # TODO: this configuration should be handled more properly in partition.py
         # Right now, if the user wants to create the buffer manager as Torch tensors
         # on cpu, they should do something like this:
         # P_world = MPIPartition(MPI.COMM_WORLD, device="cpu")
         return torch.device("cpu")
-    elif _model_protocol == ModelProtocol.TORCH and requested_device == "cuda":
-        torch.cuda.set_device(rank % torch.cuda.device_count())
-        return torch.cuda.current_device()
     else:
         logger.warning("Invalid protocols are requested.")
         return torch.device("cpu")
 
 
-def get_current_device(requested_device=None):
+def get_current_device(requested_device=None, rank=None):
+    global device_initialized
+
+    if device_initialized == False:
+        init_device(requested_device=requested_device, rank=rank)
+        device_initialized = True
+
     if _model_protocol == ModelProtocol.CUPY:
         return cp.cuda.runtime.getDevice()
     elif _model_protocol == ModelProtocol.NUMPY:

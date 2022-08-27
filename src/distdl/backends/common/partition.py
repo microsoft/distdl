@@ -77,7 +77,7 @@ class MPIPartition:
         Lexicographic identifiers in each Cartesian dimension.
     """
 
-    def __init__(self, comm=MPI.COMM_NULL, group=MPI.GROUP_NULL, root=None, device=None):
+    def __init__(self, comm=MPI.COMM_NULL, group=MPI.GROUP_NULL, root=None, device=None, requested_device=None):
 
         # MPI communicator to communicate within
         self._comm = comm
@@ -117,8 +117,8 @@ class MPIPartition:
         if device != None:
             self.device = device
         else:
-            backend.set_device(requested_device=device, rank=self.rank)
-            self.device = backend.get_current_device()
+            self.device = backend.get_current_device(requested_device=requested_device,
+                                                     rank=self.rank)
 
     def deactivate(self):
         r"""Deactivates this partition by releasing any resources and
