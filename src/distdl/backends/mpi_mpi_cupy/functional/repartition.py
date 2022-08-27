@@ -119,7 +119,6 @@ class RepartitionFunction(torch.autograd.Function):
             # rank 0's status to send
             if P_x.rank == 0:
                 input_requires_grad = input.requires_grad
-                # ToDO: synchronization - leave for now
                 P_union._comm.Bcast(np.array([1 if input_requires_grad else 0]),
                                     root=0)
             else:
@@ -163,7 +162,7 @@ class RepartitionFunction(torch.autograd.Function):
                     xfer_buff = buff.get_view(sh)
                     # np.copyto(xfer_buff, input.detach()[sl].cpu().numpy())
                     # TODO: Is it ok to make the buffer contiguous like this?
-                    cp.copyto(xfer_buff, cp.array(input.detach()[sl].contiguous()))
+                    cp.copyto(xfer_buff, cp.array(input.detach()[sl]))
                     req = P_union._comm.Isend(xfer_buff, dest=partner, tag=111)
                     requests.append(req)
                 else:
@@ -184,7 +183,7 @@ class RepartitionFunction(torch.autograd.Function):
                 if x2ypartner == "self":
                     for (ysl, ysh, y2xpartner) in P_y_to_x_overlaps:
                         if y2xpartner == "self":
-                            cp.copyto(output[ysl], cp.array(input.detach()[xsl].contiguous()))
+                            cp.copyto(output[ysl], cp.array(input.detach()[xsl]))
                             # There is only one case where this can happen
                             break
                     # There is only one case where this can happen
