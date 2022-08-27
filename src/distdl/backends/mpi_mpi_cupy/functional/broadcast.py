@@ -216,8 +216,7 @@ class BroadcastFunction(torch.autograd.Function):
             cupy_dtype = torch_to_cupy_dtype_dict[output_tensor_structure.dtype]
             reduced_data_recv = cp.zeros(output_tensor_structure.shape, dtype=cupy_dtype)
             grad_output_cupy = cp.array(grad_output.detach())
-            P_recv._comm.Reduce(grad_output_cupy, reduced_data_recv, op=MPI.SUM, root=0)
-            # requests.append(req)
+            
             helper_thread = threading.Thread(target=reduce_function,
                                              args=(P_recv, grad_output_cupy, reduced_data_recv))
             helper_thread.start()
@@ -227,12 +226,9 @@ class BroadcastFunction(torch.autograd.Function):
         if P_send != P_recv and P_send.active:
             cupy_dtype = torch_to_cupy_dtype_dict[input_tensor_structure.dtype]
             reduced_data_send = cp.zeros(input_tensor_structure.shape, dtype=cupy_dtype)
-            ## req = P_send._comm.Ireduce(MPI.IN_PLACE, reduced_data_send, root=0, op=MPI.SUM)
+            
             P_send._comm.Reduce(MPI.IN_PLACE, reduced_data_send, op=MPI.SUM, root=0)
-            # requests.append(req)
-
-        # MPI.Request.Waitall(requests)
-
+            
         if helper_thread.is_alive():
             helper_thread.join()
 
