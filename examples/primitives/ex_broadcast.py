@@ -18,7 +18,7 @@ from distdl.backend import BackendProtocol, FrontEndProtocol, ModelProtocol, ini
 
 init_distdl(frontend_protocol=FrontEndProtocol.MPI,
             backend_protocol=BackendProtocol.MPI,
-            model_protocol=ModelProtocol.TORCH)
+            model_protocol=ModelProtocol.CUPY)
 
 # Set up MPI cartesian communicator
 P_world = MPIPartition(MPI.COMM_WORLD)
@@ -62,7 +62,7 @@ if P_x.active:
     x = torch.zeros(*x_local_shape, device=x.device) + (P_x.rank + 1)
 
 x.requires_grad = True
-print(f"rank {P_world.rank}; index {P_x.index}; value {x}")
+print(f"rank {P_world.rank}; index {P_x.index}; value \n{x}")
 
 # Here we broadcast the columns (axis 1), along the rows.
 all_reduce_cols = Broadcast(P_x, P_y, preserve_batch=False)
@@ -77,7 +77,7 @@ all_reduce_cols = Broadcast(P_x, P_y, preserve_batch=False)
 #   [ 2 2 | 2 2 | 2 2 ] ]
 y = all_reduce_cols(x)
 
-print(f"rank {P_world.rank}; index {P_x.index}; value {y}")
+print(f"rank {P_world.rank}; index {P_x.index}; value \n{y}")
 
 # Setup the adjoint input tensor.  Any worker in P_y will generate its part of
 # the adjoint input tensor.  Any worker not in P_y will have a zero-volume
@@ -103,7 +103,7 @@ if P_y.active:
     dy = torch.zeros(*y_local_shape, device=dy.device) + (P_y.rank + 1)
 
 
-print(f"rank {P_world.rank}; index {P_y.index}; value {dy}")
+print(f"rank {P_world.rank}; index {P_y.index}; value \n{dy}")
 
 # Apply the adjoint of the layer.
 #
@@ -117,4 +117,4 @@ print(f"rank {P_world.rank}; index {P_y.index}; value {dy}")
 
 y.backward(dy)
 dx = x.grad
-print(f"rank {P_world.rank}; index {P_x.index}; value {dx}")
+print(f"rank {P_world.rank}; index {P_x.index}; value \n{dx}")
