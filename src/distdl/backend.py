@@ -42,7 +42,7 @@ FRONTEND_ENVAR_NAME = "DISTDL_FRONTEND"
 def get_backend():
     global backend
     if backend == None:
-        logger.warning("Uninitialized backend deteced!")
+        logger.warning("Uninitialized backend detected!")
         # tb.print_stack()
         _init_distdl()
     return backend
@@ -162,7 +162,6 @@ def convert_torch_to_model_dtype(dtype):
     logger.error("Selected model doesn't exist!")
 
 
-
 def convert_model_to_torch_dtype(dtype):
     if _model_protocol == ModelProtocol.CUPY:
         return dtype_utils.cupy_to_torch_dtype_dict[dtype]
@@ -183,7 +182,6 @@ def convert_intID_to_model_dtype_dict(intID):
     logger.error("Selected model doesn't exist!")
 
 
-
 def convert_model_to_intID_dtype_dict(dtype):
     if _model_protocol == ModelProtocol.CUPY:
         return dtype_utils.cupy_to_intID_dtype_dict[dtype]
@@ -192,4 +190,3 @@ def convert_model_to_intID_dtype_dict(dtype):
     if _model_protocol == ModelProtocol.TORCH:
         return dtype_utils.torch_to_intID_dtype_dict[dtype]
     logger.error("Selected model doesn't exist!")
-
