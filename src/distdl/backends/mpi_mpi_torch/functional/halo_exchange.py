@@ -48,13 +48,15 @@ class HaloExchangeFunction(torch.autograd.Function):
                 ## np.copyto(lbb, input.detach()[lbs].cpu().numpy())
                 ## cp.copyto(lbb, cp.array(input.detach()[lbs]))
                 # TODO: Keep as torch tensor (should be alias or deep copy?)
-                lbb = input[lbs].contiguous()
+                # lbb = input[lbs].contiguous()
+                lbb.copy_(input[lbs])
             if rbb is not None:
                 ## np.copyto(rbb, input.detach()[rbs].cpu().numpy())
                 ## cp.copyto(rbb, cp.array(input.detach()[rbs]))
                 # TODO: Keep as torch tensor (should be alias or deep copy?)
                 # rbb = torch.tensor(input.detach()[rbs], device=input.device, dtype=input.dtype)
-                rbb = input[rbs].contiguous()
+                # rbb = input[rbs].contiguous()
+                rbb.copy_(input[rbs])
 
             ltag = 0
             rtag = 1
@@ -75,10 +77,12 @@ class HaloExchangeFunction(torch.autograd.Function):
                     if index == 0:
                         # TODO: Should change these lines to zero copy
                         # input[lgs] = torch.tensor(lgb, device=device)
-                        input[lgs] = lgb.detach().requires_grad_(input.requires_grad)
+                        input[lgs].copy_(lgb.detach())
+                        input[lgs].requires_grad_(input.requires_grad)
                     elif index == 1:
                         # input[rgs] = torch.tensor(rgb, device=device)
-                        input[rgs] = rgb.detach().requires_grad_(input.requires_grad)
+                        input[rgs].copy_(rgb.detach())
+                        input[rgs].requires_grad_(input.requires_grad)
 
                 n_reqs_completed += 1
 
@@ -123,14 +127,14 @@ class HaloExchangeFunction(torch.autograd.Function):
                 ## cp.copyto(lgb, cp.array(grad_output.detach()[lgs]))
                 # TODO: Keep as torch tensor (should be alias or deep copy?)
                 # lgb = torch.tensor(grad_output.detach()[lgs], device=grad_output.device)
-                lgb = grad_output[lgs].contiguous()
+                lgb.copy_(grad_output[lgs])
                 grad_output[lgs] = 0.0
             if rgb is not None:
                 ## np.copyto(rgb, grad_output.detach()[rgs].cpu().numpy())
                 ## cp.copyto(rgb, cp.array(grad_output.detach()[rgs]))
                 # TODO: Keep as torch tensor (should be alias or deep copy?)
                 # rgb = torch.tensor(grad_output.detach()[rgs], device=grad_output.device)
-                rgb = grad_output[rgs].contiguous()
+                rgb.copy_(grad_output[rgs])
                 grad_output[rgs] = 0.0
 
             ltag = 0

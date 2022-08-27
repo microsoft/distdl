@@ -2,6 +2,7 @@ import os
 import numpy as np
 import torch
 
+import distdl.backend as backend
 from ..common.buffer import MPIBufferManager, MPIExpandableBuffer
 
 
@@ -43,9 +44,8 @@ class MPIExpandableTorchBuffer(MPIExpandableBuffer):
         self.capacity = initial_capacity
 
         # The actual storage buffer
-        # TODO: pass device to buffer creation or pass device to:
-        # from distdl.utilities.torch import zero_volume_tensor
-        self.raw_buffer = torch.empty(self.capacity, dtype=dtype)
+        self.raw_buffer = torch.zeros(self.capacity, dtype=dtype,
+                                      device=backend.get_current_device())
 
         # Map between array shapes and numpy views of contiguous chunks of the
         # raw buffer
@@ -69,17 +69,20 @@ class MPIExpandableTorchBuffer(MPIExpandableBuffer):
         if new_capacity <= self.capacity:
             return
 
-        # print(new_capacity)
         # Otherwise, create a new buffer.
-        new_buffer = torch.empty([new_capacity], dtype=self.dtype)
-
         # And copy the contents of the old buffer into the new one.
+        
+        if(self.capacity == 0):
+            self.raw_buffer = torch.zeros(new_capacity, dtype=self.dtype,
+                                          device=backend.get_current_device())
+        else:
+            self.raw_buffer.expand(new_capacity)
 
-        torch._copy_from(self.raw_buffer, new_buffer[:len(self.raw_buffer)])
+        # print("self.raw_buffer", self.raw_buffer)
 
         # The new buffer is now the current buffer
         self.capacity = new_capacity
-        self.raw_buffer = new_buffer
+        ## self.raw_buffer = new_buffer
 
         # Loop over all existing views and recreate them in the new buffer.
         new_views = dict()
@@ -106,7 +109,7 @@ class MPITorchBufferManager(MPIBufferManager):
     buffers : list
         List of buffer objects
     """
-    
+
     def __init__(self):
         super().__init__()
 
