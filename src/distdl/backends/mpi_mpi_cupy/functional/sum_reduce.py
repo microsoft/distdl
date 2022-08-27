@@ -14,9 +14,6 @@ from distdl.utilities.torch import zero_volume_tensor
 
 def reduce_function(partition, src, dst):
     partition._comm.Reduce(src, dst, root=0, op=MPI.SUM)
-    # print("In the helper thread!")
-    # time.sleep(5)
-
 
 class SumReduceFunction(torch.autograd.Function):
     r"""MPI-based functional implementation of a distributed sum-reduce layer.
@@ -123,9 +120,8 @@ class SumReduceFunction(torch.autograd.Function):
         if P_send.active:
             cupy_dtype = torch_to_cupy_dtype_dict[input_tensor_structure.dtype]
             reduced_data_send = cp.zeros(input_tensor_structure.shape, dtype=cupy_dtype)
-            input_cupy = cp.array(input.detach())
-            ## req = P_send._comm.Ireduce(input_cupy, reduced_data_send, root=0, op=MPI.SUM)
-            # requests.append(req)
+            input_cupy = cp.asarray(input.detach())
+
             helper_thread = threading.Thread(target=reduce_function,
                                              args=(P_send, input_cupy, reduced_data_send))
             helper_thread.start()
@@ -134,11 +130,8 @@ class SumReduceFunction(torch.autograd.Function):
         if P_send != P_recv and P_recv.active:
             cupy_dtype = torch_to_cupy_dtype_dict[output_tensor_structure.dtype]
             reduced_data_recv = cp.zeros(output_tensor_structure.shape, dtype=cupy_dtype)
-            ## req = P_recv._comm.Ireduce(MPI.IN_PLACE, reduced_data_recv, root=0, op=MPI.SUM)
-            # requests.append(req)
-            P_recv._comm.Reduce(MPI.IN_PLACE, reduced_data_recv, root=0, op=MPI.SUM)
 
-        # MPI.Request.Waitall(requests)
+            P_recv._comm.Reduce(MPI.IN_PLACE, reduced_data_recv, root=0, op=MPI.SUM)
 
         if helper_thread.is_alive():
             helper_thread.join()
@@ -146,13 +139,13 @@ class SumReduceFunction(torch.autograd.Function):
         # If we had to receive data, we need to tensorify it.
         if P_recv.active:
             if P_send == P_recv:
-                output = torch.tensor(reduced_data_send,
-                                      requires_grad=output_tensor_structure.requires_grad,
-                                      device=device)
+                output = torch.as_tensor(reduced_data_send, dtype=output_tensor_structure.dtype,
+                                         device=device)
+                output.requires_grad_(output_tensor_structure.requires_grad)
             else:
-                output = torch.tensor(reduced_data_recv,
-                                      requires_grad=output_tensor_structure.requires_grad,
-                                      device=device)
+                output = torch.as_tensor(reduced_data_recv, dtype=output_tensor_structure.dtype,
+                                         device=device)
+                output.requires_grad_(output_tensor_structure.requires_grad)
 
         return output
 
@@ -226,7 +219,7 @@ class SumReduceFunction(torch.autograd.Function):
 
         # If I received the reduction in the forward call, I broadcast my data
         if P_recv.active:
-            grad_output_cupy = cp.array(grad_output.detach())
+            grad_output_cupy = cp.asarray(grad_output.detach())
             req = P_recv._comm.Ibcast(grad_output_cupy, root=0)
             requests.append(req)
 
@@ -241,9 +234,9 @@ class SumReduceFunction(torch.autograd.Function):
                 req = P_send._comm.Ibcast(grad_input, root=0)
                 req.Wait()
 
-                grad_input = torch.tensor(grad_input,
-                                          requires_grad=input_tensor_structure.requires_grad,
-                                          device=device)
+                grad_input = torch.as_tensor(grad_input, dtype=input_tensor_structure.dtype,
+                                             device=device)
+                grad_input.requires_grad_(input_tensor_structure.requires_grad)
 
         MPI.Request.Waitall(requests)
 

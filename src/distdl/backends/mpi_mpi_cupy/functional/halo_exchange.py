@@ -45,9 +45,9 @@ class HaloExchangeFunction(torch.autograd.Function):
             lrank, rrank = neighbor_ranks[i]
 
             if lbb is not None:
-                cp.copyto(lbb, cp.array(input.detach()[lbs]))
+                cp.copyto(lbb, cp.asarray(input.detach()[lbs]))
             if rbb is not None:
-                cp.copyto(rbb, cp.array(input.detach()[rbs]))
+                cp.copyto(rbb, cp.asarray(input.detach()[rbs]))
 
             ltag = 0
             rtag = 1
@@ -66,9 +66,11 @@ class HaloExchangeFunction(torch.autograd.Function):
 
                 if index != MPI.UNDEFINED:
                     if index == 0:
-                        input[lgs] = torch.tensor(lgb, device=device)
+                        # input[lgs] = torch.tensor(lgb, device=device)
+                        input[lgs] = torch.as_tensor(lgb, device=device)
                     elif index == 1:
-                        input[rgs] = torch.tensor(rgb, device=device)
+                        # input[rgs] = torch.tensor(rgb, device=device)
+                        input[rgs] = torch.as_tensor(rgb, device=device)
 
                 n_reqs_completed += 1
 
@@ -109,10 +111,10 @@ class HaloExchangeFunction(torch.autograd.Function):
             lrank, rrank = neighbor_ranks[i]
 
             if lgb is not None:
-                cp.copyto(lgb, cp.array(grad_output.detach()[lgs]))
+                cp.copyto(lgb, cp.asarray(grad_output.detach()[lgs]))
                 grad_output[lgs] = 0.0
             if rgb is not None:
-                cp.copyto(rgb, cp.array(grad_output.detach()[rgs]))
+                cp.copyto(rgb, cp.asarray(grad_output.detach()[rgs]))
                 grad_output[rgs] = 0.0
 
             ltag = 0
@@ -132,9 +134,11 @@ class HaloExchangeFunction(torch.autograd.Function):
 
                 if index != MPI.UNDEFINED:
                     if index == 0:
-                        grad_output[lbs] += torch.tensor(lbb, device=device)
+                        # grad_output[lbs] += torch.tensor(lbb, device=device)
+                        grad_output[lbs] += torch.as_tensor(lbb, device=device)
                     elif index == 1:
-                        grad_output[rbs] += torch.tensor(rbb, device=device)
+                        # grad_output[rbs] += torch.tensor(rbb, device=device)
+                        grad_output[rbs] += torch.as_tensor(rbb, device=device)
 
                 n_reqs_completed += 1
 

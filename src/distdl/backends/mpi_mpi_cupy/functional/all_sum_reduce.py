@@ -85,18 +85,15 @@ class AllSumReduceFunction(torch.autograd.Function):
         if P_allreduce.active:
             cupy_dtype = torch_to_cupy_dtype_dict[input_tensor_structure.dtype]
             reduced_data = cp.zeros(input_tensor_structure.shape, dtype=cupy_dtype)
-            input_cupy = cp.array(input.detach())
-            # req = P_allreduce._comm.Iallreduce(input_cupy, reduced_data, op=MPI.SUM)
+            input_cupy = cp.asarray(input.detach())
             P_allreduce._comm.Allreduce(input_cupy, reduced_data, op=MPI.SUM)
-            # requests.append(req)
-
-        # MPI.Request.Waitall(requests)
 
         # If we had to receive data, we need to tensorify it.
         if P_allreduce.active:
-            output = torch.tensor(reduced_data,
-                                  requires_grad=output_tensor_structure.requires_grad,
-                                  device=device)
+            output = torch.as_tensor(reduced_data, dtype=input_tensor_structure.dtype,
+                                     device=device)
+            output.requires_grad_(output_tensor_structure.requires_grad)
+
         return output
 
     @staticmethod
@@ -135,17 +132,13 @@ class AllSumReduceFunction(torch.autograd.Function):
         if P_allreduce.active:
             cupy_dtype = torch_to_cupy_dtype_dict[input_tensor_structure.dtype]
             reduced_data = cp.zeros(input_tensor_structure.shape, dtype=cupy_dtype)
-            grad_output_cupy = cp.array(grad_output.detach())
-            # req = P_allreduce._comm.Iallreduce(grad_output_cupy, reduced_data, op=MPI.SUM)
+            grad_output_cupy = cp.asarray(grad_output.detach())
             P_allreduce._comm.Allreduce(grad_output_cupy, reduced_data, op=MPI.SUM)
-            # requests.append(req)
-
-        # MPI.Request.Waitall(requests)
 
         # If we had to receive data, we need to tensorify it.
         if P_allreduce.active:
-            grad_input = torch.tensor(reduced_data,
-                                      requires_grad=input_tensor_structure.requires_grad,
-                                      device=device)
+            grad_input = torch.as_tensor(reduced_data, dtype=input_tensor_structure.dtype,
+                                         device=device)
+            grad_input.requires_grad_(input_tensor_structure.requires_grad)
 
         return grad_input, None, None, None

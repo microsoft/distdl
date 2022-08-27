@@ -183,7 +183,7 @@ class RepartitionFunction(torch.autograd.Function):
                 if x2ypartner == "self":
                     for (ysl, ysh, y2xpartner) in P_y_to_x_overlaps:
                         if y2xpartner == "self":
-                            cp.copyto(output[ysl], cp.array(input.detach()[xsl]))
+                            cp.copyto(output[ysl], cp.asarray(input.detach()[xsl]))
                             # There is only one case where this can happen
                             break
                     # There is only one case where this can happen
@@ -208,9 +208,13 @@ class RepartitionFunction(torch.autograd.Function):
             completed_count += 1
 
         if P_y.active:
-            output = torch.tensor(output,
-                                  requires_grad=input_requires_grad,
-                                  device=device)
+            # output = torch.tensor(output,
+            #                       requires_grad=input_requires_grad,
+            #                       device=device)
+            output = torch.as_tensor(output,
+                                     dtype=x_global_structure.dtype,
+                                     device=device)
+            output.requires_grad_(input_requires_grad)
 
         return output
 
@@ -300,7 +304,7 @@ class RepartitionFunction(torch.autograd.Function):
             for (sl, sh, partner), buff in zip(P_y_to_x_overlaps, P_y_to_x_buffers):
                 if buff is not None:
                     xfer_buff = buff.get_view(sh)
-                    cp.copyto(xfer_buff, cp.array(grad_output.detach()[sl]))
+                    cp.copyto(xfer_buff, cp.asarray(grad_output.detach()[sl]))
                     req = P_union._comm.Isend(xfer_buff, dest=partner, tag=113)
                     requests.append(req)
                 else:
@@ -319,7 +323,7 @@ class RepartitionFunction(torch.autograd.Function):
                 if y2xpartner == "self":
                     for (xsl, xsh, x2ypartner) in P_x_to_y_overlaps:
                         if x2ypartner == "self":
-                            cp.copyto(grad_input[xsl], cp.array(grad_output.detach()[ysl]))
+                            cp.copyto(grad_input[xsl], cp.asarray(grad_output.detach()[ysl]))
                             # There is only one case where this can happen
                             break
                     # There is only one case where this can happen
@@ -346,8 +350,12 @@ class RepartitionFunction(torch.autograd.Function):
             completed_count += 1
 
         if P_x.active:
-            grad_input = torch.tensor(grad_input,
-                                      requires_grad=input_requires_grad,
-                                      device=device)
+            # grad_input = torch.tensor(grad_input,
+            #                           requires_grad=input_requires_grad,
+            #                           device=device)
+            grad_input = torch.as_tensor(grad_input,
+                                         dtype=x_global_structure.dtype,
+                                         device=device)
+            grad_input.requires_grad_(input_requires_grad)
 
         return grad_input, None, None, None, None, None, None, None, None, None, None, None
