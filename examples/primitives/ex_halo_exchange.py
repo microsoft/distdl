@@ -25,7 +25,7 @@ class MockConvLayer(HaloMixin, ConvMixin):
 
 init_distdl(frontend_protocol=FrontEndProtocol.MPI,
             backend_protocol=BackendProtocol.MPI,
-            model_protocol=ModelProtocol.TORCH)
+            model_protocol=ModelProtocol.CUPY)
 
 # Setup a standard feature-space convolution kernel.
 mockup_conv_layer = MockConvLayer()
