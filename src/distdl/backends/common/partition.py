@@ -130,6 +130,14 @@ class MPIPartition:
             self.device = backend.get_current_device(requested_device=requested_device,
                                                      rank=self.rank)
 
+    def create_nccl_comm(self):
+        if self._nccl is None and backend.backend == backends.mpi_nccl_cupy:
+            self._nccl = NCCLBackend(self._comm, self.size, self.rank)
+
+    def disable_nccl_comm(self):
+        if self._nccl is not None:
+            self._nccl = None
+
     def deactivate(self):
         r"""Deactivates this partition by releasing any resources and
         nullifying any other properties.

@@ -52,27 +52,34 @@ class HaloExchangeFunction(torch.autograd.Function):
             ltag = 0
             rtag = 1
 
-            lrecv_req = P_x._comm.Irecv(lgb, source=lrank, tag=rtag) if lgb is not None else MPI.REQUEST_NULL
-            rrecv_req = P_x._comm.Irecv(rgb, source=rrank, tag=ltag) if rgb is not None else MPI.REQUEST_NULL
-            lsend_req = P_x._comm.Isend(lbb, dest=lrank, tag=ltag) if lbb is not None else MPI.REQUEST_NULL
-            rsend_req = P_x._comm.Isend(rbb, dest=rrank, tag=rtag) if rbb is not None else MPI.REQUEST_NULL
+            # Communication
+            cp.cuda.nccl.groupStart()
+            if lgb is not None:
+                #stream_lgb = cp.cuda.Stream(non_blocking=True)
+                P_x._nccl.recv(lgb, lrank, stream=None)
+                event_lgb = cp.cuda.Event()
+                event_lgb.record()
+            if rgb is not None:
+                #stream_rgb = cp.cuda.Stream(non_blocking=True)
+                P_x._nccl.recv(rgb, rrank, stream=None)
+                event_rgb = cp.cuda.Event()
+                event_rgb.record()
+            if lbb is not None:
+                #stream_lbb = cp.cuda.Stream(non_blocking=True)
+                P_x._nccl.send(lbb, lrank, stream=None)
+            if rbb is not None:
+                #stream_rbb = cp.cuda.Stream(non_blocking=True)
+                P_x._nccl.send(rbb, rrank, stream=None)
+            cp.cuda.nccl.groupEnd()
 
-            reqs = [lrecv_req, rrecv_req, lsend_req, rsend_req]
-            n_reqs_completed = 0
+            # Wait for receive calls to complete
+            if rgb is not None:
+                cp.cuda.runtime.eventSynchronize(event_rgb.ptr)
+                input[rgs] = torch.as_tensor(rgb, device=device)
 
-            while n_reqs_completed < len(reqs):
-                status = MPI.Status()
-                index = MPI.Request.Waitany(reqs, status)
-
-                if index != MPI.UNDEFINED:
-                    if index == 0:
-                        # input[lgs] = torch.tensor(lgb, device=device)
-                        input[lgs] = torch.as_tensor(lgb, device=device)
-                    elif index == 1:
-                        # input[rgs] = torch.tensor(rgb, device=device)
-                        input[rgs] = torch.as_tensor(rgb, device=device)
-
-                n_reqs_completed += 1
+            if lgb is not None:
+                cp.cuda.runtime.eventSynchronize(event_lgb.ptr)
+                input[lgs] = torch.as_tensor(lgb, device=device)
 
         return input
 
@@ -120,26 +127,28 @@ class HaloExchangeFunction(torch.autograd.Function):
             ltag = 0
             rtag = 1
 
-            lrecv_req = P_x._comm.Irecv(lbb, source=lrank, tag=rtag) if lbb is not None else MPI.REQUEST_NULL
-            rrecv_req = P_x._comm.Irecv(rbb, source=rrank, tag=ltag) if rbb is not None else MPI.REQUEST_NULL
-            lsend_req = P_x._comm.Isend(lgb, dest=lrank, tag=ltag) if lgb is not None else MPI.REQUEST_NULL
-            rsend_req = P_x._comm.Isend(rgb, dest=rrank, tag=rtag) if rgb is not None else MPI.REQUEST_NULL
+            cp.cuda.nccl.groupStart()
+            if lbb is not None:
+                P_x._nccl.recv(lbb, lrank, stream=None)
+                event_lbb = cp.cuda.Event()
+                event_lbb.record()
+            if rbb is not None:
+                P_x._nccl.recv(rbb, rrank, stream=None)
+                event_rbb = cp.cuda.Event()
+                event_rbb.record()
+            if lgb is not None:
+                P_x._nccl.send(lgb, lrank, stream=None)
+            if rgb is not None:
+                P_x._nccl.send(rgb, rrank, stream=None)
+            cp.cuda.nccl.groupEnd()
 
-            reqs = [lrecv_req, rrecv_req, lsend_req, rsend_req]
-            n_reqs_completed = 0
+            # Wait for receive calls to complete
+            if lbb is not None:
+                cp.cuda.runtime.eventSynchronize(event_lbb.ptr)
+                grad_output[lbs] += torch.as_tensor(lbb, device=device)
 
-            while n_reqs_completed < len(reqs):
-                status = MPI.Status()
-                index = MPI.Request.Waitany(reqs, status)
-
-                if index != MPI.UNDEFINED:
-                    if index == 0:
-                        # grad_output[lbs] += torch.tensor(lbb, device=device)
-                        grad_output[lbs] += torch.as_tensor(lbb, device=device)
-                    elif index == 1:
-                        # grad_output[rbs] += torch.tensor(rbb, device=device)
-                        grad_output[rbs] += torch.as_tensor(rbb, device=device)
-
-                n_reqs_completed += 1
+            if rbb is not None:
+                cp.cuda.runtime.eventSynchronize(event_rbb.ptr)
+                grad_output[rbs] += torch.as_tensor(rbb, device=device)
 
         return grad_output, None, None, None, None
