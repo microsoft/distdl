@@ -79,14 +79,12 @@ class AllSumReduceFunction(torch.autograd.Function):
 
         output = zero_volume_tensor(device=device)
 
-        requests = []
-
         # There is no need to specificy a root.
         if P_allreduce.active:
             cupy_dtype = torch_to_cupy_dtype_dict[input_tensor_structure.dtype]
             reduced_data = cp.zeros(input_tensor_structure.shape, dtype=cupy_dtype)
             input_cupy = cp.asarray(input.detach())
-            P_allreduce._comm.Allreduce(input_cupy, reduced_data, op=MPI.SUM)
+            P_allreduce._nccl.all_reduce(input_cupy, reduced_data, op='sum', stream=None)
 
         # If we had to receive data, we need to tensorify it.
         if P_allreduce.active:
@@ -126,14 +124,12 @@ class AllSumReduceFunction(torch.autograd.Function):
 
         grad_input = zero_volume_tensor(device=device)
 
-        requests = []
-
         # All-sum-reduce is self-adjoint
         if P_allreduce.active:
             cupy_dtype = torch_to_cupy_dtype_dict[input_tensor_structure.dtype]
             reduced_data = cp.zeros(input_tensor_structure.shape, dtype=cupy_dtype)
             grad_output_cupy = cp.asarray(grad_output.detach())
-            P_allreduce._comm.Allreduce(grad_output_cupy, reduced_data, op=MPI.SUM)
+            P_allreduce._nccl.all_reduce(grad_output_cupy, reduced_data, op='sum', stream=None)
 
         # If we had to receive data, we need to tensorify it.
         if P_allreduce.active:

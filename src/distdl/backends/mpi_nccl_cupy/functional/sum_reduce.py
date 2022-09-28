@@ -107,11 +107,6 @@ class SumReduceFunction(torch.autograd.Function):
         else:
             output = zero_volume_tensor(device=device)
 
-        requests = []
-
-        # Creating threads (maybe moving them in the init only)
-        helper_thread = threading.Thread(target=reduce_function)
-
         # By design, the roots are always 0 in the cross-communicators
         # If I receive data (either from a remote worker or just from myself)
         # I need to reduce that data.  If I send and receive to myself, this
@@ -121,20 +116,14 @@ class SumReduceFunction(torch.autograd.Function):
             cupy_dtype = torch_to_cupy_dtype_dict[input_tensor_structure.dtype]
             reduced_data_send = cp.zeros(input_tensor_structure.shape, dtype=cupy_dtype)
             input_cupy = cp.asarray(input.detach())
-
-            helper_thread = threading.Thread(target=reduce_function,
-                                             args=(P_send, input_cupy, reduced_data_send))
-            helper_thread.start()
+            P_send._nccl.reduce(input_cupy, reduced_data_send, op='sum', root=0, stream=None)
 
         # If I sent data in the forward, I have to receive it here.
         if P_send != P_recv and P_recv.active:
             cupy_dtype = torch_to_cupy_dtype_dict[output_tensor_structure.dtype]
             reduced_data_recv = cp.zeros(output_tensor_structure.shape, dtype=cupy_dtype)
 
-            P_recv._comm.Reduce(MPI.IN_PLACE, reduced_data_recv, root=0, op=MPI.SUM)
-
-        if helper_thread.is_alive():
-            helper_thread.join()
+            P_recv._nccl.reduce(reduced_data_recv, reduced_data_recv, op='sum', root=0, stream=None)
 
         # If we had to receive data, we need to tensorify it.
         if P_recv.active:
@@ -215,13 +204,10 @@ class SumReduceFunction(torch.autograd.Function):
         else:
             grad_input = zero_volume_tensor(device=device)
 
-        requests = []
-
         # If I received the reduction in the forward call, I broadcast my data
         if P_recv.active:
             grad_output_cupy = cp.asarray(grad_output.detach())
-            req = P_recv._comm.Ibcast(grad_output_cupy, root=0)
-            requests.append(req)
+            P_recv._nccl.broadcast(grad_output_cupy, root=0, stream=None)
 
         # If I just receive, receive the broadcast
         if P_send.active:
@@ -231,13 +217,10 @@ class SumReduceFunction(torch.autograd.Function):
             else:
                 cupy_dtype = torch_to_cupy_dtype_dict[input_tensor_structure.dtype]
                 grad_input = cp.zeros(input_tensor_structure.shape, dtype=cupy_dtype)
-                req = P_send._comm.Ibcast(grad_input, root=0)
-                req.Wait()
+                P_send._nccl.broadcast(grad_input, root=0, stream=None)
 
                 grad_input = torch.as_tensor(grad_input, dtype=input_tensor_structure.dtype,
                                              device=device)
                 grad_input.requires_grad_(input_tensor_structure.requires_grad)
-
-        MPI.Request.Waitall(requests)
 
         return grad_input, None, None, None, None, None

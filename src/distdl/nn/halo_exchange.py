@@ -108,10 +108,9 @@ class HaloExchange(Module):
                                                                self.recv_buffer_shape,
                                                                self.send_buffer_shape,
                                                                input[0].dtype)
-
+            self.P_x.initialize_backend_comm()
         self._distdl_is_setup = True
         self._input_tensor_structure = TensorStructure(input[0])
-        self.P_x.create_nccl_comm() # only creates nccl comm if nccl communication backend is set
 
     def _distdl_module_teardown(self, input):
 

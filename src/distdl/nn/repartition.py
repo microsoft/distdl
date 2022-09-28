@@ -90,7 +90,7 @@ class Repartition(Module):
         # so that data can be copied across them.
         P_union = self._distdl_backend.Partition()
         if P_x.active or P_y.active:
-            P_union = P_x.create_partition_union(P_y)
+            P_union = P_x.create_partition_union(P_y, initialize_backend_comm=True)
         self.P_union = P_union
 
         # Setup these variables incase the current worker is inactive in

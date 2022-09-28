@@ -56,6 +56,8 @@ class MPIPartition:
     device : Device name, optional
         This field is inherited through all the partition's descendents to
         make sure that the tensors are allocated on the same device.
+    initialize_backend_comm : bool, optional
+        Flag to create the backend communicator.
 
     Attributes
     ----------
@@ -79,10 +81,12 @@ class MPIPartition:
         Lexicographic identifiers in each Cartesian dimension.
     """
 
-    def __init__(self, comm=MPI.COMM_NULL, group=MPI.GROUP_NULL, root=None, device=None, requested_device=None, nccl=False):
+    def __init__(self, comm=MPI.COMM_NULL, group=MPI.GROUP_NULL, root=None, device=None, 
+        requested_device=None, initialize_backend_comm=False):
 
         # MPI communicator to communicate within
         self._comm = comm
+        self._nccl = None
 
         # root tracks a root communicator: any subpartition from this one
         # will have the same root as this one.
@@ -116,13 +120,14 @@ class MPIPartition:
         self.shape = np.array([self.size], dtype=np.int)
         self.dim = len(self.shape)
 
-        # NCCL communicator
-        #if backend.backend == backends.mpi_nccl_cupy and self._comm != MPI.COMM_NULL:
-        if nccl is True and self._comm != MPI.COMM_NULL:
-            #print("Create NCCL comm")
-            self._nccl = NCCLBackend(self._comm, self.size, self.rank)
-        else:
-            self._nccl = None
+        # Create backend communicator. For now, the NCCL backend is the only
+        # case for which frontend and backend communicators are different.
+        if initialize_backend_comm is True and self._comm != MPI.COMM_NULL:
+            if backend.backend == backends.mpi_nccl_cupy:
+                print("Create NCCL comm")
+                self._nccl = NCCLBackend(self._comm, self.size, self.rank)
+            else:
+                pass
 
         if device != None:
             self.device = device
@@ -130,13 +135,11 @@ class MPIPartition:
             self.device = backend.get_current_device(requested_device=requested_device,
                                                      rank=self.rank)
 
-    def create_nccl_comm(self):
-        if self._nccl is None and backend.backend == backends.mpi_nccl_cupy:
-            self._nccl = NCCLBackend(self._comm, self.size, self.rank)
-
-    def disable_nccl_comm(self):
-        if self._nccl is not None:
-            self._nccl = None
+    def initialize_backend_comm(self):
+        if self._comm != MPI.COMM_NULL and backend.backend == backends.mpi_nccl_cupy:
+            if self._nccl is None:
+                print("Create NCCL comm backdoor")
+                self._nccl = NCCLBackend(self._comm, self.size, self.rank)
 
     def deactivate(self):
         r"""Deactivates this partition by releasing any resources and
@@ -211,7 +214,7 @@ class MPIPartition:
         if self.active:
             print_sequential(self._comm, val)
 
-    def create_partition_inclusive(self, ranks):
+    def create_partition_inclusive(self, ranks, initialize_backend_comm=False):
         r"""Creates new partition from a subset of workers in this Partition.
 
         Uses the iterable set of ``ranks``, the lexicographic identifiers of
@@ -225,7 +228,9 @@ class MPIPartition:
         Parameters
         ----------
         ranks : iterable
-            The ranks of the workers in this partition
+            The ranks of the workers in this partition.
+        initialize_backend_comm : bool, optional
+            Flag to create the backend communicator.
 
         Returns
         -------
@@ -238,9 +243,10 @@ class MPIPartition:
 
         comm = self._comm.Create_group(group)
 
-        return MPIPartition(comm, group, root=self._root, device=self.device)
+        return MPIPartition(comm, group, root=self._root, device=self.device,
+            initialize_backend_comm=initialize_backend_comm)
 
-    def create_partition_union(self, other):
+    def create_partition_union(self, other, initialize_backend_comm=False):
         r"""Creates new partition from the union of two partitions.
 
         The new partition is the union of the current and ``other`` partitions.
@@ -256,6 +262,8 @@ class MPIPartition:
         ----------
         other : MPIPartition
             The partition to union with.
+        initialize_backend_comm: Bool, optional.
+            Flag to initialize the backend communicator.
 
         Returns
         -------
@@ -271,12 +279,8 @@ class MPIPartition:
 
         comm = self._root.Create_group(group)
 
-        if backend.backend == backends.mpi_nccl_cupy:
-            nccl = True
-        else:
-            nccl = False
-
-        return MPIPartition(comm, group, root=self._root, device=self.device, nccl=nccl)
+        return MPIPartition(comm, group, root=self._root, device=self.device, 
+            initialize_backend_comm=initialize_backend_comm)
 
     def create_cartesian_topology_partition(self, shape, **options):
         r"""Creates new partition with Cartesian topology.
@@ -391,7 +395,8 @@ class MPIPartition:
 
     def _create_send_recv_partitions(self, P_union,
                                      send_ranks, group_send,
-                                     recv_ranks, group_recv):
+                                     recv_ranks, group_recv,
+                                     initialize_backend_comm=False):
         r"""Creates the send and receive partitions for broadcasts and reductions.
 
         Uses ``MPI_Comm_create_group`` which is only collective across the
@@ -449,37 +454,38 @@ class MPIPartition:
             # setup phase anyway.
             if recv_ranks[0] < send_ranks[0]:
                 comm_recv = P_union._comm.Create_group(group_recv, tag=recv_ranks[0])
-                P_recv = MPIPartition(comm_recv, group_recv,
-                                      root=P_union._root, device=P_union.device, nccl=nccl)
+                P_recv = MPIPartition(comm_recv, group_recv, root=P_union._root, 
+                    device=P_union.device, initialize_backend_comm=initialize_backend_comm)
                 comm_send = P_union._comm.Create_group(group_send, tag=send_ranks[0])
-                P_send = MPIPartition(comm_send, group_send,
-                                      root=P_union._root, device=P_union.device, nccl=nccl)
+                P_send = MPIPartition(comm_send, group_send, root=P_union._root, 
+                    device=P_union.device, initialize_backend_comm=initialize_backend_comm)
             else:
                 comm_send = P_union._comm.Create_group(group_send, tag=send_ranks[0])
-                P_send = MPIPartition(comm_send, group_send,
-                                      root=P_union._root, device=P_union.device, nccl=nccl)
+                P_send = MPIPartition(comm_send, group_send, root=P_union._root, 
+                    device=P_union.device, initialize_backend_comm=initialize_backend_comm)
                 comm_recv = P_union._comm.Create_group(group_recv, tag=recv_ranks[0])
-                P_recv = MPIPartition(comm_recv, group_recv,
-                                      root=P_union._root, device=P_union.device, nccl=nccl)
+                P_recv = MPIPartition(comm_recv, group_recv, root=P_union._root, 
+                    device=P_union.device, initialize_backend_comm=initialize_backend_comm)
         elif has_send_group and not has_recv_group and not same_send_recv_group:
             comm_send = P_union._comm.Create_group(group_send, tag=send_ranks[0])
-            P_send = MPIPartition(comm_send, group_send,
-                                  root=P_union._root, device=P_union.device, nccl=nccl)
+            P_send = MPIPartition(comm_send, group_send, root=P_union._root, 
+                device=P_union.device, initialize_backend_comm=initialize_backend_comm)
         elif not has_send_group and has_recv_group and not same_send_recv_group:
             comm_recv = P_union._comm.Create_group(group_recv, tag=recv_ranks[0])
-            P_recv = MPIPartition(comm_recv, group_recv,
-                                  root=P_union._root, device=P_union.device, nccl=nccl)
+            P_recv = MPIPartition(comm_recv, group_recv, root=P_union._root, 
+                device=P_union.device, initialize_backend_comm=initialize_backend_comm)
         else:  # if has_send_group and has_recv_group and same_send_recv_group
             comm_send = P_union._comm.Create_group(group_send, tag=send_ranks[0])
-            P_send = MPIPartition(comm_send, group_send,
-                                  root=P_union._root, device=P_union.device, nccl=nccl)
+            P_send = MPIPartition(comm_send, group_send, root=P_union._root, 
+                device=P_union.device, initialize_backend_comm=initialize_backend_comm)
             P_recv = P_send
 
         return P_send, P_recv
 
     def create_broadcast_partition_to(self, P_dest,
                                       transpose_src=False,
-                                      transpose_dest=False):
+                                      transpose_dest=False,
+                                      initialize_backend_comm=False):
         r"""Creates the send and receive partitions for broadcasts.
 
         Creates the send and receive partitions from the current partition to
@@ -497,6 +503,8 @@ class MPIPartition:
             Flag to transpose the source partition.
         transpose_dest : bool, optional
             Flag to transpose the destination partition.
+        initialize_backend_comm: bool, optional
+            Flag to initialize the backend communicator.
 
         Returns
         -------
@@ -511,7 +519,7 @@ class MPIPartition:
 
         P_union = MPIPartition()
         if P_src.active or P_dest.active:
-            P_union = P_src.create_partition_union(P_dest)
+            P_union = P_src.create_partition_union(P_dest, initialize_backend_comm=False)
 
         # If we are not active in one of the two partitions, return null
         # partitions
@@ -610,20 +618,23 @@ class MPIPartition:
 
         P_send, P_recv = self._create_send_recv_partitions(P_union,
                                                            send_ranks, group_send,
-                                                           recv_ranks, group_recv)
+                                                           recv_ranks, group_recv,
+                                                           initialize_backend_comm)
 
         # Release temporary resources
         P_union.deactivate()
 
         return P_send, P_recv
 
-    def create_allreduction_partition(self, axes_reduce):
+    def create_allreduction_partition(self, axes_reduce, initialize_backend_comm=False):
         r"""Creates the partitions for all-reductions.
 
         Parameters
         ----------
         axes_reduce : tuple
             Partition dimensions along which the all-reduction takes place.
+        initialize_backend_comm : bool, optional
+            Flag to create the backend communicator.
 
         Returns
         -------
@@ -652,7 +663,8 @@ class MPIPartition:
         index_filter = assemble_index_filter(P_src.index, axes_reduce, invert=True)
         allreduce_ranks = [P_src._comm.Get_cart_rank(idx) for idx in filtered_range_index(P_src.shape, index_filter)]
 
-        P_allreduce_base = P_src.create_partition_inclusive(allreduce_ranks)
+        P_allreduce_base = P_src.create_partition_inclusive(allreduce_ranks, 
+            initialize_backend_comm=initialize_backend_comm)
         P_allreduce = P_allreduce_base.create_cartesian_topology_partition(allreduce_shape)
 
         # Release temporary resources
@@ -662,7 +674,8 @@ class MPIPartition:
 
     def create_reduction_partition_to(self, P_dest,
                                       transpose_src=False,
-                                      transpose_dest=False):
+                                      transpose_dest=False,
+                                      initialize_backend_comm=False):
         r"""Creates the send and receive partitions for reductions.
 
         Creates the send and receive partitions from the current partition to
@@ -680,6 +693,8 @@ class MPIPartition:
             Flag to transpose the source partition.
         transpose_dest : bool, optional
             Flag to transpose the destination partition.
+        initialize_backend_comm : bool, optional
+            Flag to create the backend communicator.
 
         Returns
         -------
@@ -694,7 +709,7 @@ class MPIPartition:
 
         P_union = MPIPartition()
         if P_src.active or P_dest.active:
-            P_union = P_src.create_partition_union(P_dest)
+            P_union = P_src.create_partition_union(P_dest, initialize_backend_comm=False)
 
         # If we are not active in one of the two partitions, return null
         # partitions
@@ -791,7 +806,8 @@ class MPIPartition:
 
         P_send, P_recv = self._create_send_recv_partitions(P_union,
                                                            send_ranks, group_send,
-                                                           recv_ranks, group_recv)
+                                                           recv_ranks, group_recv,
+                                                           initialize_backend_comm)
 
         # Release temporary resources
         P_union.deactivate()

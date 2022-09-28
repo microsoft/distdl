@@ -124,7 +124,8 @@ class SumReduce(Module):
         if not self.identity:
             reduce_partitions = self.P_x.create_reduction_partition_to(self.P_y,
                                                                        self.transpose_src,
-                                                                       self.transpose_dest)
+                                                                       self.transpose_dest,
+                                                                       initialize_backend_comm=True)
             self.P_send = reduce_partitions[0]
             self.P_recv = reduce_partitions[1]
 
