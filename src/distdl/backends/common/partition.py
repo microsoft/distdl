@@ -7,6 +7,7 @@ from distdl.backends.common.compare import check_identical_group
 from distdl.backends.common.compare import check_null_comm
 from distdl.backends.common.compare import check_null_group
 from distdl.backends.common.compare import check_null_rank
+from distdl.backends.common.nccl_comm import NCCLBackend
 from distdl.utilities.debug import print_sequential
 from distdl.utilities.dtype import intID_to_numpy_dtype_dict
 from distdl.utilities.dtype import numpy_to_intID_dtype_dict
@@ -14,7 +15,8 @@ from distdl.utilities.index_tricks import cartesian_index_c
 from distdl.utilities.index_tricks import cartesian_index_f
 from distdl.utilities.slicing import assemble_index_filter
 from distdl.utilities.slicing import filtered_range_index
-
+from distdl import backends
+from distdl import backend
 
 class MPIPartition:
     r"""MPI-based implementation of unstructured tensor partition.
@@ -77,7 +79,7 @@ class MPIPartition:
         Lexicographic identifiers in each Cartesian dimension.
     """
 
-    def __init__(self, comm=MPI.COMM_NULL, group=MPI.GROUP_NULL, root=None, device=None, requested_device=None):
+    def __init__(self, comm=MPI.COMM_NULL, group=MPI.GROUP_NULL, root=None, device=None, requested_device=None, nccl=False):
 
         # MPI communicator to communicate within
         self._comm = comm
@@ -92,7 +94,7 @@ class MPIPartition:
 
         # If the communicator is not null, this worker is active and can
         # gather remaining information.  Otherwise, the worker is inactive
-        # and members should be nullified.
+        # and members should be nullified.1
         if self._comm != MPI.COMM_NULL:
             self.active = True
             if group == MPI.GROUP_NULL:
@@ -113,6 +115,14 @@ class MPIPartition:
         # like Cartesian partitions, so we need to give a shape and index.
         self.shape = np.array([self.size], dtype=np.int)
         self.dim = len(self.shape)
+
+        # NCCL communicator
+        #if backend.backend == backends.mpi_nccl_cupy and self._comm != MPI.COMM_NULL:
+        if nccl is True and self._comm != MPI.COMM_NULL:
+            #print("Create NCCL comm")
+            self._nccl = NCCLBackend(self._comm, self.size, self.rank)
+        else:
+            self._nccl = None
 
         if device != None:
             self.device = device
@@ -253,7 +263,12 @@ class MPIPartition:
 
         comm = self._root.Create_group(group)
 
-        return MPIPartition(comm, group, root=self._root, device=self.device)
+        if backend.backend == backends.mpi_nccl_cupy:
+            nccl = True
+        else:
+            nccl = False
+
+        return MPIPartition(comm, group, root=self._root, device=self.device, nccl=nccl)
 
     def create_cartesian_topology_partition(self, shape, **options):
         r"""Creates new partition with Cartesian topology.
@@ -408,6 +423,12 @@ class MPIPartition:
         P_send = MPIPartition()
         P_recv = MPIPartition()
 
+        # Check is NCCL should be used
+        if backend.backend == backends.mpi_nccl_cupy:
+            nccl = True
+        else:
+            nccl = False
+
         # Brute force the four cases, don't try to be elegant...this pattern
         # is prone to deadlock if we are not careful.
         if has_send_group and has_recv_group and not same_send_recv_group:
@@ -421,29 +442,29 @@ class MPIPartition:
             if recv_ranks[0] < send_ranks[0]:
                 comm_recv = P_union._comm.Create_group(group_recv, tag=recv_ranks[0])
                 P_recv = MPIPartition(comm_recv, group_recv,
-                                      root=P_union._root, device=P_union.device)
+                                      root=P_union._root, device=P_union.device, nccl=nccl)
                 comm_send = P_union._comm.Create_group(group_send, tag=send_ranks[0])
                 P_send = MPIPartition(comm_send, group_send,
-                                      root=P_union._root, device=P_union.device)
+                                      root=P_union._root, device=P_union.device, nccl=nccl)
             else:
                 comm_send = P_union._comm.Create_group(group_send, tag=send_ranks[0])
                 P_send = MPIPartition(comm_send, group_send,
-                                      root=P_union._root, device=P_union.device)
+                                      root=P_union._root, device=P_union.device, nccl=nccl)
                 comm_recv = P_union._comm.Create_group(group_recv, tag=recv_ranks[0])
                 P_recv = MPIPartition(comm_recv, group_recv,
-                                      root=P_union._root, device=P_union.device)
+                                      root=P_union._root, device=P_union.device, nccl=nccl)
         elif has_send_group and not has_recv_group and not same_send_recv_group:
             comm_send = P_union._comm.Create_group(group_send, tag=send_ranks[0])
             P_send = MPIPartition(comm_send, group_send,
-                                  root=P_union._root, device=P_union.device)
+                                  root=P_union._root, device=P_union.device, nccl=nccl)
         elif not has_send_group and has_recv_group and not same_send_recv_group:
             comm_recv = P_union._comm.Create_group(group_recv, tag=recv_ranks[0])
             P_recv = MPIPartition(comm_recv, group_recv,
-                                  root=P_union._root, device=P_union.device)
+                                  root=P_union._root, device=P_union.device, nccl=nccl)
         else:  # if has_send_group and has_recv_group and same_send_recv_group
             comm_send = P_union._comm.Create_group(group_send, tag=send_ranks[0])
             P_send = MPIPartition(comm_send, group_send,
-                                  root=P_union._root, device=P_union.device)
+                                  root=P_union._root, device=P_union.device, nccl=nccl)
             P_recv = P_send
 
         return P_send, P_recv

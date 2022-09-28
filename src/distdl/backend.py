@@ -9,27 +9,35 @@ import distdl.logger as logger
 import distdl.backends.mpi_mpi_numpy as mpi_mpi_numpy
 import distdl.backends.mpi_mpi_cupy as mpi_mpi_cupy
 import distdl.backends.mpi_mpi_torch as mpi_mpi_torch
+import distdl.backends.mpi_nccl_cupy as mpi_nccl_cupy
 import distdl.utilities.dtype as dtype_utils
 import cupy as cp
 import torch
 
-
+# Communication protocal for the frontend. This includes
+# the communications of tensor shapes, partition sizes etc.
+# Currently only MPI is supported.
 class FrontEndProtocol(Enum):
     MPI = 1
 
-
+# Communication protocal for the backend, which is used
+# to communicate tensors in the forward/backward evaluation
+# of torch modules.
 class BackendProtocol(Enum):
     MPI = 1
     NCCL = 2
 
-
+# Array/tensor representation that is used in the backend. 
+# The frontend always uses torch tensors. If packages other
+# than torch are used in the backend, tensors are converted
+# to the other format for calling the communication primitives.
 class ModelProtocol(Enum):
     CUPY = 1
     NUMPY = 2
     TORCH = 3
 
 
-# defult options
+# default options
 backend = None
 _model_protocol = ModelProtocol.CUPY
 _backend_protocol = BackendProtocol.MPI
@@ -43,7 +51,8 @@ FRONTEND_ENVAR_NAME = "DISTDL_FRONTEND"
 # Devices should be initialized only once, so this flag takes care of that
 device_initialized = False
 
-
+# The backend is stored as a global variable. If no backend is set by the user,
+# a default backend (mpi-mpi-cupy) will be created.
 def get_backend():
     global backend
     if backend == None:
@@ -140,6 +149,11 @@ def init_distdl(frontend_protocol=None, backend_protocol=None, model_protocol=No
          _model_protocol == ModelProtocol.TORCH):
         backend = mpi_mpi_torch
         logger.info("Configuration MPI_MPI_TORCH has been selected.")
+    elif(_frontend_protocol == FrontEndProtocol.MPI and
+         _backend_protocol == BackendProtocol.NCCL and
+         _model_protocol == ModelProtocol.CUPY):
+        backend = mpi_nccl_cupy
+        logger.info("Configuration MPI_NCCL_CUPY has been selected.")
     else:
         # Invalid configuration
         logger.error("Invalid Configuration has been selected.")
