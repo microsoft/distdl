@@ -124,7 +124,6 @@ class MPIPartition:
         # case for which frontend and backend communicators are different.
         if initialize_backend_comm is True and self._comm != MPI.COMM_NULL:
             if backend.backend == backends.mpi_nccl_cupy:
-                print("Create NCCL comm")
                 self._nccl = NCCLBackend(self._comm, self.size, self.rank)
             else:
                 pass
@@ -138,7 +137,6 @@ class MPIPartition:
     def initialize_backend_comm(self):
         if self._comm != MPI.COMM_NULL and backend.backend == backends.mpi_nccl_cupy:
             if self._nccl is None:
-                print("Create NCCL comm backdoor")
                 self._nccl = NCCLBackend(self._comm, self.size, self.rank)
 
     def deactivate(self):
@@ -214,7 +212,7 @@ class MPIPartition:
         if self.active:
             print_sequential(self._comm, val)
 
-    def create_partition_inclusive(self, ranks, initialize_backend_comm=False):
+    def create_partition_inclusive(self, ranks):
         r"""Creates new partition from a subset of workers in this Partition.
 
         Uses the iterable set of ``ranks``, the lexicographic identifiers of
@@ -229,9 +227,7 @@ class MPIPartition:
         ----------
         ranks : iterable
             The ranks of the workers in this partition.
-        initialize_backend_comm : bool, optional
-            Flag to create the backend communicator.
-
+            
         Returns
         -------
         A new :any:`MPIPartition` instance.
@@ -243,8 +239,7 @@ class MPIPartition:
 
         comm = self._comm.Create_group(group)
 
-        return MPIPartition(comm, group, root=self._root, device=self.device,
-            initialize_backend_comm=initialize_backend_comm)
+        return MPIPartition(comm, group, root=self._root, device=self.device)
 
     def create_partition_union(self, other, initialize_backend_comm=False):
         r"""Creates new partition from the union of two partitions.
@@ -663,12 +658,15 @@ class MPIPartition:
         index_filter = assemble_index_filter(P_src.index, axes_reduce, invert=True)
         allreduce_ranks = [P_src._comm.Get_cart_rank(idx) for idx in filtered_range_index(P_src.shape, index_filter)]
 
-        P_allreduce_base = P_src.create_partition_inclusive(allreduce_ranks, 
-            initialize_backend_comm=initialize_backend_comm)
+        P_allreduce_base = P_src.create_partition_inclusive(allreduce_ranks)
         P_allreduce = P_allreduce_base.create_cartesian_topology_partition(allreduce_shape)
 
         # Release temporary resources
         P_allreduce_base.deactivate()
+
+        # Create backend communicator
+        if initialize_backend_comm:
+            P_allreduce.initialize_backend_comm()
 
         return P_allreduce
 
