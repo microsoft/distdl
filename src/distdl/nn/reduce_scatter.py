@@ -103,9 +103,6 @@ class ReduceScatter(Module):
             self.output_tensor_structure.shape = compute_subshape_along_axis(self.P_x.shape, 
                 self.P_x.index, self.input_tensor_structure.shape, self.axes_reduce_scatter)
 
-            #print("input shape: ", self.input_tensor_structure.shape)
-            #print("output shape: ", self.output_tensor_structure.shape)
-
         self._distdl_is_setup = True
         self._input_tensor_structure = TensorStructure(input[0])
 
