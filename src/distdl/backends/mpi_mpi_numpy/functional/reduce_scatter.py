@@ -31,10 +31,10 @@ class ReduceScatterFunction(torch.autograd.Function):
     @staticmethod
     def forward(ctx, input, P_reducescatter,
                 input_tensor_structure, output_tensor_structure):
-        r"""Forward function of distributed all-sum-reduction layer.
+        r"""Forward function of distributed reduce-scatter layer.
 
-        This method implements the forward all-sum-reduction operation using the
-        ``MPI_Iallreduce`` function on the communicator defined by ``P_reducescatter``.
+        This method implements the forward reduce-scatter operation using the
+        ``MPI_Ireduce_scatter`` function on the communicator defined by ``P_reducescatter``.
 
         When the current worker is inactive in the ``P_reducescatter`` partition, it will
         output a zero-volume tensor.
@@ -46,7 +46,7 @@ class ReduceScatterFunction(torch.autograd.Function):
         input : `torch.tensor`
             Input tensor.
         P_reducescatter : Partition
-            Partition reduction happens within.
+            Partition reduce-scatter happens within.
         input_tensor_structure : tuple
             Tuple containing properties of the input tensor (dimension, shape,
             requires_grad).
@@ -92,7 +92,7 @@ class ReduceScatterFunction(torch.autograd.Function):
 
     @staticmethod
     def backward(ctx, grad_output):
-        r"""Backward function of distributed all-sum-reduction layer.
+        r"""Backward function of distributed reduce-scatter layer.
 
         This method implements the adjoint of the Jacobian of the
         reduce-scatter operation, the all-gather operation, using the

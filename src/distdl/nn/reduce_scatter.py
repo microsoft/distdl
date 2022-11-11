@@ -6,7 +6,7 @@ from distdl.utilities.slicing import compute_subshape_along_axis
 class ReduceScatter(Module):
     r"""A distributed all-sum-reduce layer.
 
-    This class provides the user interface to the all-sum-reduction
+    This class provides the user interface to the reduce-scatter
     distributed data movement primitive.  Implementation details are back-end
     specific.
 
@@ -26,9 +26,9 @@ class ReduceScatter(Module):
     P_x :
         Partition of input and output tensor.
     axes_reduce_scatter : tuple, optional
-        Partition dimensions along which the all-reduction takes place.
+        Partition dimensions along which the allreduction and scattering takes place.
     axes_keep : tuple, optional
-        Partition dimensions to reduce to.  Complement of `axes_reduce_scatter`.
+        Partition dimensions to reduce-scatter to.  Complement of `axes_reduce_scatter`.
 
     """
 
@@ -39,7 +39,7 @@ class ReduceScatter(Module):
         # Partition of input and output tensor.
         self.P_x = P_x
 
-        # Partition dimensions along which the all-reduction takes place.
+        # Partition dimensions along which the reduce-scatter takes place.
         # While we compute both terms, `axes_reduce_scatter` is used internally.
         if axes_reduce_scatter is None and axes_keep is None:
             raise ValueError("One of `axes_reduce_scatter` or `axes_keep` must be specified.")
@@ -55,7 +55,7 @@ class ReduceScatter(Module):
         # Indicates if broadcast requires any data movement.
         self.identity = False
 
-        # Partition for performing all-reduction.
+        # Partition for performing reduce-scatter.
         self.P_reducescatter = self._distdl_backend.Partition()
 
         # Structure of the input tensor (shape, dtype, requires_grad, etc).
@@ -75,7 +75,7 @@ class ReduceScatter(Module):
         r"""ReduceScatter module setup function.
 
         Constructs the necessary partition functions to implement the above
-        described reduction pattern.  This function performs collective
+        described reduce-scatter pattern.  This function performs collective
         communication across the input and output partitions.
 
         This function is called every time something changes in the input
@@ -154,7 +154,7 @@ class ReduceScatter(Module):
         Parameters
         ----------
         input :
-            Input tensor to be all-sum-reduced.
+            Input tensor to be reduce-scattered.
 
         """
 
