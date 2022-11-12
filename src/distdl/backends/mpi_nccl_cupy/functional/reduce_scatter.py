@@ -84,7 +84,7 @@ class ReduceScatterFunction(torch.autograd.Function):
             cupy_dtype = torch_to_cupy_dtype_dict[input_tensor_structure.dtype]
             scattered_data = cp.zeros(output_tensor_structure.shape, dtype=cupy_dtype)
             input_cupy = cp.asarray(input.detach())
-            count = 1
+            count = cp.prod(cp.array(scattered_data.shape)).item()
             P_reducescatter._nccl.reduce_scatter(input_cupy, scattered_data, count, op='sum', stream=None)
 
         # If we had to receive data, we need to tensorify it.
@@ -130,7 +130,7 @@ class ReduceScatterFunction(torch.autograd.Function):
             cupy_dtype = torch_to_cupy_dtype_dict[input_tensor_structure.dtype]
             gathered_data = cp.zeros(input_tensor_structure.shape, dtype=cupy_dtype)
             grad_output_cupy = cp.asarray(grad_output.detach())
-            count = 1
+            count = cp.prod(cp.array(grad_output_cupy.shape)).item()
             P_reducescatter._nccl.all_gather(grad_output_cupy, gathered_data, count, stream=None)
 
         # If we had to receive data, we need to tensorify it.

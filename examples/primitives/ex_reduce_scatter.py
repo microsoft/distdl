@@ -16,8 +16,8 @@ from distdl.nn.reduce_scatter import ReduceScatter
 from distdl.utilities.torch import zero_volume_tensor
 
 init_distdl(frontend_protocol=FrontEndProtocol.MPI,
-            backend_protocol=BackendProtocol.MPI,
-            model_protocol=ModelProtocol.NUMPY)
+            backend_protocol=BackendProtocol.NCCL,
+            model_protocol=ModelProtocol.CUPY)
 
 # Set up MPI cartesian communicator
 P_world = MPIPartition(MPI.COMM_WORLD)
@@ -74,8 +74,8 @@ print(f"P_world.rank {P_world.rank}; P_x.index {P_x.index}; x value: \n{x}\n")
 #
 # Here we reduce-scatter the columns (axis 1), along the rows.
 all_reduce_cols = ReduceScatter(P_x, axes_reduce_scatter=(1,))
-# all_reduce_cols = AllSumReduce(P_x, axes_keep=(0,))
-# all_reduce_cols = AllSumReduce(P_x, axes_reduce=(1,), axes_keep=(0,))
+# all_reduce_cols = ReduceScatter(P_x, axes_keep=(0,))
+# all_reduce_cols = ReduceScatter(P_x, axes_reduce=(1,), axes_keep=(0,))
 #
 # Output tensor will be (on a 2 x 3 partition):
 # [ [ 6 | 6 | 6 ]
@@ -103,13 +103,13 @@ print(f"P_world.rank {P_world.rank}; P_x.index {P_x.index}; y value: \n{y}\n")
 #   [ 4 | 5 | 6 ] ]
 dy = zero_volume_tensor(device=P_x.device)
 
-print(f"P_world.rank {P_world.rank}; P_x.index {P_x.index}; dy value: \n{dy}\n")
-
 if P_x.active:
     x_local_shape = slicing.compute_subshape(P_x.shape,
                                              P_x.index,
                                              x_global_shape)
     dy = torch.zeros(*y.shape, device=x.device) + (P_x.rank + 1)
+
+print(f"P_world.rank {P_world.rank}; P_x.index {P_x.index}; dy value: \n{dy}\n")
 
 # Apply the adjoint of the layer.
 #

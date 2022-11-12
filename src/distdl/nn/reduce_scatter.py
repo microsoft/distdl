@@ -1,7 +1,7 @@
 from distdl.nn.module import Module
 from distdl.utilities.torch import TensorStructure
-from distdl.utilities.slicing import compute_subshape_along_axis
-
+from distdl.utilities.slicing import compute_subshape_along_axis, compute_subshape
+import torch
 
 class ReduceScatter(Module):
     r"""A distributed all-sum-reduce layer.
