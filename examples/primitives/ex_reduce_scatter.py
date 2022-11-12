@@ -41,7 +41,7 @@ P_x = P_x_base.create_cartesian_topology_partition(in_shape)
 # subtensors all must be the same size.  Thus, this global shape is evenly
 # divisible by the partition.  Later we will have an example for applying the
 # reduction on the tensor itself.
-x_global_shape = np.array([6, 9])
+x_global_shape = np.array([8, 9])
 
 # Setup the input tensor.  Any worker in P_x will generate its part of the
 # input tensor.  Any worker not in P_x will have a zero-volume tensor.
@@ -50,9 +50,11 @@ x_global_shape = np.array([6, 9])
 # [ [ 1 1 1 | 2 2 2 | 3 3 3 ]
 #   [ 1 1 1 | 2 2 2 | 3 3 3 ]
 #   [ 1 1 1 | 2 2 2 | 3 3 3 ]
-#   -------------------
+#   [ 1 1 1 | 2 2 2 | 3 3 3 ]
+#   ----------------------------
 #   [ 4 4 4 | 5 5 5 | 6 6 6 ]
 #   [ 4 4 4 | 5 5 5 | 6 6 6 ]
+#   [ 4 4 4 | 5 5 5 | 6 6 6] ]
 #   [ 4 4 4 | 5 5 5 | 6 6 6] ]
 
 x = zero_volume_tensor(device=P_x.device)
@@ -81,7 +83,9 @@ all_reduce_cols = ReduceScatter(P_x, axes_reduce_scatter=(1,))
 # [ [ 6 | 6 | 6 ]
 #   [ 6 | 6 | 6 ]
 #   [ 6 | 6 | 6 ]
+#   [ 6 | 6 | 6 ]
 #   -------------------------
+#   [ 15 | 15 | 15 ]
 #   [ 15 | 15 | 15 ]
 #   [ 15 | 15 | 15 ]
 #   [ 15 | 15 | 15 ] ]
@@ -89,39 +93,39 @@ y = all_reduce_cols(x)
 
 print(f"P_world.rank {P_world.rank}; P_x.index {P_x.index}; y value: \n{y}\n")
 
-# Setup the adjoint input tensor.  Any worker in P_y will generate its part of
-# the adjoint input tensor.  Any worker not in P_y will have a zero-volume
-# tensor.
-#
-# Adjoint input tensor will be (on a 2 x 3 partition):
-# [ [ 1 | 2 | 3 ]
-#   [ 1 | 2 | 3 ]
-#   [ 1 | 2 | 3 ]
-#   -------------------------
-#   [ 4 | 5 | 6 ]
-#   [ 4 | 5 | 6 ]
-#   [ 4 | 5 | 6 ] ]
-dy = zero_volume_tensor(device=P_x.device)
+# # Setup the adjoint input tensor.  Any worker in P_y will generate its part of
+# # the adjoint input tensor.  Any worker not in P_y will have a zero-volume
+# # tensor.
+# #
+# # Adjoint input tensor will be (on a 2 x 3 partition):
+# # [ [ 1 | 2 | 3 ]
+# #   [ 1 | 2 | 3 ]
+# #   [ 1 | 2 | 3 ]
+# #   [ 1 | 2 | 3 ]
+# #   -------------------------
+# #   [ 4 | 5 | 6 ]
+# #   [ 4 | 5 | 6 ]
+# #   [ 4 | 5 | 6 ]
+# #   [ 4 | 5 | 6 ] ]
+# dy = zero_volume_tensor(device=P_x.device)
+# if P_x.active:
+#     dy = torch.zeros(*y.shape, device=x.device) + (P_x.rank + 1)
 
-if P_x.active:
-    x_local_shape = slicing.compute_subshape(P_x.shape,
-                                             P_x.index,
-                                             x_global_shape)
-    dy = torch.zeros(*y.shape, device=x.device) + (P_x.rank + 1)
+# print(f"P_world.rank {P_world.rank}; P_x.index {P_x.index}; dy value: \n{dy}\n")
 
-print(f"P_world.rank {P_world.rank}; P_x.index {P_x.index}; dy value: \n{dy}\n")
+# # Apply the adjoint of the layer.
+# #
+# # Adjoint output tensor will be (on a 2 x 2 partition):
+# # [ [ 1 2 3 | 1 2 3 | 1 2 3 ]
+# #   [ 1 2 3 | 1 2 3 | 1 2 3 ]
+# #   [ 1 2 3 | 1 2 3 | 1 2 3 ]
+# #   [ 1 2 3 | 1 2 3 | 1 2 3 ]
+# #   ----------------------------
+# #   [ 4 5 6 | 4 5 6 | 4 5 6 ]
+# #   [ 4 5 6 | 4 5 6 | 4 5 6 ]
+# #   [ 4 5 6 | 4 5 6 | 4 5 6 ]
+# #   [ 4 5 6 | 4 5 6 | 4 5 6] ]
+# y.backward(dy)
+# dx = x.grad
 
-# Apply the adjoint of the layer.
-#
-# Adjoint output tensor will be (on a 2 x 2 partition):
-# [ [ 1 2 3 | 1 2 3 | 1 2 3 ]
-#   [ 1 2 3 | 1 2 3 | 1 2 3 ]
-#   [ 1 2 3 | 1 2 3 | 1 2 3 ]
-#   -------------------
-#   [ 4 5 6 | 4 5 6 | 4 5 6 ]
-#   [ 4 5 6 | 4 5 6 | 4 5 6 ]
-#   [ 4 5 6 | 4 5 6 | 4 5 6] ]
-y.backward(dy)
-dx = x.grad
-
-print(f"P_world.rank {P_world.rank}; P_x.index {P_x.index}; dx value: \n{dx}\n")
+# print(f"P_world.rank {P_world.rank}; P_x.index {P_x.index}; dx value: \n{dx}\n")
