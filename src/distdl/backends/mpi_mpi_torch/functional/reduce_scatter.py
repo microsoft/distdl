@@ -2,20 +2,16 @@ __all__ = ["ReduceScatterFunction"]
 
 import threading
 import time
-import cupy as cp
+## import numpy as np
+## import cupy as cp
 import torch
 from mpi4py import MPI
 
+## from distdl.utilities.dtype import torch_to_numpy_dtype_dict
 from distdl.utilities.dtype import torch_to_cupy_dtype_dict
 from distdl.utilities.torch import zero_volume_tensor
 
 # A better idea is to implement a progress engine for this purpose
-
-
-def allreduce_function(partition, src, dst):
-    partition._comm.Allreduce(src, dst, root=0, op=MPI.SUM)
-    # print("In the helper thread!")
-    # time.sleep(5)
 
 
 class ReduceScatterFunction(torch.autograd.Function):
@@ -79,19 +75,17 @@ class ReduceScatterFunction(torch.autograd.Function):
 
         output = zero_volume_tensor(device=device)
 
+        requests = []
+
         # There is no need to specificy a root.
         if P_reducescatter.active:
-            cupy_dtype = torch_to_cupy_dtype_dict[input_tensor_structure.dtype]
-            scattered_data = cp.zeros(output_tensor_structure.shape, dtype=cupy_dtype)
-            input_cupy = cp.asarray(input.detach())
-            count = 1
-            P_reducescatter._nccl.reduce_scatter(input_cupy, scattered_data, count, op='sum', stream=None)
+            scattered_data = torch.zeros(*output_tensor_structure.shape, dtype=input_tensor_structure.dtype,
+                                       device=P_reducescatter.device)
+            P_reducescatter._comm.Reduce_scatter(input.detach(), scattered_data, op=MPI.SUM)
 
         # If we had to receive data, we need to tensorify it.
         if P_reducescatter.active:
-            output = torch.as_tensor(scattered_data, dtype=input_tensor_structure.dtype,
-                                     device=device)
-            output.requires_grad_(output_tensor_structure.requires_grad)
+            output = scattered_data.detach().requires_grad_(output_tensor_structure.requires_grad)
 
         return output
 
@@ -101,7 +95,7 @@ class ReduceScatterFunction(torch.autograd.Function):
 
         This method implements the adjoint of the Jacobian of the
         reduce-scatter operation, the all-gather operation, using the
-        ``MPI_Iallgather`` function.
+        ``MPI_Allgather`` function.
 
         When the current worker is inactive in the ``P_reducescatter`` partition,
         it will output a zero-volume tensor.
@@ -125,18 +119,17 @@ class ReduceScatterFunction(torch.autograd.Function):
 
         grad_input = zero_volume_tensor(device=device)
 
-        # All-gather operation
+        requests = []
+
+        # All-sum-reduce is self-adjoint
         if P_reducescatter.active:
-            cupy_dtype = torch_to_cupy_dtype_dict[input_tensor_structure.dtype]
-            gathered_data = cp.zeros(input_tensor_structure.shape, dtype=cupy_dtype)
-            grad_output_cupy = cp.asarray(grad_output.detach())
-            count = 1
-            P_reducescatter._nccl.all_gather(grad_output_cupy, gathered_data, count, stream=None)
+            gathered_data = torch.zeros(*input_tensor_structure.shape, dtype=input_tensor_structure.dtype,
+                                       device=P_reducescatter.device)
+
+            P_reducescatter._comm.Allgather(grad_output.detach(), gathered_data)
 
         # If we had to receive data, we need to tensorify it.
         if P_reducescatter.active:
-            grad_input = torch.as_tensor(gathered_data, dtype=input_tensor_structure.dtype,
-                                         device=device)
-            grad_input.requires_grad_(input_tensor_structure.requires_grad)
+            grad_input = gathered_data.detach().requires_grad_(input_tensor_structure.requires_grad)
 
         return grad_input, None, None, None
