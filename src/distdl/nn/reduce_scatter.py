@@ -60,6 +60,7 @@ class ReduceScatter(Module):
 
         # Structure of the input tensor (shape, dtype, requires_grad, etc).
         self.input_tensor_structure = TensorStructure()
+
         # Structure of the output tensor (shape, dtype, requires_grad, etc).
         self.output_tensor_structure = TensorStructure()
 
@@ -169,4 +170,5 @@ class ReduceScatter(Module):
         return Function.apply(input,
                               self.P_reducescatter,
                               self.input_tensor_structure,
-                              self.output_tensor_structure)
+                              self.output_tensor_structure,
+                              self.axes_reduce_scatter)

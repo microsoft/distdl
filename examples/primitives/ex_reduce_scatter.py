@@ -17,7 +17,7 @@ from distdl.utilities.torch import zero_volume_tensor
 
 init_distdl(frontend_protocol=FrontEndProtocol.MPI,
             backend_protocol=BackendProtocol.MPI,
-            model_protocol=ModelProtocol.CUPY)
+            model_protocol=ModelProtocol.TORCH)
 
 # Set up MPI cartesian communicator
 P_world = MPIPartition(MPI.COMM_WORLD)
@@ -63,7 +63,7 @@ if P_x.active:
 
 x.requires_grad = True
 
-print(f"P_world.rank {P_world.rank}; P_x.index {P_x.index}; x value: \n{x}\n")
+#print(f"P_world.rank {P_world.rank}; P_x.index {P_x.index}; x value: \n{x}\n")
 
 # Create the reduce-scatter layer.  Note, only one of the keep/reduce axes is
 # required.  If they are both specified they must be mutually coherent.

@@ -1,4 +1,4 @@
 #!/bin/bash
 
-docker run --privileged=true --gpus all -v /home/pwitte:/workspace/home -it distdl:v1.0
+docker run --privileged=true --gpus all -v /home/azureuser:/workspace/home -it distdl:v2.0
 
