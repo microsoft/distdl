@@ -6,7 +6,6 @@ import distdl.logger as logger
 import torch
 
 # Environment variable names
-FRONTEND_ENV_NAME = "DISTDL_FRONTEND"
 BACKEND_ENV_NAME = "DISTDL_BACKEND"
 ARRAY_ENV_NAME = "DISTDL_ARRAY"
 
@@ -19,19 +18,6 @@ array = None
 
 # Create default configuration for distdl
 def get_default_config():
-
-    # Check if front end communication protocol is specified as
-    # an environment variable. If not, set to default protocol (MPI)
-    # Remove because only 1 option anyway
-    if FRONTEND_ENV_NAME in os.environ:
-        frontend_comm_env = os.environ[FRONTEND_ENV_NAME]
-        if frontend_comm_env == "MPI":
-            frontend_comm = frontend_comm_env
-        else:
-            logger.warning("Specified frontend communication protocol does not exist. Default to MPI.")
-            frontend_comm = "MPI"
-    else:
-        frontend_comm = "MPI"
 
     # Check if backend communication protocol is set as 
     # an environment variable. If not, set to default (MPI).
@@ -63,45 +49,41 @@ def get_default_config():
     else:
         backend_array = "NUMPY"
 
-    return frontend_comm, backend_comm, backend_array
+    return backend_comm, backend_array
 
 # Change to dictonary: Map dict to string
-def set_config(frontend_comm="MPI", backend_comm="MPI", backend_array="NUMPY"):
+def set_config(backend_comm="MPI", backend_array="NUMPY"):
     global name
     global array
 
-    if(frontend_comm == "MPI" and
-       backend_comm == "MPI" and
+    if(backend_comm == "MPI" and
        backend_array == "CUPY"):
-        name = "mpi_mpi_cupy"
+        name = "mpi_cupy"
         array = backend_array
         logger.info("Configuration MPI_MPI_CUPY has been selected.")
 
-    elif(frontend_comm == "MPI" and
-         backend_comm == "MPI" and
+    elif(backend_comm == "MPI" and
          backend_array == "NUMPY"):
-        name = "mpi_mpi_numpy"
+        name = "mpi_numpy"
         array = backend_array
         logger.info("Configuration MPI_MPI_NUMPY has been selected.")
 
-    elif(frontend_comm == "MPI" and
-         backend_comm == "MPI" and
+    elif(backend_comm == "MPI" and
          backend_array == "TORCH"):
-        name = "mpi_mpi_torch"
+        name = "mpi_torch"
         array = backend_array
         logger.info("Configuration MPI_MPI_TORCH has been selected.")
 
-    elif(frontend_comm == "MPI" and
-         backend_comm == "NCCL" and
+    elif(backend_comm == "NCCL" and
          backend_array == "CUPY"):
-        name = "mpi_nccl_cupy"
+        name = "nccl_cupy"
         array = backend_array
         logger.info("Configuration MPI_NCCL_CUPY has been selected.")
 
     else:
         logger.error("Invalid Configuration has been selected.")
         tb.print_exc()
-        name = "mpi_mpi_numpy"
+        name = "mpi_numpy"
         array = backend_array
 
 
@@ -129,9 +111,6 @@ def init_device(requested_device=None, rank=None):
         torch.cuda.set_device(rank % torch.cuda.device_count())
         return torch.cuda.current_device()
     elif array == "TORCH" and requested_device == "cpu":
-        # Right now, if the user wants to create the buffer manager as Torch tensors
-        # on cpu, they should do something like this:
-        # P_world = MPIPartition(MPI.COMM_WORLD, device="cpu")
         return torch.device("cpu")
     else:
         logger.warning("Invalid protocols are requested.")
