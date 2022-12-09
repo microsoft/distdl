@@ -1,7 +1,6 @@
 import numpy as np
-import distdl.backend as backend
 from distdl.utilities.slicing import compute_nd_slice_shape
-
+from distdl.backends.common.convert import convert_torch_to_model_dtype
 
 def allocate_repartition_buffers(buffer_manager, P_x_to_y_overlaps, P_y_to_x_overlaps, dtype):
     r"""Allocator for data movement buffers.
@@ -20,7 +19,7 @@ def allocate_repartition_buffers(buffer_manager, P_x_to_y_overlaps, P_y_to_x_ove
     """
 
     # cupy_dtype = torch_to_cupy_dtype_dict[dtype]
-    model_dtype = backend.convert_torch_to_model_dtype(dtype)
+    model_dtype = convert_torch_to_model_dtype(dtype)
 
     # count the buffers we need
     count = 0
@@ -67,7 +66,7 @@ def allocate_halo_exchange_buffers(buffer_manager, slices, recv_buffer_shape, se
     buffers_out = []
 
     ## cupy_dtype = torch_to_cupy_dtype_dict[dtype]
-    model_dtype = backend.convert_torch_to_model_dtype(dtype)
+    model_dtype = convert_torch_to_model_dtype(dtype)
 
     # Each dimension is performed sequentially.  Thus, we only need 4 buffers:
     # one each for left and right bulk and ghost.  The buffer shapes will be

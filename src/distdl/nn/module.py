@@ -1,6 +1,5 @@
 import torch
-
-from distdl.backend import get_backend
+from distdl.backends import backend
 
 
 class Module(torch.nn.Module):
@@ -20,16 +19,12 @@ class Module(torch.nn.Module):
 
     """
 
-    # TODO: This is creating issues, because user's configuration has not been set yet.
-    # _distdl_backend = get_backend()
-    # Moved to init
-
     def __init__(self):
 
         super(Module, self).__init__()
-        
-        self._distdl_backend = get_backend()
-        
+
+        self._distdl_backend = backend
+                
         # Start in a non-setup state.
         self._distdl_is_setup = False
 

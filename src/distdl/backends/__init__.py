@@ -1,6 +1,14 @@
+from .. import config
 from . import common
-from . import mpi_mpi_numpy  # noqa: F401
-from . import mpi_mpi_cupy  # noqa: F401
-from . import mpi_nccl_cupy  # noqa: F401
-from . import mpi_mpi_torch  # noqa: F401
-from .. import backend
+
+print("Set backend to {}".format(config.name))
+
+# Select backend
+if config.name == 'mpi_mpi_numpy':
+    from . import mpi_mpi_numpy as backend # noqa: F401
+elif config.name == 'mpi_mpi_cupy':
+    from . import mpi_mpi_cupy as backend  # noqa: F401
+elif config.name == 'mpi_nccl_cupy':
+    from . import mpi_nccl_cupy as backend # noqa: F401
+elif config.name == 'mpi_mpi_torch':
+    from . import mpi_mpi_torch as backend # noqa: F401

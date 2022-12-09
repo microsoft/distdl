@@ -1,6 +1,5 @@
 import os
 import numpy as np
-import cupy as cp
 import torch
 
 from abc import ABC, abstractmethod

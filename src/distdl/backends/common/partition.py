@@ -1,5 +1,4 @@
 import numpy as np
-import distdl.backend as backend
 from mpi4py import MPI
 
 from distdl.backends.common.compare import check_identical_comm
@@ -7,7 +6,7 @@ from distdl.backends.common.compare import check_identical_group
 from distdl.backends.common.compare import check_null_comm
 from distdl.backends.common.compare import check_null_group
 from distdl.backends.common.compare import check_null_rank
-from distdl.backends.common.nccl_comm import NCCLBackend
+#from distdl.backends.common.nccl_comm import NCCLBackend   # TODO: only import when NCCL backend is selected
 from distdl.utilities.debug import print_sequential
 from distdl.utilities.dtype import intID_to_numpy_dtype_dict
 from distdl.utilities.dtype import numpy_to_intID_dtype_dict
@@ -16,7 +15,7 @@ from distdl.utilities.index_tricks import cartesian_index_f
 from distdl.utilities.slicing import assemble_index_filter
 from distdl.utilities.slicing import filtered_range_index
 from distdl import backends
-from distdl import backend
+from distdl import config
 
 class MPIPartition:
     r"""MPI-based implementation of unstructured tensor partition.
@@ -123,21 +122,21 @@ class MPIPartition:
         # Create backend communicator. For now, the NCCL backend is the only
         # case for which frontend and backend communicators are different.
         if initialize_backend_comm is True and self._comm != MPI.COMM_NULL:
-            if backend.backend == backends.mpi_nccl_cupy:
-                self._nccl = NCCLBackend(self._comm, self.size, self.rank)
+            if config.name == 'mpi_nccl_cupy':
+                self._nccl = backends.common.nccl_comm.NCCLBackend(self._comm, self.size, self.rank)
             else:
                 pass
 
         if device != None:
             self.device = device
         else:
-            self.device = backend.get_current_device(requested_device=requested_device,
+            self.device = config.get_current_device(requested_device=requested_device,
                                                      rank=self.rank)
 
     def initialize_backend_comm(self):
-        if self._comm != MPI.COMM_NULL and backend.backend == backends.mpi_nccl_cupy:
+        if self._comm != MPI.COMM_NULL and config.name == 'mpi_nccl_cupy':
             if self._nccl is None:
-                self._nccl = NCCLBackend(self._comm, self.size, self.rank)
+                self._nccl = backends.common.nccl_comm.NCCLBackend(self._comm, self.size, self.rank)
 
     def deactivate(self):
         r"""Deactivates this partition by releasing any resources and
@@ -432,7 +431,7 @@ class MPIPartition:
         P_recv = MPIPartition()
 
         # Check is NCCL should be used
-        if backend.backend == backends.mpi_nccl_cupy:
+        if config.name == 'mpi_nccl_cupy':
             nccl = True
         else:
             nccl = False

@@ -1,5 +1,5 @@
 import numpy as np
-import cupy as cp
+#import cupy as cp
 import torch
 
 # -----------------------Extended From Pytorch -------------------------------
@@ -53,37 +53,37 @@ numpy_to_torch_dtype_dict = {
     np.complex128: torch.complex128,  # noqa E203
 }
 
-# Dict of cupy dtype -> torch dtype (when the correspondence exists)
-cupy_to_torch_dtype_dict = {
-    cp.dtype(cp.bool8): torch.bool,  # noqa E203
-    cp.dtype(cp.uint8): torch.uint8,  # noqa E203
-    cp.dtype(cp.int8): torch.int8,  # noqa E203
-    cp.dtype(cp.int16): torch.int16,  # noqa E203
-    cp.dtype(cp.int32): torch.int32,  # noqa E203
-    cp.dtype(cp.int64): torch.int64,  # noqa E203
-    cp.dtype(cp.float16): torch.float16,  # noqa E203
-    cp.dtype(cp.float32): torch.float32,  # noqa E203
-    cp.dtype(cp.float64): torch.float64,  # noqa E203
-    cp.dtype(cp.complex64): torch.complex64,  # noqa E203
-    cp.dtype(cp.complex128): torch.complex128,  # noqa E203
-    cp.bool8: torch.bool,  # noqa E203
-    cp.uint8: torch.uint8,  # noqa E203
-    cp.int8: torch.int8,  # noqa E203
-    cp.int16: torch.int16,  # noqa E203
-    cp.int32: torch.int32,  # noqa E203
-    cp.int64: torch.int64,  # noqa E203
-    cp.float16: torch.float16,  # noqa E203
-    cp.float32: torch.float32,  # noqa E203
-    cp.float64: torch.float64,  # noqa E203
-    cp.complex64: torch.complex64,  # noqa E203
-    cp.complex128: torch.complex128,  # noqa E203
-}
+# # Dict of cupy dtype -> torch dtype (when the correspondence exists)
+# cupy_to_torch_dtype_dict = {
+#     cp.dtype(cp.bool8): torch.bool,  # noqa E203
+#     cp.dtype(cp.uint8): torch.uint8,  # noqa E203
+#     cp.dtype(cp.int8): torch.int8,  # noqa E203
+#     cp.dtype(cp.int16): torch.int16,  # noqa E203
+#     cp.dtype(cp.int32): torch.int32,  # noqa E203
+#     cp.dtype(cp.int64): torch.int64,  # noqa E203
+#     cp.dtype(cp.float16): torch.float16,  # noqa E203
+#     cp.dtype(cp.float32): torch.float32,  # noqa E203
+#     cp.dtype(cp.float64): torch.float64,  # noqa E203
+#     cp.dtype(cp.complex64): torch.complex64,  # noqa E203
+#     cp.dtype(cp.complex128): torch.complex128,  # noqa E203
+#     cp.bool8: torch.bool,  # noqa E203
+#     cp.uint8: torch.uint8,  # noqa E203
+#     cp.int8: torch.int8,  # noqa E203
+#     cp.int16: torch.int16,  # noqa E203
+#     cp.int32: torch.int32,  # noqa E203
+#     cp.int64: torch.int64,  # noqa E203
+#     cp.float16: torch.float16,  # noqa E203
+#     cp.float32: torch.float32,  # noqa E203
+#     cp.float64: torch.float64,  # noqa E203
+#     cp.complex64: torch.complex64,  # noqa E203
+#     cp.complex128: torch.complex128,  # noqa E203
+# }
 
 # Dict of torch dtype -> NumPy dtype
 torch_to_numpy_dtype_dict = {value: key for (key, value) in numpy_to_torch_dtype_dict.items()}
 
 # Dict of torch dtype -> cupy dtype
-torch_to_cupy_dtype_dict = {value: key for (key, value) in cupy_to_torch_dtype_dict.items()}
+# torch_to_cupy_dtype_dict = {value: key for (key, value) in cupy_to_torch_dtype_dict.items()}
 
 # -----------------------------End Extended From PyTorch ---------------------
 
@@ -96,5 +96,5 @@ torch_to_intID_dtype_dict = {value: numpy_to_intID_dtype_dict[key] for (key, val
 intID_to_torch_dtype_dict = {value: key for (key, value) in torch_to_intID_dtype_dict.items()}
 
 # Get Cupy's unique numerical id numbers and map back to dtypes
-cupy_to_intID_dtype_dict = {key: cp.dtype(key).num for (key, value) in cupy_to_torch_dtype_dict.items()}
-intID_to_cupy_dtype_dict = {value: key for (key, value) in cupy_to_intID_dtype_dict.items()}
+# cupy_to_intID_dtype_dict = {key: cp.dtype(key).num for (key, value) in cupy_to_torch_dtype_dict.items()}
+# intID_to_cupy_dtype_dict = {value: key for (key, value) in cupy_to_intID_dtype_dict.items()}

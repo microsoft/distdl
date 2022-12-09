@@ -13,11 +13,11 @@ import distdl.utilities.slicing as slicing
 from distdl.backends.common.partition import MPIPartition
 from distdl.nn.repartition import Repartition
 from distdl.utilities.torch import zero_volume_tensor
-from distdl.backend import BackendProtocol, FrontEndProtocol, ModelProtocol, init_distdl
+from distdl import init_distdl
 
-init_distdl(frontend_protocol=FrontEndProtocol.MPI,
-            backend_protocol=BackendProtocol.MPI,
-            model_protocol=ModelProtocol.CUPY)
+init_distdl(frontend_comm="MPI",
+            backend_comm="MPI",
+            backend_array="NUMPY")
 
 # Set up MPI cartesian communicator
 P_world = MPIPartition(MPI.COMM_WORLD)
