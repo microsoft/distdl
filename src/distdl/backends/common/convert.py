@@ -2,7 +2,7 @@ import os
 import distdl.logger as logger
 import distdl.utilities.dtype as dtype_utils
 import torch
-from .. import config
+#from .. import config  # TO DO Add this back
 
 
 def convert_torch_to_model_dtype(dtype):

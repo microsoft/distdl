@@ -12,3 +12,5 @@ from ..common import tensor_comm as tensor_comm
 
 from .buffer_cupy import MPICupyBufferManager as BufferManager
 from .buffer_cupy import MPIExpandableCupyBuffer as ExpandableBuffer
+
+__name__ = 'nccl_cupy'

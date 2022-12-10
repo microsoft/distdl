@@ -12,7 +12,7 @@ import torch
 from mpi4py import MPI
 
 import distdl
-from distdl.backends.mpi_mpi_numpy.partition import MPIPartition
+from distdl.backends.mpi_numpy.partition import MPIPartition
 from distdl.nn import Repartition
 from distdl.utilities.torch import zero_volume_tensor
 

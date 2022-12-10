@@ -6,7 +6,6 @@ from distdl.backends.common.compare import check_identical_group
 from distdl.backends.common.compare import check_null_comm
 from distdl.backends.common.compare import check_null_group
 from distdl.backends.common.compare import check_null_rank
-#from distdl.backends.common.nccl_comm import NCCLBackend   # TODO: only import when NCCL backend is selected
 from distdl.utilities.debug import print_sequential
 from distdl.utilities.dtype import intID_to_numpy_dtype_dict
 from distdl.utilities.dtype import numpy_to_intID_dtype_dict
@@ -122,7 +121,7 @@ class MPIPartition:
         # Create backend communicator. For now, the NCCL backend is the only
         # case for which frontend and backend communicators are different.
         if initialize_backend_comm is True and self._comm != MPI.COMM_NULL:
-            if config.name == 'mpi_nccl_cupy':
+            if backends.backend.__name__ == 'nccl_cupy':
                 self._nccl = backends.common.nccl_comm.NCCLBackend(self._comm, self.size, self.rank)
             else:
                 pass
@@ -134,7 +133,7 @@ class MPIPartition:
                                                      rank=self.rank)
 
     def initialize_backend_comm(self):
-        if self._comm != MPI.COMM_NULL and config.name == 'mpi_nccl_cupy':
+        if self._comm != MPI.COMM_NULL and backends.backend.__name__ == 'nccl_cupy':
             if self._nccl is None:
                 self._nccl = backends.common.nccl_comm.NCCLBackend(self._comm, self.size, self.rank)
 
@@ -431,7 +430,7 @@ class MPIPartition:
         P_recv = MPIPartition()
 
         # Check is NCCL should be used
-        if config.name == 'mpi_nccl_cupy':
+        if backends.backend.__name__ == 'nccl_cupy':
             nccl = True
         else:
             nccl = False

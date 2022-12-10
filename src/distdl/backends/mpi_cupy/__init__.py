@@ -10,5 +10,7 @@ from ..common import broadcast_tensor_structure
 from ..common import tensor_decomposition as tensor_decomposition
 from ..common import tensor_comm as tensor_comm
 
-from .buffer_numpy import MPINumpyBufferManager as BufferManager
-from .buffer_numpy import MPIExpandableNumpyBuffer as ExpandableBuffer
+from .buffer_cupy import MPICupyBufferManager as BufferManager
+from .buffer_cupy import MPIExpandableCupyBuffer as ExpandableBuffer
+
+__name__ = 'mpi_cupy'

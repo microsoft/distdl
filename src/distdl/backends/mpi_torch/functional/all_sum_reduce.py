@@ -7,7 +7,6 @@ import time
 import torch
 from mpi4py import MPI
 
-## from distdl.utilities.dtype import torch_to_numpy_dtype_dict
 from distdl.utilities.dtype import torch_to_cupy_dtype_dict
 from distdl.utilities.torch import zero_volume_tensor
 
