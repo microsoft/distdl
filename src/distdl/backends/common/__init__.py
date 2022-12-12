@@ -16,7 +16,7 @@ operation_map = {
     "sum": _MPI.SUM,
 }
 
-#try:
-from . import nccl_comm
-#except:
-#    print("Dont import nccl comm.")
+try:
+    from . import nccl_comm
+except:
+    pass

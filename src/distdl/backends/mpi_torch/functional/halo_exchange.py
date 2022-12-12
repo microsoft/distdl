@@ -1,7 +1,6 @@
 __all__ = ["HaloExchangeFunction"]
 
 import numpy as np
-# import cupy as cp
 import torch
 from mpi4py import MPI
 
