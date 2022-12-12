@@ -69,17 +69,14 @@ class MPIExpandableTorchBuffer(MPIExpandableBuffer):
             return
 
         # Otherwise, create a new buffer.
+        new_buffer = torch.empty(new_capacity, dtype=self.dtype)
+
         # And copy the contents of the old buffer into the new one.
-        
-        if(self.capacity == 0):
-            self.raw_buffer = torch.zeros(new_capacity, dtype=self.dtype,
-                                          device=backends.backend.get_device())
-        else:
-            self.raw_buffer.expand(new_capacity)
+        new_buffer[:len(self.raw_buffer)].copy_(self.raw_buffer)
 
         # The new buffer is now the current buffer
         self.capacity = new_capacity
-        ## self.raw_buffer = new_buffer
+        self.raw_buffer = new_buffer
 
         # Loop over all existing views and recreate them in the new buffer.
         new_views = dict()

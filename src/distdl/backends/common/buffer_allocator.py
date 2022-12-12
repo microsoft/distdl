@@ -18,7 +18,6 @@ def allocate_repartition_buffers(buffer_manager, P_x_to_y_overlaps, P_y_to_x_ove
 
     """
 
-    # cupy_dtype = torch_to_cupy_dtype_dict[dtype]
     model_dtype = convert_torch_to_model_dtype(dtype)
 
     # count the buffers we need
