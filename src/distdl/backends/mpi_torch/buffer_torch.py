@@ -72,7 +72,7 @@ class MPIExpandableTorchBuffer(MPIExpandableBuffer):
         new_buffer = torch.empty(new_capacity, dtype=self.dtype)
 
         # And copy the contents of the old buffer into the new one.
-        new_buffer[:len(self.raw_buffer)].copy_(self.raw_buffer)
+        new_buffer[:len(self.raw_buffer)].copy_(self.raw_buffer) 
 
         # The new buffer is now the current buffer
         self.capacity = new_capacity
