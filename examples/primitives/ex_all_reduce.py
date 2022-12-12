@@ -22,11 +22,6 @@ set_backend(backend_comm="mpi", backend_array="numpy")
 P_world = MPIPartition(MPI.COMM_WORLD)
 P_world._comm.Barrier()
 
-# On the assumption of 1-to-1 mapping between ranks and GPUs
-# torch.cuda.set_device(P_world.rank % torch.cuda.device_count())
-# P_world.device = torch.cuda.current_device()
-# P_world.device = torch.device("cpu")
-
 # Create the input/output partition (using the first worker)
 in_shape = (2, 3)
 in_size = np.prod(in_shape)
