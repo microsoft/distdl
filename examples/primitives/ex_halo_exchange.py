@@ -23,7 +23,7 @@ class MockConvLayer(HaloMixin, ConvMixin):
     pass
 
 # Set backend
-set_backend(backend_comm="nccl", backend_array="cupy")
+set_backend(backend_comm="mpi", backend_array="numpy")
 
 # Setup a standard feature-space convolution kernel.
 mockup_conv_layer = MockConvLayer()

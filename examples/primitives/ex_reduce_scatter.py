@@ -16,7 +16,7 @@ from distdl.nn.reduce_scatter import ReduceScatter
 from distdl.utilities.torch import zero_volume_tensor
 
 # Set backend
-set_backend(backend_comm="nccl", backend_array="cupy")
+set_backend(backend_comm="mpi", backend_array="numpy")
 
 # Set up MPI cartesian communicator
 P_world = MPIPartition(MPI.COMM_WORLD)

@@ -19,7 +19,7 @@ from torch.utils.dlpack import from_dlpack
 from distdl.config import set_backend
 
 # Set backend
-set_backend(backend_comm="nccl", backend_array="cupy")
+set_backend(backend_comm="mpi", backend_array="numpy")
 
 # Set up MPI cartesian communicator
 P_world = MPIPartition(MPI.COMM_WORLD)
