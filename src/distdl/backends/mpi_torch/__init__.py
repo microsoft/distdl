@@ -12,5 +12,6 @@ from ..common import tensor_comm as tensor_comm
 
 from .buffer_torch import MPITorchBufferManager as BufferManager
 from .buffer_torch import MPIExpandableTorchBuffer as ExpandableBuffer
+from .device import set_device, get_device
 
 __name__ = 'mpi_torch'

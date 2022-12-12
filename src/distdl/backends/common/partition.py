@@ -13,8 +13,8 @@ from distdl.utilities.index_tricks import cartesian_index_c
 from distdl.utilities.index_tricks import cartesian_index_f
 from distdl.utilities.slicing import assemble_index_filter
 from distdl.utilities.slicing import filtered_range_index
-from distdl import backends
-from distdl import config
+from distdl import backends # TODO fix this
+from distdl import config   # TODO fix this
 
 class MPIPartition:
     r"""MPI-based implementation of unstructured tensor partition.
@@ -129,8 +129,7 @@ class MPIPartition:
         if device != None:
             self.device = device
         else:
-            self.device = config.get_current_device(requested_device=requested_device,
-                                                     rank=self.rank)
+            self.device = backends.backend.set_device(rank=self.rank)
 
     def initialize_backend_comm(self):
         if self._comm != MPI.COMM_NULL and backends.backend.__name__ == 'nccl_cupy':

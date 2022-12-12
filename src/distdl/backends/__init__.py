@@ -12,8 +12,8 @@ supported_backends = {
 }
 
 # Load backends that are locally supported
-for key in supported_backends.keys():
+for backend in supported_backends.keys():
     try:
-        supported_backends[key] = importlib.import_module('distdl.backends.' + key)
+        supported_backends[backend] = importlib.import_module('distdl.backends.' + backend)
     except:
-        logger.warning("Could not load {} backend.".format(key))
+        logger.warning("Could not load {} backend.".format(backend))
