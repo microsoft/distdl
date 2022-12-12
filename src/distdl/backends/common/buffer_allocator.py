@@ -62,10 +62,7 @@ def allocate_repartition_buffers(buffer_manager, P_x_to_y_overlaps, P_y_to_x_ove
 def allocate_halo_exchange_buffers(buffer_manager, slices, recv_buffer_shape, send_buffer_shape, dtype):
 
     dim = len(slices)
-
     buffers_out = []
-
-    ## cupy_dtype = torch_to_cupy_dtype_dict[dtype]
     model_dtype = convert_torch_to_model_dtype(dtype)
 
     # Each dimension is performed sequentially.  Thus, we only need 4 buffers:

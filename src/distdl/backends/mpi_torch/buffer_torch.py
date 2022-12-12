@@ -77,8 +77,6 @@ class MPIExpandableTorchBuffer(MPIExpandableBuffer):
         else:
             self.raw_buffer.expand(new_capacity)
 
-        # print("self.raw_buffer", self.raw_buffer)
-
         # The new buffer is now the current buffer
         self.capacity = new_capacity
         ## self.raw_buffer = new_buffer
