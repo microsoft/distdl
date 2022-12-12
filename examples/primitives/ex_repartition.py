@@ -15,8 +15,8 @@ from distdl.nn.repartition import Repartition
 from distdl.utilities.torch import zero_volume_tensor
 from distdl import init_distdl
 
-init_distdl(backend_comm="MPI",
-            backend_array="NUMPY")
+# Set backend
+set_backend(backend_comm="nccl", backend_array="cupy")
 
 # Set up MPI cartesian communicator
 P_world = MPIPartition(MPI.COMM_WORLD)

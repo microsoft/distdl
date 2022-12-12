@@ -16,8 +16,8 @@ from distdl.nn.broadcast import Broadcast
 from distdl.utilities.torch import zero_volume_tensor
 from distdl.config import set_backend
 
-set_backend(backend_comm="mpi", backend_array="numpy")
-
+# Set backend
+set_backend(backend_comm="mpi", backend_array="cupy")
 
 # Set up MPI cartesian communicator
 P_world = MPIPartition(MPI.COMM_WORLD)

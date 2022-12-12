@@ -1,3 +1,77 @@
+######################################################################
+# The CuPy is designed based on NumPy's API.
+# CuPy's source code and documents contain the original NumPy ones.
+######################################################################
+# Copyright (c) 2005-2016, NumPy Developers.
+# All rights reserved.
+#
+# Redistribution and use in source and binary forms, with or without
+# modification, are permitted provided that the following conditions are
+# met:
+#
+#     * Redistributions of source code must retain the above copyright
+#        notice, this list of conditions and the following disclaimer.
+#
+#     * Redistributions in binary form must reproduce the above
+#        copyright notice, this list of conditions and the following
+#        disclaimer in the documentation and/or other materials provided
+#        with the distribution.
+#
+#     * Neither the name of the NumPy Developers nor the names of any
+#        contributors may be used to endorse or promote products derived
+#        from this software without specific prior written permission.
+#
+# THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+# "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+# LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
+# A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+# OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+# SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
+# LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+# DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
+# THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+# (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+# OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+######################################################################
+#
+######################################################################
+# The CuPy is designed based on SciPy's API.
+# CuPy's source code and documents contain the original SciPy ones.
+######################################################################
+# Copyright (c) 2001, 2002 Enthought, Inc.
+# All rights reserved.
+#
+# Copyright (c) 2003-2016 SciPy Developers.
+# All rights reserved.
+#
+# Redistribution and use in source and binary forms, with or without
+# modification, are permitted provided that the following conditions are met:
+#
+#   a. Redistributions of source code must retain the above copyright notice,
+#      this list of conditions and the following disclaimer.
+#   b. Redistributions in binary form must reproduce the above copyright
+#      notice, this list of conditions and the following disclaimer in the
+#      documentation and/or other materials provided with the distribution.
+#   c. Neither the name of Enthought nor the names of the SciPy Developers
+#      may be used to endorse or promote products derived from this software
+#      without specific prior written permission.
+#
+# THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+# AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+# IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+# ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDERS OR CONTRIBUTORS
+# BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY,
+# OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+# SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+# INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
+# CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+# ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF
+# THE POSSIBILITY OF SUCH DAMAGE.
+#
+# Original source from : 
+# https://github.com/cupy/cupy/blob/ca8c6e3d9ad53d34a26b684cf5388a9f17d17007/cupyx/distributed/_nccl_comm.py
+
+
 import numpy
 import warnings
 
@@ -6,7 +80,6 @@ from cupy.cuda import nccl
 from cupyx.distributed import _store
 from cupyx.distributed._comm import _Backend
 from cupyx.scipy import sparse
-
 
 try:
     from mpi4py import MPI
@@ -58,16 +131,6 @@ class NCCLBackend(_Backend):
             server for initialization & synchronization. Defaults to `False`.
     """
 
-    # def __init__(self, n_devices, rank,
-    #              host=_store._DEFAULT_HOST, port=_store._DEFAULT_PORT,
-    #              use_mpi=False):
-    #     super().__init__(n_devices, rank, host, port)
-    #     self._use_mpi = _mpi_available and use_mpi
-    #     if self._use_mpi:
-    #         self._init_with_mpi(n_devices, rank)
-    #     else:
-    #         self._init_with_tcp_store(n_devices, rank, host, port)
-
     def __init__(self, mpi_comm, n_devices, rank):
         # MPI is used only for management purposes
         # so the rank may be different than the one specified
@@ -81,23 +144,6 @@ class NCCLBackend(_Backend):
         nccl_id = self._mpi_comm.bcast(nccl_id, root=0)
         # Initialize devices
         self._comm = nccl.NcclCommunicator(n_devices, nccl_id, rank)
-
-    # def _init_with_tcp_store(self, n_devices, rank, host, port):
-    #     nccl_id = None
-    #     if rank == 0:
-    #         self._store.run(host, port)
-    #         nccl_id = nccl.get_unique_id()
-    #         # get_unique_id return negative values due to cython issues
-    #         # with bytes && c strings. We shift them by 128 to
-    #         # make them positive and send them as bytes to the proxy store
-    #         shifted_nccl_id = bytes([b + 128 for b in nccl_id])
-    #         self._store_proxy['nccl_id'] = shifted_nccl_id
-    #         self._store_proxy.barrier()
-    #     else:
-    #         self._store_proxy.barrier()
-    #         nccl_id = self._store_proxy['nccl_id']
-    #         nccl_id = tuple([int(b) - 128 for b in nccl_id])
-    #     self._comm = nccl.NcclCommunicator(n_devices, nccl_id, rank)
 
     def _check_contiguous(self, array):
         if not array.flags.c_contiguous and not array.flags.f_contiguous:

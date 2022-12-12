@@ -8,16 +8,15 @@
 import numpy as np
 import torch
 from mpi4py import MPI
-from distdl.backend import BackendProtocol, FrontEndProtocol, ModelProtocol, init_distdl
+from distdl.config import set_backend
 
 import distdl.utilities.slicing as slicing
 from distdl.backends.common.partition import MPIPartition
 from distdl.nn.reduce_scatter import ReduceScatter
 from distdl.utilities.torch import zero_volume_tensor
 
-init_distdl(frontend_protocol=FrontEndProtocol.MPI,
-            backend_protocol=BackendProtocol.MPI,
-            model_protocol=ModelProtocol.TORCH)
+# Set backend
+set_backend(backend_comm="nccl", backend_array="cupy")
 
 # Set up MPI cartesian communicator
 P_world = MPIPartition(MPI.COMM_WORLD)

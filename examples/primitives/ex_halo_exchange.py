@@ -15,17 +15,15 @@ from distdl.nn.halo_exchange import HaloExchange
 from distdl.nn.mixins.conv_mixin import ConvMixin
 from distdl.nn.mixins.halo_mixin import HaloMixin
 from distdl.utilities.slicing import compute_subshape
-from distdl.backend import BackendProtocol, FrontEndProtocol, ModelProtocol, init_distdl
+from distdl.config import set_backend
 
 # We need a layer to induce the halo size.  To make this convenient, we mock
 # a layer that has the right mixins to do the trick.
 class MockConvLayer(HaloMixin, ConvMixin):
     pass
 
-
-init_distdl(frontend_protocol=FrontEndProtocol.MPI,
-            backend_protocol=BackendProtocol.MPI,
-            model_protocol=ModelProtocol.CUPY)
+# Set backend
+set_backend(backend_comm="nccl", backend_array="cupy")
 
 # Setup a standard feature-space convolution kernel.
 mockup_conv_layer = MockConvLayer()

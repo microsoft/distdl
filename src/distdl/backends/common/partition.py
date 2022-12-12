@@ -13,8 +13,7 @@ from distdl.utilities.index_tricks import cartesian_index_c
 from distdl.utilities.index_tricks import cartesian_index_f
 from distdl.utilities.slicing import assemble_index_filter
 from distdl.utilities.slicing import filtered_range_index
-from distdl import backends # TODO fix this
-from distdl import config   # TODO fix this
+from distdl import backends
 
 class MPIPartition:
     r"""MPI-based implementation of unstructured tensor partition.

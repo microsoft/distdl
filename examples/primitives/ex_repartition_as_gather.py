@@ -16,11 +16,10 @@ from distdl.nn.repartition import Repartition
 from distdl.utilities.torch import zero_volume_tensor
 from torch.utils.dlpack import to_dlpack
 from torch.utils.dlpack import from_dlpack
-from distdl.backend import BackendProtocol, FrontEndProtocol, ModelProtocol, init_distdl
+from distdl.config import set_backend
 
-init_distdl(frontend_protocol=FrontEndProtocol.MPI,
-            backend_protocol=BackendProtocol.MPI,
-            model_protocol=ModelProtocol.CUPY)
+# Set backend
+set_backend(backend_comm="nccl", backend_array="cupy")
 
 # Set up MPI cartesian communicator
 P_world = MPIPartition(MPI.COMM_WORLD)

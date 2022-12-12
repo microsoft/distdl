@@ -2,9 +2,8 @@ import os
 import numpy as np
 import torch
 
-import distdl.backend as backend
 from ..common.buffer import MPIBufferManager, MPIExpandableBuffer
-
+from distdl import backends
 
 class MPIExpandableTorchBuffer(MPIExpandableBuffer):
     r"""NumPy (mpi4py compatible) implementation of expandable buffers.
@@ -45,7 +44,7 @@ class MPIExpandableTorchBuffer(MPIExpandableBuffer):
 
         # The actual storage buffer
         self.raw_buffer = torch.zeros(self.capacity, dtype=dtype,
-                                      device=backend.get_current_device())
+                                      device=backends.backend.get_device())
 
         # Map between array shapes and numpy views of contiguous chunks of the
         # raw buffer
@@ -74,7 +73,7 @@ class MPIExpandableTorchBuffer(MPIExpandableBuffer):
         
         if(self.capacity == 0):
             self.raw_buffer = torch.zeros(new_capacity, dtype=self.dtype,
-                                          device=backend.get_current_device())
+                                          device=backends.backend.get_device())
         else:
             self.raw_buffer.expand(new_capacity)
 
