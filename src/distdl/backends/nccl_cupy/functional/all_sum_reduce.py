@@ -12,12 +12,6 @@ from distdl.utilities.torch import zero_volume_tensor
 # A better idea is to implement a progress engine for this purpose
 
 
-def allreduce_function(partition, src, dst):
-    partition._comm.Allreduce(src, dst, root=0, op=MPI.SUM)
-    # print("In the helper thread!")
-    # time.sleep(5)
-
-
 class AllSumReduceFunction(torch.autograd.Function):
     r"""MPI-based functional implementation of a distributed all-sum-reduce layer.
 
@@ -76,7 +70,6 @@ class AllSumReduceFunction(torch.autograd.Function):
         ctx.input_tensor_structure = input_tensor_structure
         ctx.output_tensor_structure = output_tensor_structure
         ctx.device = device
-
         output = zero_volume_tensor(device=device)
 
         # There is no need to specificy a root.

@@ -1,3 +1,9 @@
+# -----------------------Adapted From Cupy -------------------------------
+# https://github.com/cupy/cupy/blob/ca8c6e3d9ad53d34a26b684cf5388a9f17d17007/
+# cupyx/distributed/_nccl_comm.py
+#
+#                       MIT License (MIT)
+#
 ######################################################################
 # The CuPy is designed based on NumPy's API.
 # CuPy's source code and documents contain the original NumPy ones.
@@ -68,8 +74,6 @@
 # ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF
 # THE POSSIBILITY OF SUCH DAMAGE.
 #
-# Original source from : 
-# https://github.com/cupy/cupy/blob/ca8c6e3d9ad53d34a26b684cf5388a9f17d17007/cupyx/distributed/_nccl_comm.py
 
 
 import numpy
@@ -847,3 +851,5 @@ class _SparseNCCLCommunicator:
                     out_array[i],
                     cls._get_internal_arrays(in_array[i]),
                     in_array[i].shape)
+
+# -----------------------------End Extended From Cupy ---------------------
