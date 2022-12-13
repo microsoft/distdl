@@ -113,7 +113,6 @@ class HaloExchangeFunction(torch.autograd.Function):
             lbb, lgb, rbb, rgb = buffers[i]
             if lbb is not None:
                 lbb = lbb.get_view(compute_nd_slice_shape(lbs))
-                print("lbb.device: ", lbb.device)
             if lgb is not None:
                 lgb = lgb.get_view(compute_nd_slice_shape(lgs))
             if rbb is not None:
