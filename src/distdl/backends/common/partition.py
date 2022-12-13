@@ -126,14 +126,19 @@ class MPIPartition:
                 pass
 
         if device != None:
-            self.device = device
+           self.device = device
         else:
-            self.device = backends.backend.set_device(rank=self.rank)
+            if self._comm == MPI.COMM_WORLD:
+                self.set_device()
+            self.device = backends.backend.get_device()
 
     def initialize_backend_comm(self):
         if self._comm != MPI.COMM_NULL and backends.backend.__name__ == 'nccl_cupy':
             if self._nccl is None:
                 self._nccl = backends.common.nccl_comm.NCCLBackend(self._comm, self.size, self.rank)
+
+    def set_device(self):
+        self.device = backends.backend.set_device(rank=self.rank)
 
     def deactivate(self):
         r"""Deactivates this partition by releasing any resources and
