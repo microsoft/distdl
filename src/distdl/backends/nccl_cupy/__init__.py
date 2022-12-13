@@ -1,4 +1,5 @@
 from . import functional
+from . import nccl_comm
 
 from ..common import buffer_allocator
 from ..common import CartesianPartition

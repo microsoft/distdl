@@ -15,8 +15,3 @@ operation_map = {
     "prod": _MPI.PROD,
     "sum": _MPI.SUM,
 }
-
-try:
-    from . import nccl_comm
-except:
-    pass
