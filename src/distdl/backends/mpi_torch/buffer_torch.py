@@ -69,7 +69,8 @@ class MPIExpandableTorchBuffer(MPIExpandableBuffer):
             return
 
         # Otherwise, create a new buffer.
-        new_buffer = torch.empty(new_capacity, dtype=self.dtype)
+        device = backends.backend.get_device()
+        new_buffer = torch.empty(new_capacity, dtype=self.dtype, device=device)
 
         # And copy the contents of the old buffer into the new one.
         new_buffer[:len(self.raw_buffer)].copy_(self.raw_buffer) 

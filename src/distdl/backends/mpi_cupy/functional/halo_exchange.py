@@ -134,10 +134,8 @@ class HaloExchangeFunction(torch.autograd.Function):
 
                 if index != MPI.UNDEFINED:
                     if index == 0:
-                        # grad_output[lbs] += torch.tensor(lbb, device=device)
                         grad_output[lbs] += torch.as_tensor(lbb, device=device)
                     elif index == 1:
-                        # grad_output[rbs] += torch.tensor(rbb, device=device)
                         grad_output[rbs] += torch.as_tensor(rbb, device=device)
 
                 n_reqs_completed += 1

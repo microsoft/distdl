@@ -113,6 +113,7 @@ class HaloExchangeFunction(torch.autograd.Function):
             lbb, lgb, rbb, rgb = buffers[i]
             if lbb is not None:
                 lbb = lbb.get_view(compute_nd_slice_shape(lbs))
+                print("lbb.device: ", lbb.device)
             if lgb is not None:
                 lgb = lgb.get_view(compute_nd_slice_shape(lgs))
             if rbb is not None:
@@ -153,9 +154,9 @@ class HaloExchangeFunction(torch.autograd.Function):
 
                 if index != MPI.UNDEFINED:
                     if index == 0:
-                        grad_output[lbs] += lbb # torch.tensor(lbb, device=device)
+                        grad_output[lbs] += lbb
                     elif index == 1:
-                        grad_output[rbs] += rbb # torch.tensor(rbb, device=device)
+                        grad_output[rbs] += rbb
 
                 n_reqs_completed += 1
 
