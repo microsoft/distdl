@@ -146,3 +146,43 @@ def assemble_global_tensor_structure(local_tensor_structure, P_in, P_out=None):
         global_tensor_structure.requires_grad = bool(requires_grad_int[0])
 
     return global_tensor_structure
+
+
+def assemble_global_tensor_structure_along_axis(local_tensor_structure, P_x, axis):
+
+    global_tensor_structure = TensorStructure()
+    global_tensor_shape = None
+    intID_dtype = None
+    requires_grad_int = None
+
+    if P_x.active:
+
+        # Assemble the global shape
+        global_tensor_shape = torch.tensor(local_tensor_structure.shape)
+
+        keep = [False] * P_x.dim
+        keep[axis[0]] = True
+
+        P_sub = P_x.create_cartesian_subtopology_partition(keep)
+
+        v0 = np.atleast_1d(int(local_tensor_structure.shape[axis[0]]))
+        v1 = np.zeros(1, dtype=np.int)
+        P_sub._comm.Allreduce(v0, v1, op=MPI.SUM)
+        global_tensor_shape[axis[0]] = v1[0]
+
+        # Free the subtopology resources
+        P_sub.deactivate()
+
+        # Get a communicable integer representing the dtype
+        intID_dtype = torch_to_intID_dtype_dict[local_tensor_structure.dtype]
+        
+        intID_dtype = np.array([intID_dtype], dtype=np.int)
+
+        requires_grad_int = np.array([-1], dtype=np.int)
+        requires_grad_int[0] = 1 if local_tensor_structure.requires_grad else 0
+
+        global_tensor_structure.shape = torch.Size(global_tensor_shape)
+        global_tensor_structure.dtype = local_tensor_structure.dtype
+        global_tensor_structure.requires_grad = local_tensor_structure.requires_grad
+
+    return global_tensor_structure

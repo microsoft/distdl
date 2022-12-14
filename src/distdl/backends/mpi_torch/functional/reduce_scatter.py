@@ -72,8 +72,6 @@ class ReduceScatterFunction(torch.autograd.Function):
 
         output = zero_volume_tensor(device=device)
 
-        requests = []
-
         # There is no need to specificy a root.
         if P_reducescatter.active:
 

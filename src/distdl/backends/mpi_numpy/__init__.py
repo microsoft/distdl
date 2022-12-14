@@ -5,6 +5,7 @@ from ..common import CartesianPartition
 from ..common import Partition
 
 from ..common import assemble_global_tensor_structure
+from ..common import assemble_global_tensor_structure_along_axis
 from ..common import broadcast_tensor_structure
 
 from ..common import tensor_decomposition as tensor_decomposition

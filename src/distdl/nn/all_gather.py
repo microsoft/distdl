@@ -4,14 +4,14 @@ from distdl.utilities.slicing import compute_subshape_along_axis, compute_subsha
 import numpy as np
 import torch
 
-class ReduceScatter(Module):
+class AllGather(Module):
     r"""A distributed all-sum-reduce layer.
 
     This class provides the user interface to the reduce-scatter
     distributed data movement primitive.  Implementation details are back-end
     specific.
 
-    The ReduceScatter algorithm performs an reduce-scatter within a single
+    The AllGather algorithm performs an reduce-scatter within a single
     partition. Thus, the standard DistDL sum-reduction/broadcast rules are
     implicitly satisfied.
 
@@ -30,13 +30,13 @@ class ReduceScatter(Module):
         Partition dimensions along which the allreduction and scattering takes place.
     axes_keep : tuple, optional
         Partition dimensions to reduce-scatter to.  Complement of `axes_reduce_scatter`.
-        Currently, only supportes reduce-scatter operation along single dimension.
+        Currently, only supportes all-gather operation along single dimension.
 
     """
 
     def __init__(self, P_x, axes_reduce_scatter=None, axes_keep=None):
 
-        super(ReduceScatter, self).__init__()
+        super(AllGather, self).__init__()
 
         # Partition of input and output tensor.
         self.P_x = P_x
@@ -58,7 +58,7 @@ class ReduceScatter(Module):
         self.identity = False
 
         # Partition for performing reduce-scatter.
-        self.P_reducescatter = self._distdl_backend.Partition()
+        self.P_allgather = self._distdl_backend.Partition()
 
         # Structure of the input tensor (shape, dtype, requires_grad, etc).
         self.input_tensor_structure = TensorStructure()
@@ -103,7 +103,7 @@ class ReduceScatter(Module):
         return cart_slices, flat_slices
 
     def _distdl_module_setup(self, input):
-        r"""ReduceScatter module setup function.
+        r"""AllGather module setup function.
 
         Constructs the necessary partition functions to implement the above
         described reduce-scatter pattern.  This function performs collective
@@ -126,22 +126,25 @@ class ReduceScatter(Module):
         # If it is not an identity, we need actual Partitions to do the work.
         if not self.identity:
 
-            self.P_reducescatter = self.P_x.create_allreduction_partition(self.axes_reduce_scatter,
+            self.P_allgather = self.P_x.create_allreduction_partition(self.axes_reduce_scatter,
                 initialize_backend_comm=True)
+
             self.input_tensor_structure = TensorStructure(input[0])
-            self.output_tensor_structure = TensorStructure(input[0])
 
-            self.output_tensor_structure.shape = compute_subshape_along_axis(self.P_x.shape, 
-                self.P_x.index, self.input_tensor_structure.shape, self.axes_reduce_scatter)
 
-            self.slices = self._assemble_slices(self.output_tensor_structure.shape, 
+            self.output_tensor_structure = \
+            self._distdl_backend.assemble_global_tensor_structure_along_axis(self.input_tensor_structure,
+                                                                             self.P_x,
+                                                                             self.axes_reduce_scatter)
+
+            self.slices = self._assemble_slices(self.input_tensor_structure.shape, 
                 self.P_x, self.axes_reduce_scatter)
 
         self._distdl_is_setup = True
         self._input_tensor_structure = TensorStructure(input[0])
 
     def _distdl_module_teardown(self, input):
-        r"""ReduceScatter module teardown function.
+        r"""AllGather module teardown function.
 
         Nullifies the necessary partition functions.
 
@@ -157,7 +160,7 @@ class ReduceScatter(Module):
         """
 
         # Reset all of the buffers and communication objects
-        self.P_reducescatter.deactivate()
+        self.P_allgather.deactivate()
 
         # Reset any data stored about the tensor
         self.input_tensor_structure = TensorStructure()
@@ -192,7 +195,7 @@ class ReduceScatter(Module):
 
         """
 
-        Function = self._distdl_backend.functional.reduce_scatter.ReduceScatterFunction
+        Function = self._distdl_backend.functional.all_gather.AllGatherFunction
 
         if self.identity:
             return input.clone()
@@ -201,7 +204,7 @@ class ReduceScatter(Module):
             return input.clone()
 
         return Function.apply(input,
-                              self.P_reducescatter,
+                              self.P_allgather,
                               self.input_tensor_structure,
                               self.output_tensor_structure,
                               self.slices)

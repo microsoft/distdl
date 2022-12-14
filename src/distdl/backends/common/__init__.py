@@ -6,6 +6,7 @@ from . import tensor_decomposition
 from .partition import MPICartesianPartition as CartesianPartition 
 from .partition import MPIPartition as Partition
 
+from .tensor_comm import assemble_global_tensor_structure_along_axis
 from .tensor_comm import assemble_global_tensor_structure
 from .tensor_comm import broadcast_tensor_structure
 
