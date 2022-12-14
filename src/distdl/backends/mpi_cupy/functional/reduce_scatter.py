@@ -10,107 +10,6 @@ from mpi4py import MPI
 from distdl.utilities.dtype import torch_to_cupy_dtype_dict
 from distdl.utilities.torch import zero_volume_tensor
 
-def reorder_for_scatter(input, in_shape, out_shape, cupy_dtype, P_rs, axis):
-    r"""Reorder a multi-dimensional torch tensor for the reduce-scatter operation.
-
-    The reduce-scatter primitive in MPI and NCCL operators on one-dimensional 
-    arrays (and multi-dimensional arrays are implicitly vectorized). To compute
-    the correct reduce-scatter operation using the cartesian partitoning scheme,
-    we need to re-order the data of our input tensor.
-
-    Parameters
-    ----------
-    input : `torch.tensor`
-        Input torch tensor to the reduce-scatter operation.
-    in_shape : `torch.Size`
-        Shape of the input tensor.
-    out_shape : `torch.Size`
-        Shape of the output tensor.
-    cupy_dtype: `cupy.dtype`
-        Cupy data type of the input/output tensor.
-    P_rs : `Partition`
-        Partition reduce-scatter happens within.
-    axis : `tuple`
-        Tuple containing the axis along which to carry out the reduce-scatter.
-
-    Returns
-    -------
-    output : `cp.array`
-        One-dimensional cupy tensor.
-
-    """    
-    # We create a one-dimensional cupy tensor for the 
-    # reduce-scatter operation.
-    axis = axis[0]
-    output = cp.zeros(np.prod(in_shape), dtype=cupy_dtype)
-
-    # We slice the input data along the dimension of the reduce-scatter
-    # operation and insert it into the right location in the 1D array.
-    for i in range(P_rs.shape[axis]):
-        
-        # Slice source array
-        index_slices = []
-        for j in range(len(in_shape)):
-            if j == axis:
-                index_slices.append(slice(int(i*out_shape[axis]), 
-                    int((i+1)*out_shape[axis])))
-            else:
-                index_slices.append(slice(0, in_shape[j]))
-        output[i*np.prod(out_shape): (i+1)*np.prod(out_shape)] = cp.array(
-            input[tuple(index_slices)].reshape(-1))
-
-    return output
-
-def reorder_from_allgather(input, in_shape, out_shape, torch_dtype, P_rs, device, axis):
-    r"""Reorder a multi-dimensional torch tensor after the all-gather operation.
-
-    The all-gather primitive in MPI and NCCL operators on one-dimensional 
-    arrays (and multi-dimensional arrays are implicitly vectorized). To compute
-    the correct all-gather operation using the cartesian partitoning scheme,
-    we need to re-order the data after perfomring the all-gather operation.
-
-    Parameters
-    ----------
-    input : `cupy.array`
-        One-dimensional cupy tensor from all-gather operation.
-    in_shape : `torch.Size`
-        Shape of the input tensor.
-    out_shape : `torch.Size`
-        Shape of the output tensor.
-    torch_dtype: `torch.dtype`
-        PyTorch data type of the output tensor.
-    P_rs : `Partition`
-        Partition reduce-scatter happens within.
-    axis : `tuple`
-        Tuple containing the axis along which to carry out the all-gather.
-
-    Returns
-    -------
-    output : `torch.tensor`
-        Torch tensor with correct output shape.
-
-    """ 
-    # Reshape target array to correct form
-    axis = axis[0]
-    output = torch.zeros(torch.Size(out_shape), dtype=torch_dtype, device=device)
-
-    # We undo the re-order and vecorization from the reorder_for_scatter function:
-    # We locate the correct data within the 1D input array and insert it into the 
-    # correct location in the multi-dimension output array.
-    for i in range(P_rs.shape[axis]):
-        
-        # Slice source array
-        index_slices = []
-        for j in range(len(out_shape)):
-            if j == axis:
-                index_slices.append(slice(int(i*in_shape[axis]), int((i+1)*in_shape[axis])))
-            else:
-                index_slices.append(slice(0, out_shape[j]))     
-        output[tuple(index_slices)] = torch.tensor(input[i*np.prod(in_shape): 
-            (i+1)*np.prod(in_shape)].reshape(in_shape))
-
-    return output
-
 
 class ReduceScatterFunction(torch.autograd.Function):
     r"""MPI-based functional implementation of a distributed reduce-scatter layer.
@@ -134,7 +33,7 @@ class ReduceScatterFunction(torch.autograd.Function):
 
     @staticmethod
     def forward(ctx, input, P_reducescatter,
-                input_tensor_structure, output_tensor_structure, axes):
+                input_tensor_structure, output_tensor_structure, slices):
         r"""Forward function of distributed reduce-scatter layer.
 
         This method implements the forward reduce-scatter operation using the
@@ -157,8 +56,8 @@ class ReduceScatterFunction(torch.autograd.Function):
         output_tensor_structure : tuple
             Tuple containing properties of the output tensor (dimension, shape,
             requires_grad).
-        axes : tuple
-            Tuple containing the axis along which to carry out the all-reduce.
+        slices : tuple
+            Tuple of slices in cartesian and flattened form for reshaping the input/output.
 
         Returns
         -------
@@ -172,20 +71,24 @@ class ReduceScatterFunction(torch.autograd.Function):
         ctx.input_tensor_structure = input_tensor_structure
         ctx.output_tensor_structure = output_tensor_structure
         ctx.device = device
-        ctx.axes = axes
+        ctx.slices = slices
 
         output = zero_volume_tensor(device=device)
 
-        requests = []
-
         # There is no need to specificy a root.
         if P_reducescatter.active:
+
+            # Allocate output array
             cupy_dtype = torch_to_cupy_dtype_dict[input_tensor_structure.dtype]
-            scattered_data = cp.zeros(output_tensor_structure.shape, dtype=cupy_dtype)  # Output
-            #input_cupy = cp.asarray(input.detach())
-            input_cupy = reorder_for_scatter(input.detach(), input_tensor_structure.shape, 
-                output_tensor_structure.shape, cupy_dtype, P_reducescatter, axes)
-            P_reducescatter._comm.Reduce_scatter(input_cupy, scattered_data, op=MPI.SUM)
+            scattered_data = cp.zeros(output_tensor_structure.shape, dtype=cupy_dtype)
+
+            # Re-order input array
+            input_flat = cp.zeros(np.prod(input.shape), dtype=cupy_dtype)
+            for cart, flat in zip(*slices):
+                input_flat[flat] = cp.array(input[cart].detach().reshape(-1))
+
+            # Reduce-scatter primitive
+            P_reducescatter._comm.Reduce_scatter(input_flat, scattered_data, op=MPI.SUM)
 
         # If we had to receive data, we need to tensorify it.
         if P_reducescatter.active:
@@ -223,11 +126,9 @@ class ReduceScatterFunction(torch.autograd.Function):
         input_tensor_structure = ctx.input_tensor_structure
         output_tensor_structure = ctx.output_tensor_structure
         device = ctx.device
-        axes = ctx.axes
+        slices = ctx.slices
 
         grad_input = zero_volume_tensor(device=device)
-
-        requests = []
 
         # All-gather operation
         if P_reducescatter.active:
@@ -238,10 +139,15 @@ class ReduceScatterFunction(torch.autograd.Function):
 
         # If we had to receive data, we need to tensorify it.
         if P_reducescatter.active:
-            #grad_input = torch.as_tensor(gathered_data, dtype=input_tensor_structure.dtype,
-            #                             device=device)
-            grad_input = reorder_from_allgather(gathered_data, output_tensor_structure.shape, 
-                input_tensor_structure.shape, input_tensor_structure.dtype, P_reducescatter, device, axes)
+            
+            # Re-order flat output array from all-gather to correct cartesian shape
+            grad_input = torch.zeros(torch.Size(input_tensor_structure.shape), 
+                dtype=input_tensor_structure.dtype, device=device)
+                
+            for cart, flat in zip(*slices):
+                grad_input[cart] = torch.tensor(gathered_data[flat].reshape(output_tensor_structure.shape), 
+                    device=device)
+                
             grad_input.requires_grad_(input_tensor_structure.requires_grad)
 
         return grad_input, None, None, None, None

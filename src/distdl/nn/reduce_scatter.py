@@ -1,6 +1,7 @@
 from distdl.nn.module import Module
 from distdl.utilities.torch import TensorStructure
 from distdl.utilities.slicing import compute_subshape_along_axis, compute_subshape
+import numpy as np
 import torch
 
 class ReduceScatter(Module):
@@ -64,6 +65,9 @@ class ReduceScatter(Module):
         # Structure of the output tensor (shape, dtype, requires_grad, etc).
         self.output_tensor_structure = TensorStructure()
 
+        # Store slices to correctly reshape input/output
+        self.slices = None
+
         # Variables for tracking input changes and buffer construction
         self._distdl_is_setup = False
         self._input_tensor_structure = TensorStructure()
@@ -71,6 +75,31 @@ class ReduceScatter(Module):
         # The identity case is if the partition is of size 1,
         if self.P_x.size == 1:
             self.identity = True
+
+    @staticmethod
+    def _assemble_slices(out_local_shape, P_x, axis):
+
+        # Reshape target array to correct form
+        axis = axis[0]
+        cart_slices = []
+        flat_slices = []
+
+        # We slice the input data along the dimension of the reduce-scatter
+        # operation and insert it into the right location in the 1D array.
+        for i in range(P_x.shape[axis]):
+            
+            # Slice source array
+            target_slice = []
+            origin_slice = slice(i*np.prod(out_local_shape), (i+1)*np.prod(out_local_shape))
+            for j in range(len(out_local_shape)):
+                if j == axis:
+                    target_slice.append(slice(int(i*out_local_shape[axis]), int((i+1)*out_local_shape[axis])))
+                else:
+                    target_slice.append(slice(None))        
+            cart_slices.append(tuple(target_slice))
+            flat_slices.append(origin_slice)
+
+        return cart_slices, flat_slices
 
     def _distdl_module_setup(self, input):
         r"""ReduceScatter module setup function.
@@ -103,6 +132,9 @@ class ReduceScatter(Module):
 
             self.output_tensor_structure.shape = compute_subshape_along_axis(self.P_x.shape, 
                 self.P_x.index, self.input_tensor_structure.shape, self.axes_reduce_scatter)
+
+            self.slices = self._assemble_slices(self.output_tensor_structure.shape, 
+                self.P_x, self.axes_reduce_scatter)
 
         self._distdl_is_setup = True
         self._input_tensor_structure = TensorStructure(input[0])
@@ -171,4 +203,4 @@ class ReduceScatter(Module):
                               self.P_reducescatter,
                               self.input_tensor_structure,
                               self.output_tensor_structure,
-                              self.axes_reduce_scatter)
+                              self.slices)
