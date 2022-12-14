@@ -1,7 +1,6 @@
 import torch
-
-from distdl.backend import backend
-
+from distdl.backends import backend
+import distdl.backends
 
 class Module(torch.nn.Module):
     r"""A DistDL wrapper around PyTorch module containers.
@@ -20,12 +19,12 @@ class Module(torch.nn.Module):
 
     """
 
-    _distdl_backend = backend
-
     def __init__(self):
 
         super(Module, self).__init__()
 
+        self._distdl_backend = distdl.backends.backend
+                
         # Start in a non-setup state.
         self._distdl_is_setup = False
 

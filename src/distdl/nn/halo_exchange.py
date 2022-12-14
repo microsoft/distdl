@@ -32,7 +32,7 @@ class HaloExchange(Module):
         self._input_tensor_structure = TensorStructure()
 
         # Get some types and functions from the back-end
-        self.allocate_halo_exchange_buffers = self._distdl_backend.halo_exchange.allocate_halo_exchange_buffers
+        self.allocate_halo_exchange_buffers = self._distdl_backend.buffer_allocator.allocate_halo_exchange_buffers
 
     def _assemble_slices(self, x_local_shape, recv_buffer_shape, send_buffer_shape):
 
@@ -108,7 +108,7 @@ class HaloExchange(Module):
                                                                self.recv_buffer_shape,
                                                                self.send_buffer_shape,
                                                                input[0].dtype)
-
+            self.P_x.initialize_backend_comm()
         self._distdl_is_setup = True
         self._input_tensor_structure = TensorStructure(input[0])
 

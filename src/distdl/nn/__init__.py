@@ -33,6 +33,7 @@ from .pooling import DistributedMaxPool1d  # noqa: F401
 from .pooling import DistributedMaxPool2d  # noqa: F401
 from .pooling import DistributedMaxPool3d  # noqa: F401
 from .repartition import Repartition  # noqa: F401
+from .reduce_scatter import ReduceScatter  # noqa: F401
 from .sum_reduce import SumReduce  # noqa: F401
 from .transpose import DistributedTranspose  # noqa: F401
 from .upsampling import DistributedUpsample  # noqa: F401
@@ -68,6 +69,7 @@ __all__ = ["AllSumReduce",
            "DistributedMaxPool2d",
            "DistributedMaxPool3d",
            "Repartition",
+           "ReduceScatter",
            "SumReduce",
            "DistributedTranspose",
            "Interpolate",

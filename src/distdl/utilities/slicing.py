@@ -16,6 +16,21 @@ def compute_subshape(P_shape, index, shape):
     return subshape
 
 
+def compute_subshape_along_axis(P_shape, index, shape, axis):
+
+    P_shape = np.atleast_1d(P_shape)
+    index = np.atleast_1d(index)
+    shape = np.atleast_1d(shape)
+    axis = np.atleast_1d(axis)
+
+    subshape = np.copy(shape)
+    subshape[axis] = shape[axis] // P_shape[axis]
+    if index[axis] < shape[axis] % P_shape[axis]:
+        subshape[axis] += 1
+    
+    return subshape
+
+
 def compute_start_index(P_shape, index, shape):
 
     P_shape = np.atleast_1d(P_shape)

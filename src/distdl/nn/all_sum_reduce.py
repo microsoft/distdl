@@ -94,8 +94,8 @@ class AllSumReduce(Module):
         # If it is not an identity, we need actual Partitions to do the work.
         if not self.identity:
 
-            self.P_allreduce = self.P_x.create_allreduction_partition(self.axes_reduce)
-
+            self.P_allreduce = self.P_x.create_allreduction_partition(self.axes_reduce,
+                initialize_backend_comm=True)
             self.input_tensor_structure = TensorStructure(input[0])
             self.output_tensor_structure = self.input_tensor_structure
 

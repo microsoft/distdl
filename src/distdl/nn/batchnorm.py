@@ -1,6 +1,6 @@
 import torch
 
-from distdl.backends.mpi.tensor_comm import assemble_global_tensor_structure
+from distdl.backends.common.tensor_comm import assemble_global_tensor_structure
 from distdl.nn.broadcast import Broadcast
 from distdl.nn.module import Module
 from distdl.nn.sum_reduce import SumReduce

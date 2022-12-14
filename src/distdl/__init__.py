@@ -1,7 +1,12 @@
 __version__ = '0.5.0-dev'
 
-import distdl.nn  # noqa: F401
+from .logger import logger
+from . import backends
+from . import config
 
-from . import backends  # noqa: F401
-from . import nn  # noqa: F401
-from . import utilities  # noqa: F401
+# Select default backend
+config.set_backend()
+
+# Import remaining modules
+from . import nn
+from . import utilities

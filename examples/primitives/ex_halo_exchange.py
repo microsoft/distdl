@@ -10,18 +10,20 @@ import torch
 import torch.nn.functional as F
 from mpi4py import MPI
 
-from distdl.backends.mpi.partition import MPIPartition
+from distdl.backends.common.partition import MPIPartition
 from distdl.nn.halo_exchange import HaloExchange
 from distdl.nn.mixins.conv_mixin import ConvMixin
 from distdl.nn.mixins.halo_mixin import HaloMixin
 from distdl.utilities.slicing import compute_subshape
-
+from distdl.config import set_backend
 
 # We need a layer to induce the halo size.  To make this convenient, we mock
 # a layer that has the right mixins to do the trick.
 class MockConvLayer(HaloMixin, ConvMixin):
     pass
 
+# Set backend
+set_backend(backend_comm="mpi", backend_array="numpy")
 
 # Setup a standard feature-space convolution kernel.
 mockup_conv_layer = MockConvLayer()
@@ -69,9 +71,11 @@ x_local_shape = compute_subshape(P_x.shape, P_x.index, x_global_shape)
 # [ [ [ [ 0, 0, 0],      | [ [ [ [ 0, 0, 0],
 #       [ 3, 3, 0],      |       [ 0, 4, 4],
 #       [ 3, 3, 0] ] ] ] |       [ 0, 4, 4] ] ] ]
-x = np.zeros(x_local_shape) + (P_x.rank + 1)
-x = torch.from_numpy(x)
+
+x = torch.zeros(*x_local_shape, device=P_x.device) + (P_x.rank + 1)
+
 x.requires_grad = True
+
 # x has to be padded to make space for the halo.  Torch's pad function takes
 # its arguments in very specific order and for pooling and convolutions,
 # sometimes we need to trick the layers to do the computation the way we
@@ -87,7 +91,7 @@ x = F.pad(x, pad=torch_padding, mode="constant", value=0)
 # we need to retain its gradient to see the adjoint effect later
 x.retain_grad()
 
-print(f"rank {P_world.rank}; index {P_x.index}; value {x.to(int)}")
+print(f"rank {P_world.rank}; index {P_x.index}; value \n{x.to(int)}\n")
 
 # Define the exchange itself.  We let the operator define its own buffers,
 # though we could give it a buffer manager.
@@ -104,8 +108,7 @@ halo_layer = HaloExchange(P_x, halo_shape, recv_buffer_shape, send_buffer_shape)
 #       [ 3, 3, 4] ] ] ] |       [ 3, 4, 4] ] ] ]
 y = halo_layer(x)
 
-print(f"rank {P_world.rank}; index {P_x.index}; value {y.to(int)}")
-
+print(f"rank {P_world.rank}; index {P_x.index}; value \n{y.to(int)}\n")
 
 # Setup the adjoint input tensor.  Here we setup
 #
@@ -118,9 +121,9 @@ print(f"rank {P_world.rank}; index {P_x.index}; value {y.to(int)}")
 # [ [ [ [ 3, 3, 3],      | [ [ [ [ 4, 4, 4],
 #       [ 3, 3, 3],      |       [ 4, 4, 4],
 #       [ 3, 3, 3] ] ] ] |       [ 4, 4, 4] ] ] ]
-dy = torch.zeros(y.shape) + (P_x.rank + 1)
+dy = torch.zeros(y.shape, device=P_x.device) + (P_x.rank + 1)
 
-print(f"rank {P_world.rank}; index {P_x.index}; value {dy}")
+print(f"rank {P_world.rank}; index {P_x.index}; value \n{dy}\n")
 
 # Apply the adjoint of the layer.
 #
@@ -135,4 +138,4 @@ print(f"rank {P_world.rank}; index {P_x.index}; value {dy}")
 #       [ 3,  7, 0] ] ] ] |       [ 0,  7, 4] ] ] ]
 y.backward(dy)
 dx = x.grad
-print(f"rank {P_world.rank}; index {P_x.index}; value {dx}")
+print(f"rank {P_world.rank}; index {P_x.index}; value \n{dx}\n")

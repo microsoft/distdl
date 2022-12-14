@@ -11,9 +11,13 @@ import torch
 from mpi4py import MPI
 
 import distdl.utilities.slicing as slicing
-from distdl.backends.mpi.partition import MPIPartition
+from distdl.backends.common.partition import MPIPartition
 from distdl.nn.repartition import Repartition
 from distdl.utilities.torch import zero_volume_tensor
+from distdl.config import set_backend
+
+# Set backend
+set_backend(backend_comm="mpi", backend_array="numpy")
 
 # Set up MPI cartesian communicator
 P_world = MPIPartition(MPI.COMM_WORLD)
@@ -52,15 +56,18 @@ layer = Repartition(P_x, P_y, preserve_batch=False)
 #   [ 1 1 1 1 1 ]
 #   [ 1 1 1 1 1 ]
 #   [ 1 1 1 1 1 ] ]
-x = zero_volume_tensor()
+
+# layer = layer.to_device()
+x = zero_volume_tensor(device=P_x.device)
 if P_x.active:
     x_local_shape = slicing.compute_subshape(P_x.shape,
                                              P_x.index,
                                              x_global_shape)
-    x = np.zeros(x_local_shape) + P_x.rank + 1
-    x = torch.from_numpy(x)
+    x = torch.zeros(*x_local_shape, device=x.device) + (P_x.rank + 1)
+
+
 x.requires_grad = True
-print(f"rank {P_world.rank}; index {P_x.index}; value {x}")
+print(f"rank {P_world.rank}; index {P_x.index}; value \n{x}")
 
 # Apply the layer.
 #
@@ -75,7 +82,7 @@ print(f"rank {P_world.rank}; index {P_x.index}; value {x}")
 #   [ 1 1 1 | 1 1 ] ]
 
 y = layer(x)
-print(f"rank {P_world.rank}; index {P_y.index}; value {y}")
+print(f"rank {P_world.rank}; index {P_y.index}; value \n{y}")
 
 # Setup the adjoint input tensor.  Any worker in P_y will generate its part of
 # the adjoint input tensor.  Any worker not in P_y will have a zero-volume
@@ -90,14 +97,15 @@ print(f"rank {P_world.rank}; index {P_y.index}; value {y}")
 #   [ 3 3 3 | 4 4 ]
 #   [ 3 3 3 | 4 4 ]
 #   [ 3 3 3 | 4 4 ] ]
-dy = zero_volume_tensor()
+dy = zero_volume_tensor(device=P_y.device)
 if P_y.active:
     y_local_shape = slicing.compute_subshape(P_y.shape,
                                              P_y.index,
                                              x_global_shape)
-    dy = np.zeros(y_local_shape) + P_y.rank + 1
-    dy = torch.from_numpy(dy)
-print(f"rank {P_world.rank}; index {P_y.index}; value {dy}")
+    dy = torch.zeros(*y_local_shape, device=dy.device) + (P_y.rank + 1)
+
+
+print(f"rank {P_world.rank}; index {P_y.index}; value \n{dy}")
 
 # Apply the adjoint of the layer.
 #
@@ -111,4 +119,4 @@ print(f"rank {P_world.rank}; index {P_y.index}; value {dy}")
 #   [ 3 3 3 4 4 ] ]
 y.backward(dy)
 dx = x.grad
-print(f"rank {P_world.rank}; index {P_x.index}; value {dx}")
+print(f"rank {P_world.rank}; index {P_x.index}; value \n{dx}")

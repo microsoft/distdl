@@ -74,7 +74,7 @@ class Broadcast(Module):
         self.identity = False
 
         # Partition for sharing copy of local data.
-        self.P_send = self._distdl_backend.Partition()
+        self.P_send = self._distdl_backend.Partition()  # None?
 
         # Partition for receiving copy of local data.
         self.P_recv = self._distdl_backend.Partition()
@@ -125,7 +125,8 @@ class Broadcast(Module):
         if not self.identity:
             bcast_partitions = self.P_x.create_broadcast_partition_to(self.P_y,
                                                                       self.transpose_src,
-                                                                      self.transpose_dest)
+                                                                      self.transpose_dest,
+                                                                      initialize_backend_comm=True)
             self.P_send = bcast_partitions[0]
             self.P_recv = bcast_partitions[1]
 
