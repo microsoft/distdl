@@ -192,8 +192,8 @@ class DistributedChannelConvBase(Module, ConvMixin):
                                                  padding_mode=self.padding_mode,
                                                  dilation=self.dilation,
                                                  groups=self.groups,
-                                                 bias=self.use_bias),
-                                                 device=P_x.device
+                                                 bias=self.use_bias,
+                                                 device=P_x.device)
             self.weight = self.conv_layer.weight
             self.bias = self.conv_layer.bias
             return
