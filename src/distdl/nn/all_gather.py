@@ -16,25 +16,25 @@ class AllGather(Module):
     implicitly satisfied.
 
     Functionally, the input tensor is reduced along dimensions specified by
-    the `axes_reduce_scatter` field and the result of that reduction is scattered
+    the `axes_all_gather` field and the result of that reduction is scattered
     along the same dimensions.  However, the underlying implementation will
     not typically apply these two operations directly.
 
-    One of `axes_reduce_scatter` or `axes_keep`, only, may be set.
+    One of `axes_all_gather` or `axes_keep`, only, may be set.
 
     Parameters
     ----------
     P_x :
         Partition of input and output tensor.
-    axes_reduce_scatter : tuple, optional
+    axes_all_gather : tuple, optional
         Partition dimensions along which the allreduction and scattering takes place.
     axes_keep : tuple, optional
-        Partition dimensions to reduce-scatter to.  Complement of `axes_reduce_scatter`.
+        Partition dimensions to reduce-scatter to.  Complement of `axes_all_gather`.
         Currently, only supportes all-gather operation along single dimension.
 
     """
 
-    def __init__(self, P_x, axes_reduce_scatter=None, axes_keep=None):
+    def __init__(self, P_x, axes_all_gather=None, axes_keep=None):
 
         super(AllGather, self).__init__()
 
@@ -42,16 +42,16 @@ class AllGather(Module):
         self.P_x = P_x
 
         # Partition dimensions along which the reduce-scatter takes place.
-        # While we compute both terms, `axes_reduce_scatter` is used internally.
-        if axes_reduce_scatter is None and axes_keep is None:
-            raise ValueError("One of `axes_reduce_scatter` or `axes_keep` must be specified.")
-        elif axes_reduce_scatter is not None and axes_keep is not None:
-            raise ValueError("Only one of `axes_reduce_scatter` or `axes_keep` may be specified.")
-        elif axes_reduce_scatter is not None:
-            self.axes_reduce_scatter = axes_reduce_scatter
-            self.axes_keep = [d for d in range(P_x.dim) if d not in axes_reduce_scatter]
+        # While we compute both terms, `axes_all_gather` is used internally.
+        if axes_all_gather is None and axes_keep is None:
+            raise ValueError("One of `axes_all_gather` or `axes_keep` must be specified.")
+        elif axes_all_gather is not None and axes_keep is not None:
+            raise ValueError("Only one of `axes_all_gather` or `axes_keep` may be specified.")
+        elif axes_all_gather is not None:
+            self.axes_all_gather = axes_all_gather
+            self.axes_keep = [d for d in range(P_x.dim) if d not in axes_all_gather]
         elif axes_keep is not None:
-            self.axes_reduce_scatter = [d for d in range(P_x.dim) if d not in axes_keep]
+            self.axes_all_gather = [d for d in range(P_x.dim) if d not in axes_keep]
             self.axes_keep = axes_keep
 
         # Indicates if broadcast requires any data movement.
@@ -126,7 +126,7 @@ class AllGather(Module):
         # If it is not an identity, we need actual Partitions to do the work.
         if not self.identity:
 
-            self.P_allgather = self.P_x.create_allreduction_partition(self.axes_reduce_scatter,
+            self.P_allgather = self.P_x.create_allreduction_partition(self.axes_all_gather,
                 initialize_backend_comm=True)
 
             self.input_tensor_structure = TensorStructure(input[0])
@@ -135,10 +135,10 @@ class AllGather(Module):
             self.output_tensor_structure = \
             self._distdl_backend.assemble_global_tensor_structure_along_axis(self.input_tensor_structure,
                                                                              self.P_x,
-                                                                             self.axes_reduce_scatter)
+                                                                             self.axes_all_gather)
 
             self.slices = self._assemble_slices(self.input_tensor_structure.shape, 
-                self.P_x, self.axes_reduce_scatter)
+                self.P_x, self.axes_all_gather)
 
         self._distdl_is_setup = True
         self._input_tensor_structure = TensorStructure(input[0])

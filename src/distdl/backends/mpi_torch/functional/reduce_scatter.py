@@ -131,7 +131,7 @@ class ReduceScatterFunction(torch.autograd.Function):
             gathered_data = torch.zeros(np.prod(input_tensor_structure.shape), dtype=input_tensor_structure.dtype,
                                        device=device)
 
-            P_reducescatter._comm.Allgather(grad_output.detach(), gathered_data)
+            P_reducescatter._comm.Allgather(grad_output.contiguous().detach(), gathered_data)
 
         # If we had to receive data, we need to tensorify it.
         if P_reducescatter.active:

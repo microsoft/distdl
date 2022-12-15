@@ -131,7 +131,8 @@ class DistributedFeatureConvBase(Module, HaloMixin, ConvMixin):
                                                  padding_mode=self.padding_mode,
                                                  dilation=self.dilation,
                                                  groups=self.groups,
-                                                 bias=self.use_bias)
+                                                 bias=self.use_bias,
+                                                 device=P_x.device)
             self.weight = self.conv_layer.weight
             self.bias = self.conv_layer.bias
         else:
@@ -143,7 +144,8 @@ class DistributedFeatureConvBase(Module, HaloMixin, ConvMixin):
                                                  padding_mode='zeros',
                                                  dilation=self.dilation,
                                                  groups=groups,
-                                                 bias=bias)
+                                                 bias=bias,
+                                                 device=P_x.device)
 
         if self.serial:
             return
@@ -178,10 +180,10 @@ class DistributedFeatureConvBase(Module, HaloMixin, ConvMixin):
             else:
                 self.register_buffer('bias', None)
         else:
-            self.register_buffer('weight', zero_volume_tensor())
+            self.register_buffer('weight', zero_volume_tensor(device=P_x.device))
 
             if self.conv_layer.bias is not None:
-                self.register_buffer('bias', zero_volume_tensor())
+                self.register_buffer('bias', zero_volume_tensor(device=P_x.device))
             else:
                 self.register_buffer('bias', None)
 

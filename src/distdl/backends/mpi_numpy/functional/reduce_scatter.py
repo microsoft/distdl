@@ -137,7 +137,7 @@ class ReduceScatterFunction(torch.autograd.Function):
             numpy_dtype = torch_to_numpy_dtype_dict[input_tensor_structure.dtype]
 
             gathered_data = np.zeros(np.prod(input_tensor_structure.shape), dtype=numpy_dtype)
-            grad_output_numpy = grad_output.detach().cpu().numpy()
+            grad_output_numpy = grad_output.detach().contiguous().cpu().numpy()
             req = P_reducescatter._comm.Iallgather(grad_output_numpy, gathered_data)
             requests.append(req)
 

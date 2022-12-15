@@ -134,7 +134,7 @@ class ReduceScatterFunction(torch.autograd.Function):
         if P_reducescatter.active:
             cupy_dtype = torch_to_cupy_dtype_dict[input_tensor_structure.dtype]
             gathered_data = cp.zeros(np.prod(input_tensor_structure.shape), dtype=cupy_dtype)
-            grad_output_cupy = cp.asarray(grad_output.detach())
+            grad_output_cupy = cp.asarray(grad_output.detach().contiguous())
             count = cp.prod(cp.array(grad_output_cupy.shape)).item()
             P_reducescatter._nccl.all_gather(grad_output_cupy, gathered_data, count, stream=None)
 

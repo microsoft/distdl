@@ -192,7 +192,8 @@ class DistributedChannelConvBase(Module, ConvMixin):
                                                  padding_mode=self.padding_mode,
                                                  dilation=self.dilation,
                                                  groups=self.groups,
-                                                 bias=self.use_bias)
+                                                 bias=self.use_bias,
+                                                 device=P_x.device)
             self.weight = self.conv_layer.weight
             self.bias = self.conv_layer.bias
             return
@@ -221,7 +222,8 @@ class DistributedChannelConvBase(Module, ConvMixin):
                                                  padding_mode=self.padding_mode,
                                                  dilation=self.dilation,
                                                  groups=groups,
-                                                 bias=self.stores_bias)
+                                                 bias=self.stores_bias,
+                                                 device=P_x.device)
 
         # Workers in P_w alias the conv layer to get their weight and perhaps
         # biases.  Every other worker doesn't have a weight or bias.
@@ -231,13 +233,13 @@ class DistributedChannelConvBase(Module, ConvMixin):
                 self.bias = self.conv_layer.bias
             else:
                 if self.use_bias:
-                    self.register_buffer('bias', zero_volume_tensor())
+                    self.register_buffer('bias', zero_volume_tensor(device=P_x.device))
                 else:
                     self.register_buffer('bias', None)
         else:
-            self.register_buffer('weight', zero_volume_tensor())
+            self.register_buffer('weight', zero_volume_tensor(device=P_x.device))
             if self.use_bias:
-                self.register_buffer('bias', zero_volume_tensor())
+                self.register_buffer('bias', zero_volume_tensor(device=P_x.device))
             else:
                 self.register_buffer('bias', None)
 
