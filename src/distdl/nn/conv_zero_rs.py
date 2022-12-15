@@ -138,7 +138,7 @@ class DistributedZeroRSConvBase(Module):
                                                  padding=self.padding,
                                                  padding_mode=self.padding_mode,
                                                  dilation=self.dilation,
-                                                 groups=groups,
+                                                 groups=self.groups,
                                                  bias=self.use_bias,
                                                  device=P_x.device)
 

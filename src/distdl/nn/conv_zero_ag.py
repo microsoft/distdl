@@ -89,12 +89,6 @@ class DistributedZeroAGConvBase(Module):
         if not self.P_x.active:
             return
 
-        # If bias is used, only initialize it on rank 0
-        if bias is True and P_x.rank == 0:
-            use_bias = True
-        else:
-            use_bias = False
-
         self.in_channels = in_channels
         self.out_channels = out_channels
         self.kernel_size = self._expand_parameter(kernel_size)
@@ -103,7 +97,7 @@ class DistributedZeroAGConvBase(Module):
         self.padding_mode = padding_mode
         self.dilation = self._expand_parameter(dilation)
         self.groups = groups
-        self.use_bias = use_bias
+        self.use_bias = bias
         self.checkpointing = checkpointing
 
         self.serial = self.P_x.size == 1
@@ -119,7 +113,7 @@ class DistributedZeroAGConvBase(Module):
                                                  padding_mode=self.padding_mode,
                                                  dilation=self.dilation,
                                                  groups=self.groups,
-                                                 bias=bias,
+                                                 bias=self.use_bias,
                                                  device=P_x.device)
             self.weight = self.conv_layer.weight
             self.bias = self.conv_layer.bias
@@ -139,7 +133,7 @@ class DistributedZeroAGConvBase(Module):
                                                  padding=self.padding,
                                                  padding_mode=self.padding_mode,
                                                  dilation=self.dilation,
-                                                 groups=groups,
+                                                 groups=self.groups,
                                                  bias=self.use_bias,
                                                  device=P_x.device)
 
