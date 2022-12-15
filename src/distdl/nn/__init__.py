@@ -13,6 +13,12 @@ from .conv_channel import DistributedChannelConv3d  # noqa: F401
 from .conv_feature import DistributedFeatureConv1d  # noqa: F401
 from .conv_feature import DistributedFeatureConv2d  # noqa: F401
 from .conv_feature import DistributedFeatureConv3d  # noqa: F401
+from .conv_zero_rs import DistributedZeroRSConv1d   # noqa: F401
+from .conv_zero_rs import DistributedZeroRSConv2d   # noqa: F401
+from .conv_zero_rs import DistributedZeroRSConv3d   # noqa: F401
+from .conv_zero_ag import DistributedZeroAGConv1d   # noqa: F401
+from .conv_zero_ag import DistributedZeroAGConv2d   # noqa: F401
+from .conv_zero_ag import DistributedZeroAGConv3d   # noqa: F401
 from .conv_general import DistributedGeneralConv1d  # noqa: F401
 from .conv_general import DistributedGeneralConv2d  # noqa: F401
 from .conv_general import DistributedGeneralConv3d  # noqa: F401
@@ -50,6 +56,12 @@ __all__ = ["AllSumReduce",
            "DistributedFeatureConv1d",
            "DistributedFeatureConv2d",
            "DistributedFeatureConv3d",
+           "DistributedZeroRSConv1d",
+           "DistributedZeroRSConv2d",
+           "DistributedZeroRSConv3d",
+           "DistributedZeroAGConv1d",
+           "DistributedZeroAGConv2d",
+           "DistributedZeroAGConv3d",
            "DistributedGeneralConv1d",
            "DistributedGeneralConv2d",
            "DistributedGeneralConv3d",
