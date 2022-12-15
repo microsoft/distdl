@@ -202,7 +202,8 @@ class DistributedGeneralConvBase(Module, HaloMixin, ConvMixin):
                                                  padding_mode=self.padding_mode,
                                                  dilation=self.dilation,
                                                  groups=self.groups,
-                                                 bias=self.use_bias)
+                                                 bias=self.use_bias,
+                                                 device=P_x.device)
             self.weight = self.conv_layer.weight
             self.bias = self.conv_layer.bias
             return
@@ -298,14 +299,15 @@ class DistributedGeneralConvBase(Module, HaloMixin, ConvMixin):
                                                  padding_mode='zeros',
                                                  dilation=self.dilation,
                                                  groups=groups,
-                                                 bias=self.receives_bias)
+                                                 bias=self.receives_bias,
+                                                 device=P_x.device)
 
             # If we store the weight it is a learnable parameter iff it is
             # learnable by default in the layer, which it is.
             if self.stores_weight:
                 self.weight = torch.nn.Parameter(self.conv_layer.weight.detach())
             else:
-                self.register_buffer('weight', zero_volume_tensor())
+                self.register_buffer('weight', zero_volume_tensor(device=P_x.device))
             # This always exists so we can copy the property
             self.weight.requires_grad = self.conv_layer.weight.requires_grad
 
@@ -322,7 +324,7 @@ class DistributedGeneralConvBase(Module, HaloMixin, ConvMixin):
                 self.bias = torch.nn.Parameter(self.conv_layer.bias.detach())
             else:
                 if self.use_bias:
-                    self.register_buffer('bias', zero_volume_tensor())
+                    self.register_buffer('bias', zero_volume_tensor(device=P_x.device))
                 else:
                     self.register_buffer('bias', None)
             # This does not always exist, but when it does we can copy the
@@ -338,9 +340,9 @@ class DistributedGeneralConvBase(Module, HaloMixin, ConvMixin):
 
         else:
             # Workers not in P_w don't have a weight or bias.
-            self.register_buffer('weight', zero_volume_tensor())
+            self.register_buffer('weight', zero_volume_tensor(device=P_x.device))
             if self.use_bias:
-                self.register_buffer('bias', zero_volume_tensor())
+                self.register_buffer('bias', zero_volume_tensor(device=P_x.device))
             else:
                 self.register_buffer('bias', None)
 
