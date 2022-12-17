@@ -8,7 +8,7 @@ from distdl.utilities.torch import TensorStructure
 from torch.utils.checkpoint import checkpoint
 
 
-class DistributedZeroRSConvBase(Module):
+class DistributedFeatureReduceScatterConvBase(Module):
     r"""A channel-space partitioned distributed convolutional layer.
 
     This class provides the user interface to a distributed convolutional
@@ -80,7 +80,7 @@ class DistributedZeroRSConvBase(Module):
                  checkpointing=False,
                  *args, **kwargs):
 
-        super(DistributedZeroRSConvBase, self).__init__()
+        super(DistributedFeatureReduceScatterConvBase, self).__init__()
 
         # P_x
         self.P_x = P_x
@@ -247,7 +247,7 @@ class DistributedZeroRSConvBase(Module):
         return y
 
 
-class DistributedZeroRSConv1d(DistributedZeroRSConvBase):
+class DistributedFeatureReduceScatterConv1d(DistributedFeatureReduceScatterConvBase):
     r"""A channel-partitioned distributed 1d convolutional layer.
 
     """
@@ -256,7 +256,7 @@ class DistributedZeroRSConv1d(DistributedZeroRSConvBase):
     num_dimensions = 1
 
 
-class DistributedZeroRSConv2d(DistributedZeroRSConvBase):
+class DistributedFeatureReduceScatterConv2d(DistributedFeatureReduceScatterConvBase):
     r"""A channel-partitioned distributed 2d convolutional layer.
 
     """
@@ -265,7 +265,7 @@ class DistributedZeroRSConv2d(DistributedZeroRSConvBase):
     num_dimensions = 2
 
 
-class DistributedZeroRSConv3d(DistributedZeroRSConvBase):
+class DistributedFeatureReduceScatterConv3d(DistributedFeatureReduceScatterConvBase):
     r"""A channel-partitioned distributed 3d convolutional layer.
 
     """
