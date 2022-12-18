@@ -24,7 +24,7 @@ _relu_inplace = False
 
 class Unicron(UnicronBase):
 
-    def __init__(self, P_root, P_x, *args, **kwargs):   # (..., levels, in_channels, base_channels, out_channels)
+    def __init__(self, P_root, P_x, *args, **kwargs):
 
         self.P_root = P_root
         self.P_x = P_x
@@ -34,7 +34,6 @@ class Unicron(UnicronBase):
         self.BatchNorm = _layer_type_map["batchnorm"][self.feature_dimension]
 
         super(Unicron, self).__init__(*args, **kwargs)
-
 
     def assemble_input_map(self):
 
@@ -79,7 +78,7 @@ class Unicron(UnicronBase):
 
 class UnicronLevel(UnicronLevelBase):
 
-    def __init__(self, P_x, *args, **kwargs):   # (..., max_levels, level, base_channels
+    def __init__(self, P_x, *args, **kwargs):
 
         self.P_x = P_x
         self.feature_dimension = len(P_x.shape[2:])
@@ -89,7 +88,7 @@ class UnicronLevel(UnicronLevelBase):
         self.BatchNorm = _layer_type_map["batchnorm"][self.feature_dimension]
 
         super(UnicronLevel, self).__init__(*args, **kwargs)
-
+    
     def _megatron_smoothing_block(self, in_channels, out_channels):
 
         # Local input/output channels
@@ -128,7 +127,8 @@ class UnicronLevel(UnicronLevelBase):
         conv = self.ConvTypeRS(self.P_x,
                                in_channels=in_channels,
                                out_channels=out_channels,
-                               kernel_size=1)
+                               kernel_size=1,
+                               checkpointing=self.checkpointing)
         return conv
     
     def _megatron_pre_smoothing_block(self):
@@ -183,7 +183,8 @@ class UnicronLevel(UnicronLevelBase):
         conv = self.ConvTypeRS(self.P_x,
                                in_channels=in_channels,
                                out_channels=out_channels,
-                               kernel_size=1)
+                               kernel_size=1,
+                               checkpointing=self.checkpointing)
 
         return torch.nn.Sequential(up, conv)
 
@@ -191,4 +192,5 @@ class UnicronLevel(UnicronLevelBase):
         return Concatenate(1)
 
     def instantiate_sublevel(self):
-        return UnicronLevel(self.P_x, self.max_levels, self.level+1, self.base_channels)
+        return UnicronLevel(self.P_x, self.max_levels, self.level+1, 
+            self.base_channels, checkpointing=self.checkpointing)

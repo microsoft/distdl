@@ -1,5 +1,6 @@
 import torch
 import torch.nn
+from torch.utils.checkpoint import checkpoint
 
 class UnicronBase(torch.nn.Module):
 
@@ -38,13 +39,13 @@ class UnicronBase(torch.nn.Module):
 
 class UnicronLevelBase(torch.nn.Module):
 
-    def __init__(self, max_levels, level, base_channels):
+    def __init__(self, max_levels, level, base_channels, checkpointing=True):
 
         super(UnicronLevelBase, self).__init__()
 
         self.max_levels = max_levels
         self.level = level
-
+        self.checkpointing = checkpointing
         self.base_channels = base_channels
 
         self.finest = (self.level == 0)
@@ -103,16 +104,27 @@ class UnicronLevelBase(torch.nn.Module):
     def forward(self, x_f):
 
         if self.coarsest:
-            y_f = self.megatron_coarsest_smooth(x_f)
+            if self.checkpointing:
+                y_f = checkpoint(self.megatron_coarsest_smooth, x_f)
+            else:
+                y_f = self.megatron_coarsest_smooth(x_f)
             return y_f
 
-        y_f = self.megatron_pre_smooth(x_f)
+        if self.checkpointing and not self.finest:
+            y_f = checkpoint(self.megatron_pre_smooth, x_f)
+        else:
+            y_f = self.megatron_pre_smooth(x_f)
+
         y_c = self.restriction(y_f)
 
         y_c = self.sublevel(y_c)
 
         y_c = self.prolongation(y_c)
         y_f = self.correction((y_f, y_c))
-        y_f = self.megatron_post_smooth(y_f)
+
+        if self.checkpointing:
+            y_f = checkpoint(self.megatron_post_smooth, y_f)
+        else:
+            y_f = self.megatron_post_smooth(y_f)
 
         return y_f

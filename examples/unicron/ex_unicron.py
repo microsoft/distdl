@@ -44,7 +44,9 @@ if P_root.active:
 levels = 5
 base_channels = 64
 out_channels = 1
-network = Unicron(P_root, P_x, levels, in_channels, base_channels, out_channels).to(P_x.device)
+network = Unicron(P_root, P_x, levels, in_channels, base_channels, out_channels, checkpointing=True).to(P_x.device)
 
 y = network(x)
 print('y.shape: ', y.shape)
+
+y.sum().backward()
