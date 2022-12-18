@@ -118,7 +118,7 @@ class BroadcastFunction(torch.autograd.Function):
 
         # Send all of the data
         if P_send.active:
-            input_cupy = cp.asarray(input.detach())
+            input_cupy = cp.asarray(input.detach().contiguous())
             req = P_send._comm.Ibcast(input_cupy, root=0)
             requests.append(req)
 
@@ -216,7 +216,7 @@ class BroadcastFunction(torch.autograd.Function):
         if P_recv.active:
             cupy_dtype = torch_to_cupy_dtype_dict[output_tensor_structure.dtype]
             reduced_data_recv = cp.zeros(output_tensor_structure.shape, dtype=cupy_dtype)
-            grad_output_cupy = cp.asarray(grad_output.detach())
+            grad_output_cupy = cp.asarray(grad_output.detach().contiguous())
 
             helper_thread = threading.Thread(target=reduce_function,
                                              args=(P_recv, grad_output_cupy, reduced_data_recv))
