@@ -17,7 +17,7 @@ P_world = MPIPartition(MPI.COMM_WORLD)
 P_world._comm.Barrier()
 
 # Root partition
-root_shape = (1, 1, 1, 1)
+root_shape = (1, 1, 1, 1, 1)
 root_size = np.prod(root_shape)
 root_workers = np.arange(0, root_size)
 
@@ -25,7 +25,7 @@ P_root_base = P_world.create_partition_inclusive(root_workers)
 P_root = P_root_base.create_cartesian_topology_partition(root_shape)
 
 # Data partition for unet
-p_unet_shape = (1, 4, 1, 1)
+p_unet_shape = (1, 8, 1, 1, 1)
 p_unet_size = np.prod(p_unet_shape)
 p_unet_workers = np.arange(0, p_unet_size)
 
@@ -35,18 +35,17 @@ P_x = P_x_base.create_cartesian_topology_partition(p_unet_shape)
 # Input data
 batch_size = 2
 in_channels = 3
-features = 64
+features = 256
 x = zero_volume_tensor(device=P_x.device)
 if P_root.active:
-    x = torch.randn(batch_size, in_channels, features, features, device=P_x.device)
+    x = torch.randn(batch_size, in_channels, features, features, features, device=P_x.device)
 
 # Unicron network
 levels = 5
-base_channels = 64
+base_channels = 32
 out_channels = 1
 network = Unicron(P_root, P_x, levels, in_channels, base_channels, out_channels, checkpointing=True).to(P_x.device)
 
 y = network(x)
 print('y.shape: ', y.shape)
-
 y.sum().backward()

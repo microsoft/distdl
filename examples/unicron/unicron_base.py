@@ -103,6 +103,7 @@ class UnicronLevelBase(torch.nn.Module):
 
     def forward(self, x_f):
 
+        # Coarsest smoothing
         if self.coarsest:
             if self.checkpointing:
                 y_f = checkpoint(self.megatron_coarsest_smooth, x_f)
@@ -110,18 +111,23 @@ class UnicronLevelBase(torch.nn.Module):
                 y_f = self.megatron_coarsest_smooth(x_f)
             return y_f
 
+        # Presmooting
         if self.checkpointing and not self.finest:
             y_f = checkpoint(self.megatron_pre_smooth, x_f)
         else:
             y_f = self.megatron_pre_smooth(x_f)
 
+        # Restriction
         y_c = self.restriction(y_f)
 
+        # Next level
         y_c = self.sublevel(y_c)
 
+        # Prolongation and correction
         y_c = self.prolongation(y_c)
         y_f = self.correction((y_f, y_c))
 
+        # Post-smoothing
         if self.checkpointing:
             y_f = checkpoint(self.megatron_post_smooth, y_f)
         else:
