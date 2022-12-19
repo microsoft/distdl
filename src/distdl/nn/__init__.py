@@ -13,6 +13,12 @@ from .conv_channel import DistributedChannelConv3d  # noqa: F401
 from .conv_feature import DistributedFeatureConv1d  # noqa: F401
 from .conv_feature import DistributedFeatureConv2d  # noqa: F401
 from .conv_feature import DistributedFeatureConv3d  # noqa: F401
+from .conv_feature_rs import DistributedFeatureReduceScatterConv1d   # noqa: F401
+from .conv_feature_rs import DistributedFeatureReduceScatterConv2d   # noqa: F401
+from .conv_feature_rs import DistributedFeatureReduceScatterConv3d   # noqa: F401
+from .conv_feature_ag import DistributedFeatureAllGatherConv1d   # noqa: F401
+from .conv_feature_ag import DistributedFeatureAllGatherConv2d   # noqa: F401
+from .conv_feature_ag import DistributedFeatureAllGatherConv3d   # noqa: F401
 from .conv_general import DistributedGeneralConv1d  # noqa: F401
 from .conv_general import DistributedGeneralConv2d  # noqa: F401
 from .conv_general import DistributedGeneralConv3d  # noqa: F401
@@ -50,6 +56,12 @@ __all__ = ["AllSumReduce",
            "DistributedFeatureConv1d",
            "DistributedFeatureConv2d",
            "DistributedFeatureConv3d",
+           "DistributedFeatureReduceScatterConv1d",
+           "DistributedFeatureReduceScatterConv2d",
+           "DistributedFeatureReduceScatterConv3d",
+           "DistributedFeatureAllGatherConv1d",
+           "DistributedFeatureAllGatherConv2d",
+           "DistributedFeatureAllGatherConv3d",
            "DistributedGeneralConv1d",
            "DistributedGeneralConv2d",
            "DistributedGeneralConv3d",

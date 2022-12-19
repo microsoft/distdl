@@ -110,7 +110,7 @@ class SumReduceFunction(torch.autograd.Function):
         if P_send.active:
             numpy_dtype = torch_to_numpy_dtype_dict[input_tensor_structure.dtype]
             reduced_data_send = np.zeros(input_tensor_structure.shape, dtype=numpy_dtype)
-            input_numpy = input.detach().cpu().numpy()
+            input_numpy = input.detach().cpu().contiguous().numpy()
             req = P_send._comm.Ireduce(input_numpy, reduced_data_send, root=0, op=MPI.SUM)
             requests.append(req)
 
@@ -206,7 +206,7 @@ class SumReduceFunction(torch.autograd.Function):
 
         # If I received the reduction in the forward call, I broadcast my data
         if P_recv.active:
-            grad_output_numpy = grad_output.detach().cpu().numpy()
+            grad_output_numpy = grad_output.detach().cpu().contiguous().numpy()
             req = P_recv._comm.Ibcast(grad_output_numpy, root=0)
             requests.append(req)
 

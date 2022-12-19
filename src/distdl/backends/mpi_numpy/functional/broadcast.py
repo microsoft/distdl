@@ -108,7 +108,7 @@ class BroadcastFunction(torch.autograd.Function):
 
         # Send all of the data
         if P_send.active:
-            input_numpy = input.detach().cpu().numpy()
+            input_numpy = input.detach().cpu().contiguous().numpy()
             req = P_send._comm.Ibcast(input_numpy, root=0)
             requests.append(req)
 
@@ -203,7 +203,7 @@ class BroadcastFunction(torch.autograd.Function):
         if P_recv.active:
             numpy_dtype = torch_to_numpy_dtype_dict[output_tensor_structure.dtype]
             reduced_data_recv = np.zeros(output_tensor_structure.shape, dtype=numpy_dtype)
-            grad_output_numpy = grad_output.detach().cpu().numpy()
+            grad_output_numpy = grad_output.detach().cpu().contiguous().numpy()
             req = P_recv._comm.Ireduce(grad_output_numpy, reduced_data_recv, root=0, op=MPI.SUM)
             requests.append(req)
 

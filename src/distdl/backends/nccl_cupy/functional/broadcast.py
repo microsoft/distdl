@@ -118,7 +118,7 @@ class BroadcastFunction(torch.autograd.Function):
 
         # Send all of the data
         if P_send.active:
-            input_cupy = cp.asarray(input.detach())
+            input_cupy = cp.asarray(input.detach().contiguous())
             P_send._nccl.broadcast(input_cupy, root=0, stream=None)
 
         if P_recv.active:
@@ -210,7 +210,7 @@ class BroadcastFunction(torch.autograd.Function):
         if P_recv.active:
             cupy_dtype = torch_to_cupy_dtype_dict[output_tensor_structure.dtype]
             reduced_data_recv = cp.zeros(output_tensor_structure.shape, dtype=cupy_dtype)
-            grad_output_cupy = cp.asarray(grad_output.detach())
+            grad_output_cupy = cp.asarray(grad_output.detach().contiguous())
             P_recv._nccl.reduce(grad_output_cupy, reduced_data_recv, op='sum', root=0, stream=None)
 
         # If I sent data in the forward, I have to receive it here.  Unless I

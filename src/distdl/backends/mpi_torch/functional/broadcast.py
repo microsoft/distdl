@@ -112,7 +112,7 @@ class BroadcastFunction(torch.autograd.Function):
 
         # Send all of the data
         if P_send.active:
-            req = P_send._comm.Ibcast(input.detach(), root=0)
+            req = P_send._comm.Ibcast(input.detach().contiguous(), root=0)
             requests.append(req)
 
         if P_recv.active:
@@ -124,7 +124,7 @@ class BroadcastFunction(torch.autograd.Function):
                 output = torch.zeros(*output_tensor_structure.shape, dtype=output_tensor_structure.dtype,
                                      device=P_recv.device)
 
-                req = P_recv._comm.Ibcast(output.detach(), root=0)
+                req = P_recv._comm.Ibcast(output.detach().contiguous(), root=0)
                 req.Wait()
                 ## output = torch.tensor(output, requires_grad=output_tensor_structure.requires_grad, device=device)
                 output.requires_grad_(output_tensor_structure.requires_grad)
@@ -211,7 +211,7 @@ class BroadcastFunction(torch.autograd.Function):
             reduced_data_recv = torch.zeros(*output_tensor_structure.shape, dtype=output_tensor_structure.dtype,
                                             device=P_recv.device)
             helper_thread = threading.Thread(target=reduce_function,
-                                             args=(P_recv, grad_output.detach(), reduced_data_recv))
+                                             args=(P_recv, grad_output.detach().contiguous(), reduced_data_recv))
             helper_thread.start()
 
         # If I sent data in the forward, I have to receive it here.  Unless I
