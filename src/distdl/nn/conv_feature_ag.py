@@ -267,3 +267,30 @@ class DistributedFeatureAllGatherConv3d(DistributedFeatureAllGatherConvBase):
 
     TorchConvType = torch.nn.Conv3d
     num_dimensions = 3
+
+
+class DistributedFeatureAllGatherConvTranspose1d(DistributedFeatureAllGatherConvBase):
+    r"""A channel-partitioned distributed 1d convolutional layer.
+
+    """
+
+    TorchConvType = torch.nn.ConvTranspose1d
+    num_dimensions = 1
+
+
+class DistributedFeatureAllGatherConvTranspose2d(DistributedFeatureAllGatherConvBase):
+    r"""A channel-partitioned distributed 2d convolutional layer.
+
+    """
+
+    TorchConvType = torch.nn.ConvTranspose2d
+    num_dimensions = 2
+
+
+class DistributedFeatureAllGatherConvTranspose3d(DistributedFeatureAllGatherConvBase):
+    r"""A channel-partitioned distributed 3d convolutional layer.
+
+    """
+
+    TorchConvType = torch.nn.ConvTranspose3d
+    num_dimensions = 3

@@ -272,3 +272,30 @@ class DistributedFeatureReduceScatterConv3d(DistributedFeatureReduceScatterConvB
 
     TorchConvType = torch.nn.Conv3d
     num_dimensions = 3
+
+class DistributedFeatureReduceScatterConvTranspose1d(DistributedFeatureReduceScatterConvBase):
+    r"""A channel-partitioned distributed 1d convolutional layer.
+
+    """
+
+    TorchConvType = torch.nn.ConvTranspose1d
+    num_dimensions = 1
+
+
+class DistributedFeatureReduceScatterConvTranspose2d(DistributedFeatureReduceScatterConvBase):
+    r"""A channel-partitioned distributed 2d convolutional layer.
+
+    """
+
+    TorchConvType = torch.nn.ConvTranspose2d
+    num_dimensions = 2
+
+
+class DistributedFeatureReduceScatterConvTranspose3d(DistributedFeatureReduceScatterConvBase):
+    r"""A channel-partitioned distributed 3d convolutional layer.
+
+    """
+
+    TorchConvType = torch.nn.ConvTranspose3d
+    num_dimensions = 3
+

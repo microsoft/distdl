@@ -16,9 +16,15 @@ from .conv_feature import DistributedFeatureConv3d  # noqa: F401
 from .conv_feature_rs import DistributedFeatureReduceScatterConv1d   # noqa: F401
 from .conv_feature_rs import DistributedFeatureReduceScatterConv2d   # noqa: F401
 from .conv_feature_rs import DistributedFeatureReduceScatterConv3d   # noqa: F401
+from .conv_feature_rs import DistributedFeatureReduceScatterConvTranspose1d   # noqa: F401
+from .conv_feature_rs import DistributedFeatureReduceScatterConvTranspose2d   # noqa: F401
+from .conv_feature_rs import DistributedFeatureReduceScatterConvTranspose3d   # noqa: F401
 from .conv_feature_ag import DistributedFeatureAllGatherConv1d   # noqa: F401
 from .conv_feature_ag import DistributedFeatureAllGatherConv2d   # noqa: F401
 from .conv_feature_ag import DistributedFeatureAllGatherConv3d   # noqa: F401
+from .conv_feature_ag import DistributedFeatureAllGatherConvTranspose1d   # noqa: F401
+from .conv_feature_ag import DistributedFeatureAllGatherConvTranspose2d   # noqa: F401
+from .conv_feature_ag import DistributedFeatureAllGatherConvTranspose3d   # noqa: F401
 from .conv_general import DistributedGeneralConv1d  # noqa: F401
 from .conv_general import DistributedGeneralConv2d  # noqa: F401
 from .conv_general import DistributedGeneralConv3d  # noqa: F401
@@ -59,9 +65,15 @@ __all__ = ["AllSumReduce",
            "DistributedFeatureReduceScatterConv1d",
            "DistributedFeatureReduceScatterConv2d",
            "DistributedFeatureReduceScatterConv3d",
+           "DistributedFeatureReduceScatterConvTranspose1d",
+           "DistributedFeatureReduceScatterConvTranspose2d",
+           "DistributedFeatureReduceScatterConvTranspose3d",
            "DistributedFeatureAllGatherConv1d",
            "DistributedFeatureAllGatherConv2d",
            "DistributedFeatureAllGatherConv3d",
+           "DistributedFeatureAllGatherConvTranspose1d",
+           "DistributedFeatureAllGatherConvTranspose2d",
+           "DistributedFeatureAllGatherConvTranspose3d",
            "DistributedGeneralConv1d",
            "DistributedGeneralConv2d",
            "DistributedGeneralConv3d",
