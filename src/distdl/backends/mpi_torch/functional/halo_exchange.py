@@ -23,7 +23,11 @@ class HaloExchangeFunction(torch.autograd.Function):
         if not P_x.active:
             return zero_volume_tensor(input.shape[0], device=device)
 
-        ctx.mark_dirty(input)
+        # TODO: mark_dirty() is buggy and does not work properly if halo exchange is
+        # chained with certain operations like ReLU, MaxPool, etc. For now, we make
+        # a memory copy of the input, rather than modifying the halo in place.
+        # ctx.mark_dirty(input)
+        output = torch.clone(input.detach())
 
         if P_x.size == 1:
             return input
@@ -76,16 +80,16 @@ class HaloExchangeFunction(torch.autograd.Function):
                     if index == 0:
                         # TODO: Should change these lines to zero copy
                         # input[lgs] = torch.tensor(lgb, device=device)
-                        input[lgs].copy_(lgb.detach())
-                        input[lgs].requires_grad_(input.requires_grad)
+                        output[lgs].copy_(lgb.detach())
+                        output[lgs].requires_grad_(input.requires_grad)
                     elif index == 1:
                         # input[rgs] = torch.tensor(rgb, device=device)
-                        input[rgs].copy_(rgb.detach())
-                        input[rgs].requires_grad_(input.requires_grad)
+                        output[rgs].copy_(rgb.detach())
+                        output[rgs].requires_grad_(input.requires_grad)
 
                 n_reqs_completed += 1
 
-        return input
+        return output.requires_grad_(input.requires_grad)
 
     @staticmethod
     def backward(ctx, grad_output):
