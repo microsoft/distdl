@@ -420,3 +420,30 @@ class DistributedFeatureConv3d(DistributedFeatureConvBase):
 
     TorchConvType = torch.nn.Conv3d
     num_dimensions = 3
+
+
+class DistributedFeatureConvTranspose1d(DistributedFeatureConvBase):
+    r"""A feature-partitioned distributed 1d convolutional layer.
+
+    """
+
+    TorchConvType = torch.nn.ConvTranspose1d
+    num_dimensions = 1
+
+
+class DistributedFeatureConvTranspose2d(DistributedFeatureConvBase):
+    r"""A feature-partitioned distributed 2d convolutional layer.
+
+    """
+
+    TorchConvType = torch.nn.ConvTranspose2d
+    num_dimensions = 2
+
+
+class DistributedFeatureConvTranspose3d(DistributedFeatureConvBase):
+    r"""A feature-partitioned distributed 3d convolutional layer.
+
+    """
+
+    TorchConvType = torch.nn.ConvTranspose3d
+    num_dimensions = 3
