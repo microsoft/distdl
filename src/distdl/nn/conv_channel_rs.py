@@ -2,27 +2,26 @@ import numpy as np
 import torch
 
 from distdl.nn.module import Module
-from distdl.nn.all_gather import AllGather
+from distdl.nn.reduce_scatter import ReduceScatter
 from distdl.utilities.slicing import compute_subshape
 from distdl.utilities.torch import TensorStructure
 from torch.utils.checkpoint import checkpoint
 
 
-class DistributedFeatureAllGatherConvBase(Module):
+class DistributedChannelReduceScatterConvBase(Module):
     r"""A channel-space partitioned distributed convolutional layer.
 
     This class provides the user interface to a distributed convolutional
     layer, where the input and output tensors are partitioned in the
     channel-dimension only.
 
-    In contrast to the alternative channel convolutions, the convolutional
-    filters are only partitioned along the output channel dimension, but
-    not along the output channels. To bring the intput to the correct 
-    partitioning scheme for the convolution, an all-gather operation is 
-    applied to the input prior to the convolution operation.
+    In contrast to the distributed channel convolution, the convolutional
+    filters are only partitioned along the input channel dimension, but
+    not along the output channels. To bring the output back to the original
+    partioning scheme, the reduce-scatter operator is applied to the output.
 
     This layer offers the possibility to avoid storing the intermediate 
-    (full) version of the output at the cost of one additional all-gather
+    (full) version of the output at the cost of one additional reduce-scatter
     during backpropagation. To use the memory-saving variant, pass
     `checkpointing = True` to the constructor.
 
@@ -81,13 +80,19 @@ class DistributedFeatureAllGatherConvBase(Module):
                  checkpointing=False,
                  *args, **kwargs):
 
-        super(DistributedFeatureAllGatherConvBase, self).__init__()
+        super(DistributedChannelReduceScatterConvBase, self).__init__()
 
         # P_x
         self.P_x = P_x
 
         if not self.P_x.active:
             return
+
+        # If bias is used, only initialize it on rank 0
+        if bias is True and P_x.rank == 0:
+            use_bias = True
+        else:
+            use_bias = False
 
         self.in_channels = in_channels
         self.out_channels = out_channels
@@ -97,7 +102,7 @@ class DistributedFeatureAllGatherConvBase(Module):
         self.padding_mode = padding_mode
         self.dilation = self._expand_parameter(dilation)
         self.groups = groups
-        self.use_bias = bias
+        self.use_bias = use_bias
         self.checkpointing = checkpointing
 
         self.serial = self.P_x.size == 1
@@ -113,7 +118,7 @@ class DistributedFeatureAllGatherConvBase(Module):
                                                  padding_mode=self.padding_mode,
                                                  dilation=self.dilation,
                                                  groups=self.groups,
-                                                 bias=self.use_bias,
+                                                 bias=bias,
                                                  device=P_x.device)
             self.weight = self.conv_layer.weight
             self.bias = self.conv_layer.bias
@@ -122,12 +127,12 @@ class DistributedFeatureAllGatherConvBase(Module):
         if self.P_x.active:
 
             # Input channel dimension is partitioned
-            out_channels_local = compute_subshape(P_x.shape[1],
+            in_channels_local = compute_subshape(P_x.shape[1],
                                                  P_x.index[1],
-                                                 [out_channels])[0]
+                                                 [in_channels])[0]
 
-            self.conv_layer = self.TorchConvType(in_channels=in_channels,
-                                                 out_channels=out_channels_local,
+            self.conv_layer = self.TorchConvType(in_channels=in_channels_local,
+                                                 out_channels=out_channels,
                                                  kernel_size=self.kernel_size,
                                                  stride=self.stride,
                                                  padding=self.padding,
@@ -141,11 +146,11 @@ class DistributedFeatureAllGatherConvBase(Module):
         self._distdl_is_setup = False
         self._input_tensor_structure = TensorStructure()
 
-        self.all_gather = AllGather(self.P_x, axes_all_gather=(1,))
+        self.reduce_scatter = ReduceScatter(self.P_x, axes_reduce_scatter=(1,))
 
-        self.conv_layer_ag = torch.nn.Sequential(
-            self.all_gather,
-            self.conv_layer
+        self.conv_layer_rs = torch.nn.Sequential(
+            self.conv_layer,
+            self.reduce_scatter
         )
 
     def _expand_parameter(self, param):
@@ -235,14 +240,14 @@ class DistributedFeatureAllGatherConvBase(Module):
             return self.conv_layer(input)
 
         if self.checkpointing:
-            y = checkpoint(self.conv_layer_ag, input)
+            y = checkpoint(self.conv_layer_rs, input)
         else:
-            y = self.conv_layer_ag(input)
+            y = self.conv_layer_rs(input)
         
         return y
 
 
-class DistributedFeatureAllGatherConv1d(DistributedFeatureAllGatherConvBase):
+class DistributedChannelReduceScatterConv1d(DistributedChannelReduceScatterConvBase):
     r"""A channel-partitioned distributed 1d convolutional layer.
 
     """
@@ -251,7 +256,7 @@ class DistributedFeatureAllGatherConv1d(DistributedFeatureAllGatherConvBase):
     num_dimensions = 1
 
 
-class DistributedFeatureAllGatherConv2d(DistributedFeatureAllGatherConvBase):
+class DistributedChannelReduceScatterConv2d(DistributedChannelReduceScatterConvBase):
     r"""A channel-partitioned distributed 2d convolutional layer.
 
     """
@@ -260,7 +265,7 @@ class DistributedFeatureAllGatherConv2d(DistributedFeatureAllGatherConvBase):
     num_dimensions = 2
 
 
-class DistributedFeatureAllGatherConv3d(DistributedFeatureAllGatherConvBase):
+class DistributedChannelReduceScatterConv3d(DistributedChannelReduceScatterConvBase):
     r"""A channel-partitioned distributed 3d convolutional layer.
 
     """
@@ -268,8 +273,7 @@ class DistributedFeatureAllGatherConv3d(DistributedFeatureAllGatherConvBase):
     TorchConvType = torch.nn.Conv3d
     num_dimensions = 3
 
-
-class DistributedFeatureAllGatherConvTranspose1d(DistributedFeatureAllGatherConvBase):
+class DistributedChannelReduceScatterConvTranspose1d(DistributedChannelReduceScatterConvBase):
     r"""A channel-partitioned distributed 1d convolutional layer.
 
     """
@@ -278,7 +282,7 @@ class DistributedFeatureAllGatherConvTranspose1d(DistributedFeatureAllGatherConv
     num_dimensions = 1
 
 
-class DistributedFeatureAllGatherConvTranspose2d(DistributedFeatureAllGatherConvBase):
+class DistributedChannelReduceScatterConvTranspose2d(DistributedChannelReduceScatterConvBase):
     r"""A channel-partitioned distributed 2d convolutional layer.
 
     """
@@ -287,10 +291,11 @@ class DistributedFeatureAllGatherConvTranspose2d(DistributedFeatureAllGatherConv
     num_dimensions = 2
 
 
-class DistributedFeatureAllGatherConvTranspose3d(DistributedFeatureAllGatherConvBase):
+class DistributedChannelReduceScatterConvTranspose3d(DistributedChannelReduceScatterConvBase):
     r"""A channel-partitioned distributed 3d convolutional layer.
 
     """
 
     TorchConvType = torch.nn.ConvTranspose3d
     num_dimensions = 3
+

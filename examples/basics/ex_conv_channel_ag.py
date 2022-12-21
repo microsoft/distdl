@@ -5,7 +5,7 @@ from distdl.config import set_backend
 
 import distdl.utilities.slicing as slicing
 from distdl.backends.common.partition import MPIPartition
-from distdl.nn.conv_zero_ag import DistributedZeroAGConv2d
+from distdl.nn.conv_channel_ag import DistributedChannelAllGatherConv2d
 from distdl.utilities.torch import zero_volume_tensor
 
 # Set backend
@@ -35,7 +35,7 @@ x.requires_grad = True
 
 # Distributed conv layer
 if P_x.rank == 0: print("Forward")
-conv2d = DistributedZeroAGConv2d(P_x, 16, 16, (3, 3), padding=(1, 1), device=P_x.device, checkpointing=True)
+conv2d = DistributedChannelAllGatherConv2d(P_x, 16, 16, (3, 3), padding=(1, 1), device=P_x.device, checkpointing=True)
 y = conv2d(x)
 
 # Backward pass

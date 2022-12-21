@@ -13,18 +13,18 @@ from .conv_channel import DistributedChannelConv3d  # noqa: F401
 from .conv_feature import DistributedFeatureConv1d  # noqa: F401
 from .conv_feature import DistributedFeatureConv2d  # noqa: F401
 from .conv_feature import DistributedFeatureConv3d  # noqa: F401
-from .conv_feature_rs import DistributedFeatureReduceScatterConv1d   # noqa: F401
-from .conv_feature_rs import DistributedFeatureReduceScatterConv2d   # noqa: F401
-from .conv_feature_rs import DistributedFeatureReduceScatterConv3d   # noqa: F401
-from .conv_feature_rs import DistributedFeatureReduceScatterConvTranspose1d   # noqa: F401
-from .conv_feature_rs import DistributedFeatureReduceScatterConvTranspose2d   # noqa: F401
-from .conv_feature_rs import DistributedFeatureReduceScatterConvTranspose3d   # noqa: F401
-from .conv_feature_ag import DistributedFeatureAllGatherConv1d   # noqa: F401
-from .conv_feature_ag import DistributedFeatureAllGatherConv2d   # noqa: F401
-from .conv_feature_ag import DistributedFeatureAllGatherConv3d   # noqa: F401
-from .conv_feature_ag import DistributedFeatureAllGatherConvTranspose1d   # noqa: F401
-from .conv_feature_ag import DistributedFeatureAllGatherConvTranspose2d   # noqa: F401
-from .conv_feature_ag import DistributedFeatureAllGatherConvTranspose3d   # noqa: F401
+from .conv_channel_rs import DistributedChannelReduceScatterConv1d   # noqa: F401
+from .conv_channel_rs import DistributedChannelReduceScatterConv2d   # noqa: F401
+from .conv_channel_rs import DistributedChannelReduceScatterConv3d   # noqa: F401
+from .conv_channel_rs import DistributedChannelReduceScatterConvTranspose1d   # noqa: F401
+from .conv_channel_rs import DistributedChannelReduceScatterConvTranspose2d   # noqa: F401
+from .conv_channel_rs import DistributedChannelReduceScatterConvTranspose3d   # noqa: F401
+from .conv_channel_ag import DistributedChannelAllGatherConv1d   # noqa: F401
+from .conv_channel_ag import DistributedChannelAllGatherConv2d   # noqa: F401
+from .conv_channel_ag import DistributedChannelAllGatherConv3d   # noqa: F401
+from .conv_channel_ag import DistributedChannelAllGatherConvTranspose1d   # noqa: F401
+from .conv_channel_ag import DistributedChannelAllGatherConvTranspose2d   # noqa: F401
+from .conv_channel_ag import DistributedChannelAllGatherConvTranspose3d   # noqa: F401
 from .conv_general import DistributedGeneralConv1d  # noqa: F401
 from .conv_general import DistributedGeneralConv2d  # noqa: F401
 from .conv_general import DistributedGeneralConv3d  # noqa: F401
@@ -62,18 +62,18 @@ __all__ = ["AllSumReduce",
            "DistributedFeatureConv1d",
            "DistributedFeatureConv2d",
            "DistributedFeatureConv3d",
-           "DistributedFeatureReduceScatterConv1d",
-           "DistributedFeatureReduceScatterConv2d",
-           "DistributedFeatureReduceScatterConv3d",
-           "DistributedFeatureReduceScatterConvTranspose1d",
-           "DistributedFeatureReduceScatterConvTranspose2d",
-           "DistributedFeatureReduceScatterConvTranspose3d",
-           "DistributedFeatureAllGatherConv1d",
-           "DistributedFeatureAllGatherConv2d",
-           "DistributedFeatureAllGatherConv3d",
-           "DistributedFeatureAllGatherConvTranspose1d",
-           "DistributedFeatureAllGatherConvTranspose2d",
-           "DistributedFeatureAllGatherConvTranspose3d",
+           "DistributedChannelReduceScatterConv1d",
+           "DistributedChannelReduceScatterConv2d",
+           "DistributedChannelReduceScatterConv3d",
+           "DistributedChannelReduceScatterConvTranspose1d",
+           "DistributedChannelReduceScatterConvTranspose2d",
+           "DistributedChannelReduceScatterConvTranspose3d",
+           "DistributedChannelAllGatherConv1d",
+           "DistributedChannelAllGatherConv2d",
+           "DistributedChannelAllGatherConv3d",
+           "DistributedChannelAllGatherConvTranspose1d",
+           "DistributedChannelAllGatherConvTranspose2d",
+           "DistributedChannelAllGatherConvTranspose3d",
            "DistributedGeneralConv1d",
            "DistributedGeneralConv2d",
            "DistributedGeneralConv3d",
