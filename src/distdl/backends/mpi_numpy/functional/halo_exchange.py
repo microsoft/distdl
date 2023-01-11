@@ -48,9 +48,9 @@ class HaloExchangeFunction(torch.autograd.Function):
             lrank, rrank = neighbor_ranks[i]
 
             if lbb is not None:
-                np.copyto(lbb, input.detach()[lbs].cpu().numpy())
+                np.copyto(lbb, output[lbs].cpu().numpy())
             if rbb is not None:
-                np.copyto(rbb, input.detach()[rbs].cpu().numpy())
+                np.copyto(rbb, output[rbs].cpu().numpy())
 
             ltag = 0
             rtag = 1
