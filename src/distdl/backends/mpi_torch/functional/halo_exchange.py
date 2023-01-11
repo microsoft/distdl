@@ -48,18 +48,9 @@ class HaloExchangeFunction(torch.autograd.Function):
             lrank, rrank = neighbor_ranks[i]
 
             if lbb is not None:
-                ## np.copyto(lbb, input.detach()[lbs].cpu().numpy())
-                ## cp.copyto(lbb, cp.array(input.detach()[lbs]))
-                # TODO: Keep as torch tensor (should be alias or deep copy?)
-                # lbb = input[lbs].contiguous()
-                lbb.copy_(input[lbs])
+                lbb.copy_(output[lbs])
             if rbb is not None:
-                ## np.copyto(rbb, input.detach()[rbs].cpu().numpy())
-                ## cp.copyto(rbb, cp.array(input.detach()[rbs]))
-                # TODO: Keep as torch tensor (should be alias or deep copy?)
-                # rbb = torch.tensor(input.detach()[rbs], device=input.device, dtype=input.dtype)
-                # rbb = input[rbs].contiguous()
-                rbb.copy_(input[rbs])
+                rbb.copy_(output[rbs])
 
             ltag = 0
             rtag = 1
