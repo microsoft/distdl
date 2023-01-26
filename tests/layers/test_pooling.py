@@ -228,11 +228,12 @@ def test_matches_sequential(barrier_fence_fixture,
     import numpy as np
     import torch
 
-    from distdl.backends.mpi.partition import MPIPartition
+    from distdl.backends.common.partition import MPIPartition
     from distdl.nn.repartition import Repartition
     from distdl.utilities.torch import zero_volume_tensor
+    from distdl.config import set_backend
 
-    device = torch.device('cuda' if use_cuda else 'cpu')
+    set_backend(backend_comm="mpi", backend_array="numpy")
 
     # Isolate the minimum needed ranks
     base_comm, active = comm_split_fixture
@@ -247,10 +248,10 @@ def test_matches_sequential(barrier_fence_fixture,
     P_0 = P_0_base.create_cartesian_topology_partition([1]*len(P_x_shape))
     P_x = P_x_base.create_cartesian_topology_partition(P_x_shape)
 
-    scatter_layer_x = Repartition(P_0, P_x).to(device)
-    scatter_layer_y = Repartition(P_0, P_x).to(device)
-    gather_layer_x = Repartition(P_x, P_0).to(device)
-    gather_layer_y = Repartition(P_x, P_0).to(device)
+    scatter_layer_x = Repartition(P_0, P_x).to(P_x.device)
+    scatter_layer_y = Repartition(P_0, P_x).to(P_x.device)
+    gather_layer_x = Repartition(P_x, P_0).to(P_x.device)
+    gather_layer_y = Repartition(P_x, P_0).to(P_x.device)
 
     # Create the layers
     if input_dimensions == 1:
@@ -296,24 +297,24 @@ def test_matches_sequential(barrier_fence_fixture,
     if layer_type == 'max':
         layer_kwargs['dilation'] = dilation
 
-    dist_layer = DistributedPoolType(P_x, **layer_kwargs).to(device)
+    dist_layer = DistributedPoolType(P_x, **layer_kwargs).to(P_x.device)
     if P_0.active:
-        seq_layer = SequentialPoolType(**layer_kwargs).to(device)
+        seq_layer = SequentialPoolType(**layer_kwargs).to(P_x.device)
 
     # Forward Input
-    x_ref = zero_volume_tensor(device=device)
+    x_ref = zero_volume_tensor(device=P_x.device)
     x_ref.requires_grad = True
-    dy_ref = zero_volume_tensor(device=device)
+    dy_ref = zero_volume_tensor(device=P_x.device)
 
     # Construct the inputs to the forward and backward functions as well as the
     # the outputs of the sequential layer
     if P_0.active:
-        x_ref = torch.randn(*x_global_shape, device=device)
+        x_ref = torch.randn(*x_global_shape, device=P_x.device)
         x_ref.requires_grad = True
         y_ref = seq_layer(x_ref)
         y_global_shape_calc = y_ref.shape
 
-        dy_ref = torch.randn(*y_global_shape_calc, device=device)
+        dy_ref = torch.randn(*y_global_shape_calc, device=P_x.device)
 
         y_ref.backward(dy_ref)
         dx_ref = x_ref.grad

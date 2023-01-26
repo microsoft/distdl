@@ -152,7 +152,7 @@ def test_conv_class_selection(barrier_fence_fixture,
                               OutputLayerType
                               ):
 
-    from distdl.backends.mpi.partition import MPIPartition
+    from distdl.backends.common.partition import MPIPartition
 
     # Isolate the minimum needed ranks
     base_comm, active = comm_split_fixture
@@ -203,7 +203,7 @@ def test_excepts_no_match(barrier_fence_fixture,
 
     import numpy as np
 
-    from distdl.backends.mpi.partition import MPIPartition
+    from distdl.backends.common.partition import MPIPartition
     from distdl.nn import DistributedConv2d
 
     # Isolate the minimum needed ranks

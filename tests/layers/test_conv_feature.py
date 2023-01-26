@@ -276,14 +276,15 @@ def test_conv_versus_pytorch(barrier_fence_fixture,
     from torch.nn import Conv2d
     from torch.nn import Conv3d
 
-    from distdl.backends.mpi.partition import MPIPartition
+    from distdl.backends.common.partition import MPIPartition
     from distdl.nn.conv_feature import DistributedFeatureConv1d
     from distdl.nn.conv_feature import DistributedFeatureConv2d
     from distdl.nn.conv_feature import DistributedFeatureConv3d
     from distdl.nn.repartition import Repartition
     from distdl.utilities.torch import zero_volume_tensor
+    from distdl.config import set_backend
 
-    device = torch.device('cuda' if use_cuda else 'cpu')
+    set_backend(backend_comm="mpi", backend_array="numpy")
 
     # Isolate the minimum needed ranks
     base_comm, active = comm_split_fixture
@@ -299,13 +300,13 @@ def test_conv_versus_pytorch(barrier_fence_fixture,
     P_x = P_x_base.create_cartesian_topology_partition(P_x_shape)
 
     scatter_layer_x = Repartition(P_0, P_x)
-    scatter_layer_x = scatter_layer_x.to(device)
+    scatter_layer_x = scatter_layer_x.to(P_x.device)
     scatter_layer_y = Repartition(P_0, P_x)
-    scatter_layer_y = scatter_layer_y.to(device)
+    scatter_layer_y = scatter_layer_y.to(P_x.device)
     gather_layer_x = Repartition(P_x, P_0)
-    gather_layer_x = gather_layer_x.to(device)
+    gather_layer_x = gather_layer_x.to(P_x.device)
     gather_layer_y = Repartition(P_x, P_0)
-    gather_layer_y = gather_layer_y.to(device)
+    gather_layer_y = gather_layer_y.to(P_x.device)
 
     # Create the layers
     if input_dimensions == 1:
@@ -325,7 +326,7 @@ def test_conv_versus_pytorch(barrier_fence_fixture,
                                  stride=stride,
                                  dilation=dilation,
                                  bias=bias)
-    dist_layer = dist_layer.to(device)
+    dist_layer = dist_layer.to(P_x.device)
     if P_0.active:
         seq_layer = seq_layer_type(in_channels=x_global_shape[1],
                                    out_channels=10,
@@ -335,29 +336,29 @@ def test_conv_versus_pytorch(barrier_fence_fixture,
                                    dilation=dilation,
                                    bias=bias)
         # set the weights of both layers to be the same
-        seq_layer = seq_layer.to(device)
-        weight = torch.rand_like(seq_layer.weight, device=device)
+        seq_layer = seq_layer.to(P_x.device)
+        weight = torch.rand_like(seq_layer.weight, device=P_x.device)
         seq_layer.weight.data = weight
         dist_layer.weight.data = weight
         if bias:
-            bias_weight = torch.rand_like(seq_layer.bias, device=device)
+            bias_weight = torch.rand_like(seq_layer.bias, device=P_x.device)
             seq_layer.bias.data = bias_weight
             dist_layer.bias.data = bias_weight
 
     # Forward Input
-    x_ref = zero_volume_tensor(device=device)
+    x_ref = zero_volume_tensor(device=P_x.device)
     x_ref.requires_grad = True
-    dy_ref = zero_volume_tensor(device=device)
+    dy_ref = zero_volume_tensor(device=P_x.device)
 
     # Construct the inputs to the forward and backward functions as well as the
     # the outputs of the sequential layer
     if P_0.active:
-        x_ref = torch.randn(*x_global_shape, device=device)
+        x_ref = torch.randn(*x_global_shape, device=P_x.device)
         x_ref.requires_grad = True
         y_ref = seq_layer(x_ref)
         y_global_shape_calc = y_ref.shape
 
-        dy_ref = torch.randn(*y_global_shape_calc, device=device)
+        dy_ref = torch.randn(*y_global_shape_calc, device=P_x.device)
 
         y_ref.backward(dy_ref)
         dx_ref = x_ref.grad

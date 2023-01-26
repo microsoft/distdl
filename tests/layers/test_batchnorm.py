@@ -133,11 +133,12 @@ def test_batch_norm_with_training(barrier_fence_fixture,
                                   affine_workers,
                                   comm_split_fixture):
 
-    from distdl.backends.mpi.partition import MPIPartition
+    from distdl.backends.common.partition import MPIPartition
+    from distdl.config import set_backend
 
     torch.manual_seed(0)
 
-    device = torch.device('cuda' if use_cuda else 'cpu')
+    set_backend(backend_comm="mpi", backend_array="numpy")
 
     # Isolate the minimum needed ranks
     base_comm, active = comm_split_fixture
@@ -155,13 +156,13 @@ def test_batch_norm_with_training(barrier_fence_fixture,
 
     # Create the input
     if P_world.rank == 0:
-        input_train = torch.rand(input_shape, dtype=torch.float32, device=device)
-        input_eval = torch.rand(input_shape, dtype=torch.float32, device=device)
-        exp = torch.rand(input_shape, dtype=torch.float32, device=device)
+        input_train = torch.rand(input_shape, dtype=torch.float32, device=P_x.device)
+        input_eval = torch.rand(input_shape, dtype=torch.float32, device=P_x.device)
+        exp = torch.rand(input_shape, dtype=torch.float32, device=P_x.device)
     else:
-        input_train = zero_volume_tensor(device=device)
-        input_eval = zero_volume_tensor(device=device)
-        exp = zero_volume_tensor(device=device)
+        input_train = zero_volume_tensor(device=P_x.device)
+        input_eval = zero_volume_tensor(device=P_x.device)
+        exp = zero_volume_tensor(device=P_x.device)
 
     # Create the sequential network
     if len(input_shape) == 2:
@@ -178,7 +179,7 @@ def test_batch_norm_with_training(barrier_fence_fixture,
                            momentum=momentum,
                            affine=affine,
                            track_running_stats=track_running_stats)
-        seq_bn = seq_bn.to(device)
+        seq_bn = seq_bn.to(P_x.device)
 
     # Train sequential network
     if P_world.rank == 0:
@@ -200,16 +201,16 @@ def test_batch_norm_with_training(barrier_fence_fixture,
 
     # Create distributed network
     tr1 = distdl.nn.Repartition(P_in_out, P_x)
-    tr1 = tr1.to(device)
+    tr1 = tr1.to(P_x.device)
     dist_bn = distdl.nn.DistributedBatchNorm(P_x,
                                              num_features=num_features,
                                              eps=eps,
                                              momentum=momentum,
                                              affine=affine,
                                              track_running_stats=track_running_stats)
-    dist_bn = dist_bn.to(device)
+    dist_bn = dist_bn.to(P_x.device)
     tr2 = distdl.nn.Repartition(P_x, P_in_out)
-    tr2 = tr2.to(device)
+    tr2 = tr2.to(P_x.device)
 
     # Only rank 0 should have trainable parameters:
     if P_world.rank in affine_workers:
@@ -299,9 +300,10 @@ def test_batch_norm_no_training(barrier_fence_fixture,
                                 track_running_stats,
                                 comm_split_fixture):
 
-    from distdl.backends.mpi.partition import MPIPartition
+    from distdl.backends.common.partition import MPIPartition
+    from distdl.config import set_backend
 
-    device = torch.device('cuda' if use_cuda else 'cpu')
+    set_backend(backend_comm="mpi", backend_array="numpy")
 
     torch.manual_seed(0)
 
@@ -320,9 +322,9 @@ def test_batch_norm_no_training(barrier_fence_fixture,
 
     # Create the input
     if P_world.rank == 0:
-        input_eval = torch.rand(input_shape, dtype=torch.float32, device=device)
+        input_eval = torch.rand(input_shape, dtype=torch.float32, device=P_x.device)
     else:
-        input_eval = zero_volume_tensor(device=device)
+        input_eval = zero_volume_tensor(device=P_x.device)
 
     # Create the sequential network
     if P_world.rank == 0:
@@ -331,7 +333,7 @@ def test_batch_norm_no_training(barrier_fence_fixture,
                                                            momentum=momentum,
                                                            affine=affine,
                                                            track_running_stats=track_running_stats))
-        seq_net = seq_net.to(device)
+        seq_net = seq_net.to(P_x.device)
     else:
         seq_net = None
 
@@ -350,7 +352,7 @@ def test_batch_norm_no_training(barrier_fence_fixture,
                                                                   affine=affine,
                                                                   track_running_stats=track_running_stats),
                                    distdl.nn.Repartition(P_x, P_in_out))
-    dist_net = dist_net.to(device)
+    dist_net = dist_net.to(P_x.device)
 
     # Evaluate distributed network
     dist_net.eval()

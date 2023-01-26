@@ -57,12 +57,13 @@ def test_linear_adjoint_input(barrier_fence_fixture,
     import numpy as np
     import torch
 
-    from distdl.backends.mpi.partition import MPIPartition
+    from distdl.backends.common.partition import MPIPartition
     from distdl.nn.linear import DistributedLinear
     from distdl.utilities.slicing import compute_subshape
     from distdl.utilities.torch import zero_volume_tensor
+    from distdl.config import set_backend
 
-    device = torch.device('cuda' if use_cuda else 'cpu')
+    set_backend(backend_comm="mpi", backend_array="numpy")
 
     # Isolate the minimum needed ranks
     base_comm, active = comm_split_fixture
@@ -87,21 +88,21 @@ def test_linear_adjoint_input(barrier_fence_fixture,
                               x_global_shape[1],
                               y_global_shape[1],
                               bias=False)
-    layer = layer.to(device)
+    layer = layer.to(P_x.device)
 
-    x = zero_volume_tensor(x_global_shape[0], device=device)
+    x = zero_volume_tensor(x_global_shape[0], device=P_x.device)
     if P_x.active:
         x_local_shape = compute_subshape(P_x.shape,
                                          P_x.index,
                                          x_global_shape)
-        x = torch.randn(*x_local_shape, device=device)
+        x = torch.randn(*x_local_shape, device=P_x.device)
     x.requires_grad = True
 
     y = layer(x)
 
-    dy = zero_volume_tensor(x_global_shape[0], device=device)
+    dy = zero_volume_tensor(x_global_shape[0], device=P_x.device)
     if P_y.active:
-        dy = torch.randn(*y.shape, device=device)
+        dy = torch.randn(*y.shape, device=P_x.device)
 
     y.backward(dy)
     dx = x.grad
@@ -142,12 +143,13 @@ def test_linear_adjoint_weight(barrier_fence_fixture,
     import numpy as np
     import torch
 
-    from distdl.backends.mpi.partition import MPIPartition
+    from distdl.backends.common.partition import MPIPartition
     from distdl.nn.linear import DistributedLinear
     from distdl.utilities.slicing import compute_subshape
     from distdl.utilities.torch import zero_volume_tensor
+    from distdl.config import set_backend
 
-    device = torch.device('cuda' if use_cuda else 'cpu')
+    set_backend(backend_comm="mpi", backend_array="numpy")
 
     # Isolate the minimum needed ranks
     base_comm, active = comm_split_fixture
@@ -172,26 +174,26 @@ def test_linear_adjoint_weight(barrier_fence_fixture,
                               x_global_shape[1],
                               y_global_shape[1],
                               bias=False)
-    layer = layer.to(device)
+    layer = layer.to(P_x.device)
 
-    x = zero_volume_tensor(x_global_shape[0], device=device)
+    x = zero_volume_tensor(x_global_shape[0], device=P_x.device)
     if P_x.active:
         x_local_shape = compute_subshape(P_x.shape,
                                          P_x.index,
                                          x_global_shape)
-        x = torch.randn(*x_local_shape, device=device)
+        x = torch.randn(*x_local_shape, device=P_x.device)
     x.requires_grad = True
 
     y = layer(x)
 
-    dy = zero_volume_tensor(x_global_shape[0], device=device)
+    dy = zero_volume_tensor(x_global_shape[0], device=P_x.device)
     if P_y.active:
-        dy = torch.randn(*y.shape, device=device)
+        dy = torch.randn(*y.shape, device=P_x.device)
 
     y.backward(dy)
 
-    W = zero_volume_tensor(device=device)
-    dW = zero_volume_tensor(device=device)
+    W = zero_volume_tensor(device=P_x.device)
+    dW = zero_volume_tensor(device=P_x.device)
     if P_w.active:
         W = layer.sublinear.weight.detach()
         dW = layer.sublinear.weight.grad.detach()
@@ -230,12 +232,13 @@ def test_linear_adjoint_bias(barrier_fence_fixture,
     import numpy as np
     import torch
 
-    from distdl.backends.mpi.partition import MPIPartition
+    from distdl.backends.common.partition import MPIPartition
     from distdl.nn.linear import DistributedLinear
     from distdl.utilities.slicing import compute_subshape
     from distdl.utilities.torch import zero_volume_tensor
+    from distdl.config import set_backend
 
-    device = torch.device('cuda' if use_cuda else 'cpu')
+    set_backend(backend_comm="mpi", backend_array="numpy")
 
     # Isolate the minimum needed ranks
     base_comm, active = comm_split_fixture
@@ -260,9 +263,9 @@ def test_linear_adjoint_bias(barrier_fence_fixture,
                               x_global_shape[1],
                               y_global_shape[1],
                               bias=True)
-    layer = layer.to(device)
+    layer = layer.to(P_x.device)
 
-    x = zero_volume_tensor(x_global_shape[0], device=device)
+    x = zero_volume_tensor(x_global_shape[0], device=P_x.device)
     if P_x.active:
         x_local_shape = compute_subshape(P_x.shape,
                                          P_x.index,
@@ -272,19 +275,19 @@ def test_linear_adjoint_bias(barrier_fence_fixture,
         # Jacobian of the linear layer.  The Jacobian block for b is 0 for x and
         # W, so killing x makes the forward operator equal to its Jacobian and
         # we can test to see that adjoint is computed correctly.
-        x = torch.zeros(*x_local_shape, device=device)
+        x = torch.zeros(*x_local_shape, device=P_x.device)
     x.requires_grad = True
 
     y = layer(x)
 
-    dy = zero_volume_tensor(x_global_shape[0], device=device)
+    dy = zero_volume_tensor(x_global_shape[0], device=P_x.device)
     if P_y.active:
-        dy = torch.randn(*y.shape, device=device)
+        dy = torch.randn(*y.shape, device=P_x.device)
 
     y.backward(dy)
 
-    b = zero_volume_tensor(device=device)
-    db = zero_volume_tensor(device=device)
+    b = zero_volume_tensor(device=P_x.device)
+    db = zero_volume_tensor(device=P_x.device)
     if P_w.active and P_w.index[-1] == 0:
         b = layer.sublinear.bias.detach()
         db = layer.sublinear.bias.grad.detach()

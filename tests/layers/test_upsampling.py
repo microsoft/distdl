@@ -212,7 +212,7 @@ def test_upsample_matches_sequential(barrier_fence_fixture,
 
     import torch
 
-    from distdl.backends.mpi.partition import MPIPartition
+    from distdl.backends.common.partition import MPIPartition
     from distdl.nn.repartition import Repartition
     from distdl.nn.upsampling import DistributedUpsample
     from distdl.utilities.torch import zero_volume_tensor
