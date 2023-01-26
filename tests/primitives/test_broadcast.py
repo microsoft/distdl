@@ -1,11 +1,9 @@
-import os
+import os, sys, pytest
+sys.path.insert(1, os.path.join(sys.path[0], '..'))
 
-import numpy as np
-import pytest
-import torch
 from adjoint_test import check_adjoint_test_tight
-
-use_cuda = 'USE_CUDA' in os.environ
+import numpy as np
+import torch
 
 adjoint_parametrizations = []
 
@@ -152,11 +150,12 @@ def test_broadcast_adjoint(barrier_fence_fixture,
     import numpy as np
     import torch
 
-    from distdl.backends.mpi.partition import MPIPartition
+    from distdl.backends.common.partition import MPIPartition
+    from distdl.config import set_backend
     from distdl.nn.broadcast import Broadcast
     from distdl.utilities.torch import zero_volume_tensor
 
-    device = torch.device('cuda' if use_cuda else 'cpu')
+    set_backend(backend_comm="mpi", backend_array="numpy")
 
     # Isolate the minimum needed ranks
     base_comm, active = comm_split_fixture
@@ -177,17 +176,17 @@ def test_broadcast_adjoint(barrier_fence_fixture,
     x_local_shape = np.asarray(x_global_shape)
 
     layer = Broadcast(P_x, P_y, transpose_src=transpose_src, preserve_batch=False)
-    layer = layer.to(device)
+    layer = layer.to(P_x.device)
 
-    x = zero_volume_tensor(device=device)
+    x = zero_volume_tensor(device=P_x.device)
     if P_x.active:
-        x = torch.randn(*x_local_shape, device=device)
+        x = torch.randn(*x_local_shape, device=P_x.device)
     x.requires_grad = True
 
-    dy = zero_volume_tensor(device=device)
+    dy = zero_volume_tensor(device=P_x.device)
     if P_y.active:
         # Adjoint Input
-        dy = torch.randn(*x_local_shape, device=device)
+        dy = torch.randn(*x_local_shape, device=P_x.device)
 
     # y = F @ x
     y = layer(x)
@@ -254,10 +253,11 @@ def test_potentially_deadlocked_send_recv_pairs(barrier_fence_fixture,
                                                 P_x_ranks, P_x_shape,
                                                 P_w_ranks, P_w_shape):
 
-    from distdl.backends.mpi.partition import MPIPartition
+    from distdl.backends.common.partition import MPIPartition
+    from distdl.config import set_backend
     from distdl.nn.broadcast import Broadcast
 
-    device = torch.device('cuda' if use_cuda else 'cpu')
+    set_backend(backend_comm="mpi", backend_array="numpy")
 
     # Isolate the minimum needed ranks
     base_comm, active = comm_split_fixture
@@ -273,7 +273,7 @@ def test_potentially_deadlocked_send_recv_pairs(barrier_fence_fixture,
     P_w = P_w_base.create_cartesian_topology_partition(P_w_shape)
 
     layer = Broadcast(P_x, P_w)  # noqa F841
-    layer = layer.to(device)
+    layer = layer.to(P_x.device)
 
     P_world.deactivate()
     P_x_base.deactivate()
@@ -347,11 +347,12 @@ def test_broadcast_dtype(barrier_fence_fixture,
     import numpy as np
     import torch
 
-    from distdl.backends.mpi.partition import MPIPartition
+    from distdl.backends.common.partition import MPIPartition
+    from distdl.config import set_backend
     from distdl.nn.broadcast import Broadcast
     from distdl.utilities.torch import zero_volume_tensor
 
-    device = torch.device('cuda' if use_cuda else 'cpu')
+    set_backend(backend_comm="mpi", backend_array="numpy")
 
     # Isolate the minimum needed ranks
     base_comm, active = comm_split_fixture
@@ -372,12 +373,12 @@ def test_broadcast_dtype(barrier_fence_fixture,
     x_local_shape = np.asarray(x_global_shape)
 
     layer = Broadcast(P_x, P_y, transpose_src=transpose_src, preserve_batch=False)
-    layer = layer.to(device)
+    layer = layer.to(P_x.device)
 
-    x = zero_volume_tensor(device=device)
+    x = zero_volume_tensor(device=P_x.device)
     if P_x.active:
         x = 10*torch.randn(*x_local_shape).to(dtype)
-        x = x.to(device)
+        x = x.to(P_x.device)
 
     x.requires_grad = test_backward
 
@@ -390,11 +391,11 @@ def test_broadcast_dtype(barrier_fence_fixture,
         assert y.dtype == dtype
 
     if test_backward:
-        dy = zero_volume_tensor(device=device)
+        dy = zero_volume_tensor(device=P_x.device)
         if P_y.active:
             # Adjoint Input
             dy = 10*torch.randn(*x_local_shape).to(dtype)
-            dy = dy.to(device)
+            dy = dy.to(P_x.device)
 
         # dx = F* @ dy
         y.backward(dy)

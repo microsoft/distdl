@@ -13,8 +13,11 @@ parser = argparse.ArgumentParser()
 parser.add_argument('-log', '--loglevel', default='ERROR', 
                     choices=logging._nameToLevel.keys(), 
                     help="Provide logging level. Example --loglevel DEBUG, default=ERROR")
-
-args = parser.parse_args()
+#try:
+    #args = parser.parse_args()
+#except:
+# TODO fix logger setup. current solution leads to errors with pytest
+args = parser.parse_args([])
 
 logger = logging.getLogger(name="DistDL-Logger")
 logger.setLevel(level=args.loglevel.upper())

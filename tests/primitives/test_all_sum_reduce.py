@@ -1,10 +1,8 @@
-import os
+import os, sys, pytest
+sys.path.insert(1, os.path.join(sys.path[0], '..'))
 
-import numpy as np
-import pytest
 from adjoint_test import check_adjoint_test_tight
-
-use_cuda = 'USE_CUDA' in os.environ
+import numpy as np
 
 adjoint_parametrizations = []
 
@@ -124,11 +122,12 @@ def test_all_sum_reduce_adjoint(barrier_fence_fixture,
     import numpy as np
     import torch
 
-    from distdl.backends.mpi.partition import MPIPartition
+    from distdl.backends.common.partition import MPIPartition
+    from distdl.config import set_backend
     from distdl.nn.all_sum_reduce import AllSumReduce
     from distdl.utilities.torch import zero_volume_tensor
 
-    device = torch.device('cuda' if use_cuda else 'cpu')
+    set_backend(backend_comm="mpi", backend_array="numpy")
 
     # Isolate the minimum needed ranks
     base_comm, active = comm_split_fixture
@@ -145,17 +144,18 @@ def test_all_sum_reduce_adjoint(barrier_fence_fixture,
     x_local_shape = np.asarray(x_global_shape)
 
     layer = AllSumReduce(P_x, axes_reduce)
-    layer = layer.to(device)
+    layer = layer.to(P_x.device)
 
-    x = zero_volume_tensor(device=device)
+    x = zero_volume_tensor(device=P_x.device)
     if P_x.active:
-        x = 10*torch.ones(*x_local_shape, device=device)
+        x = 10*torch.ones(*x_local_shape, device=P_x.device)
     x.requires_grad = True
 
-    dy = zero_volume_tensor(device=device)
+    print('P_x.shape: ', P_x.shape)
+    dy = zero_volume_tensor(device=P_x.device)
     if P_x.active:
         # Adjoint Input
-        dy = 0.1*torch.ones(*x_local_shape, device=device)
+        dy = 0.1*torch.ones(*x_local_shape, device=P_x.device)
 
     # y = F @ x
     y = layer(x)

@@ -1,4 +1,5 @@
-import os
+import os, sys, pytest
+sys.path.insert(1, os.path.join(sys.path[0], '..'))
 
 import numpy as np
 import pytest
@@ -8,8 +9,6 @@ from adjoint_test import check_adjoint_test_tight
 from distdl.nn.mixins.conv_mixin import ConvMixin
 from distdl.nn.mixins.halo_mixin import HaloMixin
 from distdl.nn.mixins.pooling_mixin import PoolingMixin
-
-use_cuda = 'USE_CUDA' in os.environ
 
 
 class MockConvLayer(HaloMixin, ConvMixin):
@@ -111,13 +110,14 @@ def test_halo_exchange_adjoint(barrier_fence_fixture,
     import torch
     import torch.nn.functional as F
 
-    from distdl.backends.mpi.partition import MPIPartition
+    from distdl.backends.common.partition import MPIPartition
+    from distdl.config import set_backend
     from distdl.nn.halo_exchange import HaloExchange
     from distdl.utilities.slicing import compute_subshape
     from distdl.utilities.torch import distdl_padding_to_torch_padding
     from distdl.utilities.torch import zero_volume_tensor
 
-    device = torch.device('cuda' if use_cuda else 'cpu')
+    set_backend(backend_comm="mpi", backend_array="numpy")
 
     # Isolate the minimum needed ranks
     base_comm, active = comm_split_fixture
@@ -151,10 +151,10 @@ def test_halo_exchange_adjoint(barrier_fence_fixture,
         send_buffer_shape = exchange_info[2]
 
     halo_layer = HaloExchange(P_x, halo_shape, recv_buffer_shape, send_buffer_shape)
-    halo_layer = halo_layer.to(device)
+    halo_layer = halo_layer.to(P_x.device)
 
-    x = zero_volume_tensor(x_global_shape[0], device=device)
-    dy = zero_volume_tensor(x_global_shape[0], device=device)
+    x = zero_volume_tensor(x_global_shape[0], device=P_x.device)
+    dy = zero_volume_tensor(x_global_shape[0], device=P_x.device)
     if P_x.active:
         x_local_shape = compute_subshape(P_x.shape,
                                          P_x.index,
@@ -162,14 +162,14 @@ def test_halo_exchange_adjoint(barrier_fence_fixture,
 
         padding = distdl_padding_to_torch_padding(halo_shape)
 
-        x = torch.randn(*x_local_shape, device=device).to(dtype)
+        x = torch.randn(*x_local_shape, device=P_x.device).to(dtype)
 
         # Pad the input with the halo space.  We are only testing the behavior of
         # the halo exchange so the input must be padded before we can do anything.
         x = F.pad(x, pad=padding, mode="constant", value=0)
 
         # dy is also padded, but we wanted it to start with data inside it.
-        dy = torch.randn(*x.shape, device=device).to(dtype)
+        dy = torch.randn(*x.shape, device=P_x.device).to(dtype)
 
     x.requires_grad = True
 
