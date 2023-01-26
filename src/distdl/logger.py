@@ -1,6 +1,6 @@
 import sys
 import logging
-import argparse
+import os
 
 LOG_FORMAT = 'DistDL-%(levelname)s: PID-%(process)d - %(pathname)s:%(lineno)d (%(funcName)s) - %(message)s'
 
@@ -9,18 +9,16 @@ logging.logThreads = False
 logging.logProcesses = True
 logging.logMultiprocessing = True
 
-parser = argparse.ArgumentParser()
-parser.add_argument('-log', '--loglevel', default='ERROR', 
-                    choices=logging._nameToLevel.keys(), 
-                    help="Provide logging level. Example --loglevel DEBUG, default=ERROR")
-#try:
-    #args = parser.parse_args()
-#except:
-# TODO fix logger setup. current solution leads to errors with pytest
-args = parser.parse_args([])
 
+# Check if DISTDL_LOGLEVEL is set in the environment
+if 'DISTDL_LOGLEVEL' in os.environ:
+    loglevel = os.environ['DISTDL_LOGLEVEL'].upper()
+else:
+    loglevel = 'INFO'
+
+# Set log level
 logger = logging.getLogger(name="DistDL-Logger")
-logger.setLevel(level=args.loglevel.upper())
+logger.setLevel(level=loglevel)
 
 stdout_handler = logging.StreamHandler(sys.stdout)
 stdout_handler.setFormatter(logging.Formatter(fmt=LOG_FORMAT))
