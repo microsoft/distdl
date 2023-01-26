@@ -1,7 +1,7 @@
 import numpy as np
 from mpi4py import MPI
 
-from distdl.backends.mpi.partition import MPIPartition
+from distdl.backends.common.partition import MPIPartition
 from distdl.nn.mixins.halo_mixin import HaloMixin
 from distdl.nn.mixins.pooling_mixin import PoolingMixin
 
