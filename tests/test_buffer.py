@@ -7,8 +7,7 @@ def test_buffer_expansion(barrier_fence_fixture,
                           comm_split_fixture):
 
     import numpy as np
-
-    from distdl.backends.mpi.buffer import MPIExpandableBuffer
+    from distdl.backends import backend
 
     # Isolate the minimum needed ranks
     base_comm, active = comm_split_fixture
@@ -16,7 +15,7 @@ def test_buffer_expansion(barrier_fence_fixture,
         return
 
     # Clean buffer should have zero size but a defined dtype
-    buff = MPIExpandableBuffer(np.float32)
+    buff = backend.ExpandableBuffer(np.float32)
     assert len(buff.raw_buffer) == 0
     assert buff.raw_buffer.dtype == np.float32
 
@@ -84,8 +83,7 @@ def test_buffer_management(barrier_fence_fixture,
                            comm_split_fixture):
 
     import numpy as np
-
-    from distdl.backends.mpi.buffer import MPIBufferManager
+    from distdl.backends import backend
 
     # Isolate the minimum needed ranks
     base_comm, active = comm_split_fixture
@@ -93,7 +91,7 @@ def test_buffer_management(barrier_fence_fixture,
         return
 
     # A new buffer manager should be empty
-    buffer_manager = MPIBufferManager()
+    buffer_manager = backend.BufferManager()
     assert len(buffer_manager.buffers_map) == 0
 
     # Requesting new buffers should create them
@@ -124,8 +122,8 @@ def test_buffer_management_transpose_network(barrier_fence_fixture,
     import torch
 
     import distdl
-    from distdl.backends.mpi.buffer import MPIBufferManager
-    from distdl.backends.mpi.partition import MPIPartition
+    from distdl.backends import backend
+    from distdl.backends.common.partition import MPIPartition
     from distdl.utilities.torch import zero_volume_tensor
 
     # Isolate the minimum needed ranks
@@ -133,11 +131,10 @@ def test_buffer_management_transpose_network(barrier_fence_fixture,
     if not active:
         return
 
-    buffer_manager = MPIBufferManager()
+    buffer_manager = backend.BufferManager()
     P_world = MPIPartition(base_comm)
 
     # Create the partitions
-
     P_1_base = P_world.create_partition_inclusive([0])
     P_1 = P_1_base.create_cartesian_topology_partition([1, 1])
 
@@ -219,8 +216,8 @@ def test_buffer_management_conv2d_network(barrier_fence_fixture,
     import torch
 
     import distdl
-    from distdl.backends.mpi.buffer import MPIBufferManager
-    from distdl.backends.mpi.partition import MPIPartition
+    from distdl.backends import backend
+    from distdl.backends.common.partition import MPIPartition
     from distdl.utilities.torch import zero_volume_tensor
 
     # Isolate the minimum needed ranks
@@ -228,7 +225,7 @@ def test_buffer_management_conv2d_network(barrier_fence_fixture,
     if not active:
         return
 
-    buffer_manager = MPIBufferManager()
+    buffer_manager = backend.BufferManager()
     P_world = MPIPartition(base_comm)
 
     # Create the partitions
@@ -336,8 +333,8 @@ def test_buffer_management_mixed_network(barrier_fence_fixture,
     import torch
 
     import distdl
-    from distdl.backends.mpi.buffer import MPIBufferManager
-    from distdl.backends.mpi.partition import MPIPartition
+    from distdl.backends import backend
+    from distdl.backends.common.partition import MPIPartition
     from distdl.utilities.torch import zero_volume_tensor
 
     # Isolate the minimum needed ranks
@@ -345,7 +342,7 @@ def test_buffer_management_mixed_network(barrier_fence_fixture,
     if not active:
         return
 
-    buffer_manager = MPIBufferManager()
+    buffer_manager = backend.BufferManager()
     P_world = MPIPartition(base_comm)
 
     # Create the partitions
