@@ -115,8 +115,6 @@ class DistributedChannelAllGatherConvBase(Module):
                                                  groups=self.groups,
                                                  bias=self.stores_bias,
                                                  device=P_x.device)
-            self.weight = self.conv_layer.weight
-            self.bias = self.conv_layer.bias
             return
 
         if self.P_x.active:
@@ -136,8 +134,6 @@ class DistributedChannelAllGatherConvBase(Module):
                                                  groups=self.groups,
                                                  bias=self.stores_bias,
                                                  device=P_x.device)
-            self.weight = self.conv_layer.weight
-            self.bias = self.conv_layer.bias
 
         # Variables for tracking input changes and buffer construction
         self._distdl_is_setup = False
