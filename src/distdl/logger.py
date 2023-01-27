@@ -14,7 +14,7 @@ logging.logMultiprocessing = True
 if 'DISTDL_LOGLEVEL' in os.environ:
     loglevel = os.environ['DISTDL_LOGLEVEL'].upper()
 else:
-    loglevel = 'INFO'
+    loglevel = 'ERROR'
 
 # Set log level
 logger = logging.getLogger(name="DistDL-Logger")
