@@ -97,7 +97,7 @@ class DistributedChannelAllGatherConvBase(Module):
         self.padding_mode = padding_mode
         self.dilation = self._expand_parameter(dilation)
         self.groups = groups
-        self.use_bias = bias
+        self.stores_bias = bias
         self.checkpointing = checkpointing
 
         self.serial = self.P_x.size == 1
@@ -113,7 +113,7 @@ class DistributedChannelAllGatherConvBase(Module):
                                                  padding_mode=self.padding_mode,
                                                  dilation=self.dilation,
                                                  groups=self.groups,
-                                                 bias=self.use_bias,
+                                                 bias=self.stores_bias,
                                                  device=P_x.device)
             self.weight = self.conv_layer.weight
             self.bias = self.conv_layer.bias
@@ -134,8 +134,10 @@ class DistributedChannelAllGatherConvBase(Module):
                                                  padding_mode=self.padding_mode,
                                                  dilation=self.dilation,
                                                  groups=self.groups,
-                                                 bias=self.use_bias,
+                                                 bias=self.stores_bias,
                                                  device=P_x.device)
+            self.weight = self.conv_layer.weight
+            self.bias = self.conv_layer.bias
 
         # Variables for tracking input changes and buffer construction
         self._distdl_is_setup = False

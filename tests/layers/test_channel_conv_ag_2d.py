@@ -247,6 +247,7 @@ def test_channel_conv2d_adjoint_bias(barrier_fence_fixture,
         device=P_x.device,
         checkpointing=checkpointing,
         bias=True)
+    layer.weight.data.fill_(0)
 
     x = zero_volume_tensor(x_global_shape[0])
     if P_x.active:
@@ -254,7 +255,6 @@ def test_channel_conv2d_adjoint_bias(barrier_fence_fixture,
         y_local_shape = compute_subshape(P_x.shape, P_x.index, y_global_shape)
         x = torch.randn(*x_local_shape)
     x.requires_grad = True
-
 
     y = layer(x)
 
@@ -273,7 +273,7 @@ def test_channel_conv2d_adjoint_bias(barrier_fence_fixture,
     dy = dy.detach()
     y = y.detach()
 
-    #check_adjoint_test_tight(P_world, b, db, y, dy)
+    check_adjoint_test_tight(P_world, b, db, y, dy)
 
     P_world.deactivate()
     P_x_base.deactivate()

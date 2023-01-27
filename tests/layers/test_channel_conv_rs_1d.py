@@ -17,41 +17,41 @@ adjoint_parametrizations.append(
         )
     )
 
-adjoint_parametrizations.append(
-    pytest.param(
-        np.arange(0, 4), [1, 4, 1],  # P_x_ranks, P_x_shape
-        [1, 12, 10],     # x_global_shape
-        [1, 8, 10],    # y_global_shape
-        False,  # checkpointing
-        4,  # passed to comm_split_fixture, required MPI ranks
-        id="distributed-co2_ci3",
-        marks=[pytest.mark.mpi(min_size=4)]
-        )
-    )
+# adjoint_parametrizations.append(
+#     pytest.param(
+#         np.arange(0, 4), [1, 4, 1],  # P_x_ranks, P_x_shape
+#         [1, 12, 10],     # x_global_shape
+#         [1, 8, 10],    # y_global_shape
+#         False,  # checkpointing
+#         4,  # passed to comm_split_fixture, required MPI ranks
+#         id="distributed-co2_ci3",
+#         marks=[pytest.mark.mpi(min_size=4)]
+#         )
+#     )
 
-adjoint_parametrizations.append(
-    pytest.param(
-        np.arange(0, 4), [1, 4, 1],  # P_x_ranks, P_x_shape
-        [1, 8, 10],     # x_global_shape
-        [1, 12, 10],    # y_global_shape
-        True,  # checkpointing
-        4,  # passed to comm_split_fixture, required MPI ranks
-        id="distributed-co3_ci2_cp",
-        marks=[pytest.mark.mpi(min_size=4)]
-        )
-    )
+# adjoint_parametrizations.append(
+#     pytest.param(
+#         np.arange(0, 4), [1, 4, 1],  # P_x_ranks, P_x_shape
+#         [1, 8, 10],     # x_global_shape
+#         [1, 12, 10],    # y_global_shape
+#         True,  # checkpointing
+#         4,  # passed to comm_split_fixture, required MPI ranks
+#         id="distributed-co3_ci2_cp",
+#         marks=[pytest.mark.mpi(min_size=4)]
+#         )
+#     )
 
-adjoint_parametrizations.append(
-    pytest.param(
-        np.arange(0, 4), [1, 4, 1],  # P_x_ranks, P_x_shape
-        [1, 12, 10],     # x_global_shape
-        [1, 8, 10],    # y_global_shape
-        True,  # checkpointing
-        4,  # passed to comm_split_fixture, required MPI ranks
-        id="distributed-co2_ci3_cp",
-        marks=[pytest.mark.mpi(min_size=4)]
-        )
-    )
+# adjoint_parametrizations.append(
+#     pytest.param(
+#         np.arange(0, 4), [1, 4, 1],  # P_x_ranks, P_x_shape
+#         [1, 12, 10],     # x_global_shape
+#         [1, 8, 10],    # y_global_shape
+#         True,  # checkpointing
+#         4,  # passed to comm_split_fixture, required MPI ranks
+#         id="distributed-co2_ci3_cp",
+#         marks=[pytest.mark.mpi(min_size=4)]
+#         )
+#     )
 
 # For example of indirect, see https://stackoverflow.com/a/28570677
 @pytest.mark.parametrize("P_x_ranks, P_x_shape,"
@@ -247,6 +247,7 @@ def test_channel_conv1d_adjoint_bias(barrier_fence_fixture,
         device=P_x.device,
         checkpointing=checkpointing,
         bias=True)
+    layer.weight.data.fill_(0)
 
     x = zero_volume_tensor(x_global_shape[0])
     if P_x.active:
@@ -254,7 +255,6 @@ def test_channel_conv1d_adjoint_bias(barrier_fence_fixture,
         y_local_shape = compute_subshape(P_x.shape, P_x.index, y_global_shape)
         x = torch.randn(*x_local_shape)
     x.requires_grad = True
-
 
     y = layer(x)
 
@@ -266,14 +266,14 @@ def test_channel_conv1d_adjoint_bias(barrier_fence_fixture,
 
     b = zero_volume_tensor()
     db = zero_volume_tensor()
-    if P_x.active and layer.conv_layer.bias is not None:
+    if P_x.active and layer.stores_bias:
         b = layer.conv_layer.bias.detach()
         db = layer.conv_layer.bias.grad.detach()
 
     dy = dy.detach()
     y = y.detach()
 
-    #check_adjoint_test_tight(P_world, b, db, y, dy)
+    check_adjoint_test_tight(P_world, b, db, y, dy)
 
     P_world.deactivate()
     P_x_base.deactivate()

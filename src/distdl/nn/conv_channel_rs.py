@@ -90,9 +90,9 @@ class DistributedChannelReduceScatterConvBase(Module):
 
         # If bias is used, only initialize it on rank 0
         if bias is True and P_x.rank == 0:
-            use_bias = True
+            stores_bias = True
         else:
-            use_bias = False
+            stores_bias = False
 
         self.in_channels = in_channels
         self.out_channels = out_channels
@@ -102,7 +102,7 @@ class DistributedChannelReduceScatterConvBase(Module):
         self.padding_mode = padding_mode
         self.dilation = self._expand_parameter(dilation)
         self.groups = groups
-        self.use_bias = use_bias
+        self.stores_bias = stores_bias
         self.checkpointing = checkpointing
 
         self.serial = self.P_x.size == 1
@@ -139,8 +139,13 @@ class DistributedChannelReduceScatterConvBase(Module):
                                                  padding_mode=self.padding_mode,
                                                  dilation=self.dilation,
                                                  groups=self.groups,
-                                                 bias=self.use_bias,
+                                                 bias=self.stores_bias,
                                                  device=P_x.device)
+            self.weight = self.conv_layer.weight
+            if self.stores_bias:
+                self.bias = self.conv_layer.bias
+            else:
+                self.register_buffer('bias', None)
 
         # Variables for tracking input changes and buffer construction
         self._distdl_is_setup = False
