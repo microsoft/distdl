@@ -247,7 +247,7 @@ def test_channel_conv2d_adjoint_bias(barrier_fence_fixture,
         device=P_x.device,
         checkpointing=checkpointing,
         bias=True)
-    layer.weight.data.fill_(0)
+    layer.conv_layer.weight.data.fill_(0)
 
     x = zero_volume_tensor(x_global_shape[0])
     if P_x.active:
