@@ -99,23 +99,7 @@ class DistributedChannelAllGatherConvBase(Module):
         self.groups = groups
         self.stores_bias = bias
         self.checkpointing = checkpointing
-
         self.serial = self.P_x.size == 1
-
-        # TODO: Seems like this is not really needed. For partition size 1, 
-        # this module will automatically omit the reduce-scatter operation.
-        if self.serial:
-            self.conv_layer = self.TorchConvType(in_channels=in_channels,
-                                                 out_channels=out_channels,
-                                                 kernel_size=self.kernel_size,
-                                                 stride=self.stride,
-                                                 padding=self.padding,
-                                                 padding_mode=self.padding_mode,
-                                                 dilation=self.dilation,
-                                                 groups=self.groups,
-                                                 bias=self.stores_bias,
-                                                 device=P_x.device)
-            return
 
         if self.P_x.active:
 
@@ -124,26 +108,26 @@ class DistributedChannelAllGatherConvBase(Module):
                                                  P_x.index[1],
                                                  [out_channels])[0]
 
-            self.conv_layer = self.TorchConvType(in_channels=in_channels,
-                                                 out_channels=out_channels_local,
-                                                 kernel_size=self.kernel_size,
-                                                 stride=self.stride,
-                                                 padding=self.padding,
-                                                 padding_mode=self.padding_mode,
-                                                 dilation=self.dilation,
-                                                 groups=self.groups,
-                                                 bias=self.stores_bias,
-                                                 device=P_x.device)
+            conv = self.TorchConvType(in_channels=in_channels,
+                                      out_channels=out_channels_local,
+                                      kernel_size=self.kernel_size,
+                                      stride=self.stride,
+                                      padding=self.padding,
+                                      padding_mode=self.padding_mode,
+                                      dilation=self.dilation,
+                                      groups=self.groups,
+                                      bias=self.stores_bias,
+                                      device=P_x.device)
 
         # Variables for tracking input changes and buffer construction
         self._distdl_is_setup = False
         self._input_tensor_structure = TensorStructure()
 
-        self.all_gather = AllGather(self.P_x, axes_all_gather=(1,))
+        all_gather = AllGather(self.P_x, axes_all_gather=(1,))
 
-        self.conv_layer_ag = torch.nn.Sequential(
-            self.all_gather,
-            self.conv_layer
+        self.conv_layer = torch.nn.Sequential(
+            all_gather,
+            conv
         )
 
     def _expand_parameter(self, param):
@@ -229,13 +213,10 @@ class DistributedChannelAllGatherConvBase(Module):
         if not self.P_x.active:
             return input.clone()
 
-        if self.serial:
-            return self.conv_layer(input)
-
         if self.checkpointing:
-            y = checkpoint(self.conv_layer_ag, input)
+            y = checkpoint(self.conv_layer, input)
         else:
-            y = self.conv_layer_ag(input)
+            y = self.conv_layer(input)
         
         return y
 

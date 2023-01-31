@@ -189,8 +189,8 @@ def test_channel_conv3d_adjoint_weight(barrier_fence_fixture,
     W = zero_volume_tensor()
     dW = zero_volume_tensor()
     if P_x.active:
-        W = layer.conv_layer.weight.detach()
-        dW = layer.conv_layer.weight.grad.detach()
+        W = layer.conv_layer[0].weight.detach()
+        dW = layer.conv_layer[0].weight.grad.detach()
 
     dy = dy.detach()
     y = y.detach()
@@ -247,7 +247,7 @@ def test_channel_conv3d_adjoint_bias(barrier_fence_fixture,
         device=P_x.device,
         checkpointing=checkpointing,
         bias=True)
-    layer.conv_layer.weight.data.fill_(0)
+    layer.conv_layer[0].weight.data.fill_(0)
 
     x = zero_volume_tensor(x_global_shape[0])
     if P_x.active:
@@ -266,9 +266,9 @@ def test_channel_conv3d_adjoint_bias(barrier_fence_fixture,
 
     b = zero_volume_tensor()
     db = zero_volume_tensor()
-    if P_x.active and layer.conv_layer.bias is not None:
-        b = layer.conv_layer.bias.detach()
-        db = layer.conv_layer.bias.grad.detach()
+    if P_x.active and layer.conv_layer[0].bias is not None:
+        b = layer.conv_layer[0].bias.detach()
+        db = layer.conv_layer[0].bias.grad.detach()
 
     dy = dy.detach()
     y = y.detach()

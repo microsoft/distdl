@@ -104,23 +104,7 @@ class DistributedChannelReduceScatterConvBase(Module):
         self.groups = groups
         self.stores_bias = stores_bias
         self.checkpointing = checkpointing
-
         self.serial = self.P_x.size == 1
-
-        # TODO: Seems like this is not really needed. For partition size 1, 
-        # this module will automatically omit the reduce-scatter operation.
-        if self.serial:
-            self.conv_layer = self.TorchConvType(in_channels=in_channels,
-                                                 out_channels=out_channels,
-                                                 kernel_size=self.kernel_size,
-                                                 stride=self.stride,
-                                                 padding=self.padding,
-                                                 padding_mode=self.padding_mode,
-                                                 dilation=self.dilation,
-                                                 groups=self.groups,
-                                                 bias=bias,
-                                                 device=P_x.device)
-            return
 
         if self.P_x.active:
 
@@ -129,26 +113,26 @@ class DistributedChannelReduceScatterConvBase(Module):
                                                  P_x.index[1],
                                                  [in_channels])[0]
 
-            self.conv_layer = self.TorchConvType(in_channels=in_channels_local,
-                                                 out_channels=out_channels,
-                                                 kernel_size=self.kernel_size,
-                                                 stride=self.stride,
-                                                 padding=self.padding,
-                                                 padding_mode=self.padding_mode,
-                                                 dilation=self.dilation,
-                                                 groups=self.groups,
-                                                 bias=self.stores_bias,
-                                                 device=P_x.device)
+            conv = self.TorchConvType(in_channels=in_channels_local,
+                                      out_channels=out_channels,
+                                      kernel_size=self.kernel_size,
+                                      stride=self.stride,
+                                      padding=self.padding,
+                                      padding_mode=self.padding_mode,
+                                      dilation=self.dilation,
+                                      groups=self.groups,
+                                      bias=self.stores_bias,
+                                      device=P_x.device)
 
         # Variables for tracking input changes and buffer construction
         self._distdl_is_setup = False
         self._input_tensor_structure = TensorStructure()
 
-        self.reduce_scatter = ReduceScatter(self.P_x, axes_reduce_scatter=(1,))
+        reduce_scatter = ReduceScatter(self.P_x, axes_reduce_scatter=(1,))
 
-        self.conv_layer_rs = torch.nn.Sequential(
-            self.conv_layer,
-            self.reduce_scatter
+        self.conv_layer = torch.nn.Sequential(
+            conv,
+            reduce_scatter
         )
 
     def _expand_parameter(self, param):
@@ -234,13 +218,10 @@ class DistributedChannelReduceScatterConvBase(Module):
         if not self.P_x.active:
             return input.clone()
 
-        if self.serial:
-            return self.conv_layer(input)
-
         if self.checkpointing:
-            y = checkpoint(self.conv_layer_rs, input)
+            y = checkpoint(self.conv_layer, input)
         else:
-            y = self.conv_layer_rs(input)
+            y = self.conv_layer(input)
         
         return y
 
