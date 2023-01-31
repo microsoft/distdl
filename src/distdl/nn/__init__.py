@@ -34,6 +34,8 @@ from .conv_general import DistributedGeneralConv3d  # noqa: F401
 from .halo_exchange import HaloExchange  # noqa: F401
 from .interpolate import Interpolate  # noqa: F401
 from .linear import DistributedLinear  # noqa: F401
+from .linear_ag import DistributedLinearAllGather  # noqa: F401
+from .linear_rs import DistributedLinearReduceScatter  # noqa: F401
 from .loss import DistributedBCELoss  # noqa: F401
 from .loss import DistributedBCEWithLogitsLoss  # noqa: F401
 from .loss import DistributedKLDivLoss  # noqa: F401
@@ -85,6 +87,8 @@ __all__ = ["AllSumReduce",
            "DistributedGeneralConv3d",
            "HaloExchange",
            "DistributedLinear",
+           "DistributedLinearAllGather",
+           "DistributedLinearReduceScatter",
            "DistributedL1Loss",
            "DistributedMSELoss",
            "DistributedPoissonNLLLoss",
