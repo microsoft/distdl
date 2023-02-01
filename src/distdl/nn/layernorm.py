@@ -29,10 +29,11 @@ class DistributedLayerNorm(Module):
         Default is 1e-5.
     elementwise_affine : optional
         A boolean value that when set to True, this module has learnable per-element affine 
-        parameters initialized to ones (for weights) and zeros (for biases). Default is True.
+        parameters of size normalized_shape initialized to ones (for weights) and zeros (for biases). 
+        Default is True.
     device: optional
         Computational device. Default is P_x.device.
-    dtype:
+    dtype: optional
         Data type of learnable parameters. Default is torch.float.
     """
 
@@ -76,6 +77,7 @@ class DistributedLayerNorm(Module):
             # Weight partition and broadcast
             P_w_base = P_x.create_partition_inclusive(storage_workers)
             P_w = P_w_base.create_cartesian_topology_partition(weight_partition_shape)
+            P_w_base.deactivate()
             self.broadcast = Broadcast(P_w, P_x)
 
             # Determine no. of parameters on local worker
