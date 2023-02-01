@@ -2,10 +2,11 @@ import torch, numbers
 
 from distdl.backends.common.tensor_comm import assemble_global_tensor_structure
 from distdl.utilities.slicing import compute_subshape
+from distdl.utilities.slicing import worker_layout
+from distdl.utilities.torch import zero_volume_tensor
 from distdl.nn.module import Module
 from distdl.nn.all_sum_reduce import AllSumReduce
 from distdl.nn.broadcast import Broadcast
-
 import numpy as np
 
 class DistributedLayerNorm(Module):
@@ -48,35 +49,50 @@ class DistributedLayerNorm(Module):
         normalized_shape = tuple(normalized_shape)
 
         # Number of dimensions across which mean/var is computed
-        self.num_dim = len(normalized_shape)    
+        num_dim = len(normalized_shape)    
         
         # Dimensions across which to reduce
-        self.dim_reduce = tuple(torch.arange(0, P_x.dim)[-self.num_dim:])    
+        self.dim_reduce = tuple(torch.arange(0, P_x.dim)[-num_dim:])    
         self.allreduce = AllSumReduce(P_x, axes_reduce=self.dim_reduce)     # for computing mean/variance
         
         # Number of workers across we reduce
-        dim_reduce_slice = slice(P_x.dim - self.num_dim, P_x.dim)
+        dim_reduce_slice = slice(P_x.dim - num_dim, P_x.dim)   # dimensions across which we compute mean/var over
+        dim_bcast_slice = slice(0, P_x.dim - num_dim)  # dimensions across which we broadcast weights/biases over
         self.num_reduce = np.prod(P_x.shape[dim_reduce_slice])   
 
         if self.elementwise_affine:
-            # TODO
-            #root_shape = [1] * self.P_x.dim
-            #P_root_base = P_world.create_partition_inclusive(in_workers)
-            #P_x = P_x_base.create_cartesian_topology_partition(in_shape)
-            #P_root = 
-            #P_weight = 
-            #self.broadcast = Broadcast(P_root, P_weight)
+            
+            # Shape of partition storing weights/biases
+            weight_partition_shape = np.copy(P_x.shape)
+            weight_partition_shape[dim_bcast_slice] = 1
+
+            # Ranks of workers storing weights
+            index = [0] * P_x.dim
+            for i in range(dim_reduce_slice.start, dim_reduce_slice.stop):
+                index[i] = slice(0, P_x.shape[i])
+            index = tuple(index)
+            storage_workers = worker_layout(P_x.shape)[index].reshape(-1).tolist()
+
+            # Weight partition and broadcast
+            P_w_base = P_x.create_partition_inclusive(storage_workers)
+            P_w = P_w_base.create_cartesian_topology_partition(weight_partition_shape)
+            self.broadcast = Broadcast(P_w, P_x)
 
             # Determine no. of parameters on local worker
-            normalized_shape_local = compute_subshape(
+            normalized_shape_local = [1] * P_x.dim
+            normalized_shape_local[dim_reduce_slice] = compute_subshape(
                 P_x.shape[dim_reduce_slice], 
                 P_x.index[dim_reduce_slice], 
                 normalized_shape
                 )
             normalized_shape_local = tuple(normalized_shape_local)
 
-            self.bias = torch.nn.Parameter(torch.empty(normalized_shape_local, **factory_kwargs))
-            self.weight = torch.nn.Parameter(torch.empty(normalized_shape_local, **factory_kwargs))
+            if P_w.active:
+                self.bias = torch.nn.Parameter(torch.empty(normalized_shape_local, **factory_kwargs))
+                self.weight = torch.nn.Parameter(torch.empty(normalized_shape_local, **factory_kwargs))
+            else:
+                self.register_buffer('weight', zero_volume_tensor(device=device, requires_grad=True))
+                self.register_buffer('bias', zero_volume_tensor(device=device, requires_grad=True))
         else:
             self.register_parameter('weight', None)
             self.register_parameter('bias', None)
@@ -138,6 +154,7 @@ class DistributedLayerNorm(Module):
         input = (input - mean) / torch.sqrt(var + self.eps)
 
         if self.elementwise_affine:
-            input = self.weight*input + self.bias
-
+            weight = self.broadcast(self.weight)
+            bias = self.broadcast(self.bias)
+            input = weight*input + bias
         return input
