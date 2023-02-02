@@ -1,6 +1,7 @@
 import numpy as np
 import torch, math
 
+from distdl.backends.common.tensor_comm import assemble_global_tensor_structure
 from distdl.nn.module import Module
 from distdl.nn.reduce_scatter import ReduceScatter
 from distdl.utilities.slicing import compute_subshape
@@ -8,6 +9,7 @@ from distdl.utilities.torch import TensorStructure
 from distdl.utilities.slicing import worker_layout
 from distdl.nn.broadcast import Broadcast
 from distdl.utilities.torch import zero_volume_tensor
+import distdl.nn.init as init
 
 class DistributedLinearReduceScatter(Module):
     r"""A distributed linear or affine layer.
@@ -33,14 +35,25 @@ class DistributedLinearReduceScatter(Module):
     Parameters
     ----------
     P_x :
-        Partition of input/output tensor.
+        Partition of input/output tensor. Must be of size 1
+        in the second last dimension (i.e. the channel out
+        dimension.)
     in_features :
         Number of features in the *global* input tensor.
     out_features :
         Number of features in the *global* output tensor.
     bias : bool
         Indicates if a bias term should be used.
-
+    P_weight : optional
+        Partition for the weights. Must be of size 1 in
+        every dimension but the last.
+    P_store_bias: optional
+        Partition for storing the bias. Must have the same
+        dimension as P_x with size 1 in every dimension.
+    P_apply_bias: optional
+        Partition on which bias is applied. Must have the 
+        same size as P_x in every but the last 2 dimensions,
+        which must be 1.
     """
 
     def __init__(self, P_x, in_features, out_features, bias=True, device=None, dtype=None,
@@ -50,7 +63,8 @@ class DistributedLinearReduceScatter(Module):
 
         # P_x is assumed to have shape [ *, 1, p]
         # Data is assumed to have shape [ *, n, channel_in/p ]
-        if not P_x.active:
+        self.P_x = P_x
+        if not self.P_x.active:
             return
         else:        
             assert P_x.shape[-2] == 1
@@ -70,10 +84,9 @@ class DistributedLinearReduceScatter(Module):
             weight_partition_shape = [1] * P_x.dim
             weight_partition_shape[-1] = P_x.shape[-1]
 
-            index_weight = [0] * P_x.dim
+            index_weight = [slice(0, 1)] * P_x.dim
             index_weight[-1] = slice(0, P_x.shape[-1])
-            index_weight = tuple(index_weight)
-            weight_workers = worker_layout(P_x.shape)[index_weight].tolist()
+            weight_workers = worker_layout(P_x.shape)[tuple(index_weight)].reshape(-1).tolist()
 
             P_weight_base = P_x.create_partition_inclusive(weight_workers)
             P_weight = P_weight_base.create_cartesian_topology_partition(weight_partition_shape)
@@ -95,25 +108,24 @@ class DistributedLinearReduceScatter(Module):
             for i in range(P_x.dim-2):
                 assert P_apply_bias.shape[i] == P_x.shape[i]
         else:
-            index_bias = [0] * P_x.dim
-            for i in range(P_x.dim-2):
-                index_bias[i] = slice(0, P_x.shape[i])
-            apply_bias_workers = worker_layout(P_x.shape)[tuple(index_bias)].tolist()
-
             apply_bias_partition_shape = P_x.shape.copy()
             apply_bias_partition_shape[-2:] = 1
+
+            index_bias = [slice(0, 1)] * P_x.dim
+            for i in range(P_x.dim-2):
+                index_bias[i] = slice(0, P_x.shape[i])
+            apply_bias_workers = worker_layout(P_x.shape)[tuple(index_bias)].reshape(-1).tolist()
             
             P_apply_bias_base = P_x.create_partition_inclusive(apply_bias_workers)
             P_apply_bias = P_apply_bias_base.create_cartesian_topology_partition(apply_bias_partition_shape)
             P_apply_bias_base.deactivate()
 
         # Store partitions for later  access
-        self.P_x = P_x
         self.P_weight = P_weight
         self.P_store_bias = P_store_bias
         self.P_apply_bias = P_apply_bias
 
-        # Function to broadcast weights from worker partition to P_x
+        # Function to broadcast weights and biases
         self.broadcast_weight = Broadcast(P_weight, P_x)
         if self.P_apply_bias.active:
             self.broadcast_bias = Broadcast(P_store_bias, P_apply_bias)
@@ -129,22 +141,20 @@ class DistributedLinearReduceScatter(Module):
             weight_shape[-1] = in_features_local
             weight_shape[-2] = out_features
 
-            # Create weights
+            # Create weights. Every worker either has weights or receives weights.
             self.weight = torch.nn.Parameter(torch.empty(tuple(weight_shape), **factory_kwargs))
         else:
             self.register_buffer('weight', zero_volume_tensor(device=device, requires_grad=True))
 
-        # Create bias
+        # Create bias. Only 1 worker stores the bias and a subset of workers receive it.
         if self.P_store_bias.active:
             bias_shape = [1] * P_x.dim
             bias_shape[-2] = out_features
-            self.bias = torch.nn.Parameter(torch.empty(tuple(bias_shape), **factory_kwargs))
-
+            self.bias = torch.nn.Parameter(torch.empty(tuple(bias_shape), **factory_kwargs))    # store bias
         elif self.P_apply_bias.active:
-            self.register_buffer('bias', zero_volume_tensor(device=device, requires_grad=True))
-
+            self.register_buffer('bias', zero_volume_tensor(device=device, requires_grad=True)) # receive bias
         else:
-           self.register_parameter('bias', None)
+           self.register_parameter('bias', None)    # don't receive bias
 
         # Initialize parameters
         self.reset_parameters()
@@ -152,17 +162,16 @@ class DistributedLinearReduceScatter(Module):
         # Reduce-scatter operation
         self.reduce_scatter = ReduceScatter(self.P_x, axes_reduce_scatter=(P_x.dim-1,))
 
-    # TODO account for partition sizes
     def reset_parameters(self) -> None:
 
         if self.P_weight.active:
-            torch.nn.init.kaiming_uniform_(self.weight, a=math.sqrt(5))
+            init.kaiming_uniform_(self.P_weight, self.weight, a=math.sqrt(5))
+            weight_global_shape = assemble_global_tensor_structure(self.weight, self.P_weight).shape
 
         if self.P_store_bias.active:
-            fan_in, _ = torch.nn.init._calculate_fan_in_and_fan_out(self.weight)
-            print("fan: ", fan_in)
+            fan_in, _ = init._calculate_fan_in_and_fan_out(weight_global_shape)
             bound = 1 / math.sqrt(fan_in) if fan_in > 0 else 0
-            torch.nn.init.uniform_(self.bias, -bound, bound)
+            init.uniform_(self.bias, -bound, bound)
 
 
     def forward(self, input):

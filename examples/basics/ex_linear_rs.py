@@ -18,7 +18,7 @@ P_world = MPIPartition(MPI.COMM_WORLD)
 P_world._comm.Barrier()
 
 # Data partition (in, out)
-in_shape = (2, 1, 4)
+in_shape = (1, 4)
 in_size = np.prod(in_shape)
 in_workers = np.arange(0, in_size)
 
@@ -32,7 +32,7 @@ out_channels = 32
 
 # Input
 n = 128
-x_global_shape = (batch_size, n, in_channels)
+x_global_shape = (n, in_channels)
 x = zero_volume_tensor(device=P_x.device)
 if P_x.active:
     x_local_shape = slicing.compute_subshape(P_x.shape,
@@ -51,4 +51,4 @@ linear2 = DistributedLinearReduceScatter(P_x, in_channels, out_channels,
 
 y = linear1(x)
 z = linear1(y)
-print('y.shape: ', y.shape)
+print('z.shape: ', z.shape)
