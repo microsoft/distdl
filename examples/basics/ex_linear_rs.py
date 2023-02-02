@@ -18,7 +18,7 @@ P_world = MPIPartition(MPI.COMM_WORLD)
 P_world._comm.Barrier()
 
 # Data partition (in, out)
-in_shape = (1, 4)
+in_shape = (2, 1, 4)
 in_size = np.prod(in_shape)
 in_workers = np.arange(0, in_size)
 
@@ -26,17 +26,22 @@ P_x_base = P_world.create_partition_inclusive(in_workers)
 P_x = P_x_base.create_cartesian_topology_partition(in_shape)
 
 # Input channel dimension is partitioned
-in_channels = 48
-out_channels = 72
-linear = DistributedLinearReduceScatter(P_x, in_channels, out_channels, checkpointing=True).to(P_x.device)
+batch_size = 4
+in_channels = 16
+out_channels = 32
 
 # Input
-num_features = 64
-in_channels_local = compute_subshape(P_x.shape[1], P_x.index[1], [in_channels])[0]
-x = torch.randn(num_features, in_channels_local).to(P_x.device)
+n = 128
+x_global_shape = (batch_size, n, in_channels)
+x = zero_volume_tensor(device=P_x.device)
+if P_x.active:
+    x_local_shape = slicing.compute_subshape(P_x.shape,
+                                             P_x.index,
+                                             x_global_shape)
+    x = torch.zeros(*x_local_shape, device=x.device) + (P_x.rank + 1)
+x.requires_grad = True
 
 # Parallel GEMM
-print('x.shape: ', x.shape)
-
+linear = DistributedLinearReduceScatter(P_x, in_channels, out_channels, checkpointing=False).to(P_x.device)
 y = linear(x)
 print('y.shape: ', y.shape)
