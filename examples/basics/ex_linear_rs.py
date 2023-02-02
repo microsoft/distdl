@@ -50,5 +50,5 @@ linear2 = DistributedLinearReduceScatter(P_x, in_channels, out_channels,
     ).to(P_x.device)
 
 y = linear1(x)
-z = linear1(y)
+z = linear2(y)
 print('z.shape: ', z.shape)
