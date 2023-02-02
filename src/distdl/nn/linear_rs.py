@@ -5,7 +5,6 @@ from distdl.nn.module import Module
 from distdl.nn.reduce_scatter import ReduceScatter
 from distdl.utilities.slicing import compute_subshape
 from distdl.utilities.torch import TensorStructure
-from torch.utils.checkpoint import checkpoint
 from distdl.utilities.slicing import worker_layout
 from distdl.nn.broadcast import Broadcast
 from distdl.utilities.torch import zero_volume_tensor
@@ -44,79 +43,110 @@ class DistributedLinearReduceScatter(Module):
 
     """
 
-    # Convolution class for base unit of work.
-    TorchConvType = None
-
-    # Number of dimensions of a feature
-    num_dimensions = None
-
-    def __init__(self, P_x, in_features, out_features, bias=True, checkpointing=False, device=None, dtype=None):
+    def __init__(self, P_x, in_features, out_features, bias=True, device=None, dtype=None,
+        P_weight=None, P_store_bias=None, P_apply_bias=None):
 
         super(DistributedLinearReduceScatter, self).__init__()
 
         # P_x is assumed to have shape [ *, 1, p]
-        # Data is assumed to have shape [ *, in_features, out_features ]
-        assert P_x.shape[-2] == 1
+        # Data is assumed to have shape [ *, n, channel_in/p ]
+        if not P_x.active:
+            return
+        else:        
+            assert P_x.shape[-2] == 1
+
         if device is None: device = P_x.device
         factory_kwargs = {'device': device, 'dtype': dtype}
 
-        self.P_x = P_x
-        if not self.P_x.active:
-            return
-
-        # If bias is used, only initialize it on rank 0 TODO check this w/ data parallelism
-        if bias is True and P_x.rank == 0:
-            stores_bias = True
-        else:
-            stores_bias = False
-
         self.in_features = in_features
         self.out_features = out_features
-        self.stores_bias = stores_bias
-        self.checkpointing = checkpointing
 
-        # Shape of weight partition
-        weight_partition_shape = [1] * P_x.dim
-        weight_partition_shape[-1] = P_x.shape[-1]
+        # Partition for storing weights (the partition for applying weights is P_x)
+        if P_weight is not None:
+            assert P_x.dim == P_weight.dim
+            assert P_weight.shape[-1] == P_x.shape[-1]
+            assert np.prod(P_weight.shape[:P_x.dim-1]) == 1
+        else:
+            weight_partition_shape = [1] * P_x.dim
+            weight_partition_shape[-1] = P_x.shape[-1]
 
-        # Ranks of workers storing weights
-        index = [0] * P_x.dim
-        index[-1] = slice(0, P_x.shape[-1])
-        index = tuple(index)
-        weight_workers = worker_layout(P_x.shape)[index].tolist()
+            index_weight = [0] * P_x.dim
+            index_weight[-1] = slice(0, P_x.shape[-1])
+            index_weight = tuple(index_weight)
+            weight_workers = worker_layout(P_x.shape)[index_weight].tolist()
 
-        # Create weight partitions
-        P_w_base = P_x.create_partition_inclusive(weight_workers)
-        P_w = P_w_base.create_cartesian_topology_partition(weight_partition_shape)
-        P_w_base.deactivate()
-        self.P_w = P_w
+            P_weight_base = P_x.create_partition_inclusive(weight_workers)
+            P_weight = P_weight_base.create_cartesian_topology_partition(weight_partition_shape)
+            P_weight_base.deactivate()
+
+        # Partition for storing bias
+        if P_store_bias is not None:
+            assert P_x.dim == P_store_bias.dim
+            assert np.prod(P_store_bias.shape) == 1
+        else:
+            P_store_bias_base = P_x.create_partition_inclusive([0])
+            P_store_bias = P_store_bias_base.create_cartesian_topology_partition([1] * P_x.dim)
+            P_store_bias_base.deactivate()
+
+        # Partition for applying bias
+        if P_apply_bias is not None:
+            assert P_x.dim == P_apply_bias.dim
+            assert np.prod(P_apply_bias.shape[-2:]) == 1
+            for i in range(P_x.dim-2):
+                assert P_apply_bias.shape[i] == P_x.shape[i]
+        else:
+            index_bias = [0] * P_x.dim
+            for i in range(P_x.dim-2):
+                index_bias[i] = slice(0, P_x.shape[i])
+            apply_bias_workers = worker_layout(P_x.shape)[tuple(index_bias)].tolist()
+
+            apply_bias_partition_shape = P_x.shape.copy()
+            apply_bias_partition_shape[-2:] = 1
+            
+            P_apply_bias_base = P_x.create_partition_inclusive(apply_bias_workers)
+            P_apply_bias = P_apply_bias_base.create_cartesian_topology_partition(apply_bias_partition_shape)
+            P_apply_bias_base.deactivate()
+
+        # Store partitions for later  access
+        self.P_x = P_x
+        self.P_weight = P_weight
+        self.P_store_bias = P_store_bias
+        self.P_apply_bias = P_apply_bias
 
         # Function to broadcast weights from worker partition to P_x
-        self.broadcast_weight = Broadcast(P_w, P_x)
-        self.broadcast_bias = Broadcast(P_w, P_x)
+        self.broadcast_weight = Broadcast(P_weight, P_x)
+        if self.P_apply_bias.active:
+            self.broadcast_bias = Broadcast(P_store_bias, P_apply_bias)
 
-        if P_w.active:
-            # Local shape of weights, which must have the same no. of dimensions as P_x.
+        # Create weights
+        if P_weight.active:
+
+            # Local shape of weights, which must have the same no. of dimensions as P_x
             weight_shape = [1] * P_x.dim
-            bias_shape = [1] * P_x.dim
-            in_features_local = compute_subshape(P_w.shape[-1],
-                                                 P_w.index[-1],
+            in_features_local = compute_subshape(P_weight.shape[-1],
+                                                 P_weight.index[-1],
                                                 [in_features])[0]
-            weight_shape[-2] = out_features
             weight_shape[-1] = in_features_local
-            bias_shape[-2] = out_features
+            weight_shape[-2] = out_features
 
             # Create weights
             self.weight = torch.nn.Parameter(torch.empty(tuple(weight_shape), **factory_kwargs))
-            if bias:
-                self.bias = torch.nn.Parameter(torch.empty(tuple(bias_shape), **factory_kwargs))
-            else:
-                self.register_parameter('bias', None)
         else:
             self.register_buffer('weight', zero_volume_tensor(device=device, requires_grad=True))
-            if bias:
-                self.register_buffer('bias', zero_volume_tensor(device=device, requires_grad=True))
 
+        # Create bias
+        if self.P_store_bias.active:
+            bias_shape = [1] * P_x.dim
+            bias_shape[-2] = out_features
+            self.bias = torch.nn.Parameter(torch.empty(tuple(bias_shape), **factory_kwargs))
+
+        elif self.P_apply_bias.active:
+            self.register_buffer('bias', zero_volume_tensor(device=device, requires_grad=True))
+
+        else:
+           self.register_parameter('bias', None)
+
+        # Initialize parameters
         self.reset_parameters()
 
         # Reduce-scatter operation
@@ -124,12 +154,15 @@ class DistributedLinearReduceScatter(Module):
 
     # TODO account for partition sizes
     def reset_parameters(self) -> None:
-        if self.P_w.active:
+
+        if self.P_weight.active:
             torch.nn.init.kaiming_uniform_(self.weight, a=math.sqrt(5))
-            if self.bias is not None:
-                fan_in, _ = torch.nn.init._calculate_fan_in_and_fan_out(self.weight)
-                bound = 1 / math.sqrt(fan_in) if fan_in > 0 else 0
-                torch.nn.init.uniform_(self.bias, -bound, bound)
+
+        if self.P_store_bias.active:
+            fan_in, _ = torch.nn.init._calculate_fan_in_and_fan_out(self.weight)
+            print("fan: ", fan_in)
+            bound = 1 / math.sqrt(fan_in) if fan_in > 0 else 0
+            torch.nn.init.uniform_(self.bias, -bound, bound)
 
 
     def forward(self, input):
@@ -147,7 +180,12 @@ class DistributedLinearReduceScatter(Module):
 
         # Broadcast weights to everyone
         weight = self.broadcast_weight(self.weight).view(self.out_features, -1)
-        bias = self.broadcast_bias(self.bias).view(self.out_features)
+
+        # Broadcast bias
+        if self.P_apply_bias.active:
+            bias = self.broadcast_bias(self.bias).view(self.out_features)
+        else:
+            bias = self.bias
 
         # Affine/linear transform
         y = torch.nn.functional.linear(input, weight, bias)

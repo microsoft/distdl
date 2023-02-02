@@ -27,7 +27,7 @@ P_x = P_x_base.create_cartesian_topology_partition(in_shape)
 
 # Input channel dimension is partitioned
 batch_size = 4
-in_channels = 16
+in_channels = 32
 out_channels = 32
 
 # Input
@@ -42,6 +42,13 @@ if P_x.active:
 x.requires_grad = True
 
 # Parallel GEMM
-linear = DistributedLinearReduceScatter(P_x, in_channels, out_channels, checkpointing=False).to(P_x.device)
-y = linear(x)
+linear1 = DistributedLinearReduceScatter(P_x, in_channels, out_channels).to(P_x.device)
+linear2 = DistributedLinearReduceScatter(P_x, in_channels, out_channels, 
+    P_weight=linear1.P_weight, 
+    P_store_bias=linear1.P_store_bias,
+    P_apply_bias=linear1.P_apply_bias
+    ).to(P_x.device)
+
+y = linear1(x)
+z = linear1(y)
 print('y.shape: ', y.shape)

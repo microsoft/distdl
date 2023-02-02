@@ -135,7 +135,6 @@ setup(
     ],
     python_requires='>=3.5',
     install_requires=[
-        torch, numpy, pytest, pytest-mpi
     ],
     extras_require={
         # eg:
