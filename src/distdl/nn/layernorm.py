@@ -40,6 +40,9 @@ class DistributedLayerNorm(Module):
     def __init__(self, P_x, normalized_shape, elementwise_affine=True, eps=1e-5, device=None, dtype=None):
         super(DistributedLayerNorm, self).__init__()
         
+        if not self.P_x.active:
+            return
+
         if device is None: device = P_x.device
         self.eps = eps
         self.elementwise_affine = elementwise_affine
@@ -102,7 +105,7 @@ class DistributedLayerNorm(Module):
         self.reset_parameters()
 
     def reset_parameters(self):
-        if self.elementwise_affine:
+        if self.elementwise_affine and self.P_w.active:
             torch.nn.init.ones_(self.weight)
             torch.nn.init.zeros_(self.bias)
 
