@@ -4,8 +4,6 @@ import numpy as np
 import pytest
 from adjoint_test import check_adjoint_test_tight
 
-use_cuda = 'USE_CUDA' in os.environ
-
 adjoint_parametrizations = []
 
 # Main functionality
