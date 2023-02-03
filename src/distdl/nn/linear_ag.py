@@ -93,7 +93,8 @@ class DistributedLinearAllGather(Module):
                 store_weight_partition_shape)
             P_store_weight_base.deactivate()
 
-        # Partition for applying weights & biases
+        # Partition for applying weights & biases (same size as P_x, but with last
+        # two dims swapped).
         if P_apply_weight is not None:
             assert P_x.dim == P_apply_weight.dim
             assert P_apply_weight.shape[-1] == 1
@@ -105,14 +106,7 @@ class DistributedLinearAllGather(Module):
             apply_weight_partition_shape[-1] = 1
             apply_weight_partition_shape[-2] = P_x.shape[-1]
 
-            index_apply_weight = [slice(0, 1)] * P_x.dim
-            index_apply_weight[-1] = slice(0, P_x.shape[-1])
-            for i in range(P_x.dim-2):
-                index_apply_weight[i] = slice(0, P_x.shape[i])
-            apply_weight_workers = worker_layout(P_x.shape)[tuple(index_apply_weight)].\
-                reshape(-1).tolist()
-
-            P_apply_weight_base = P_x.create_partition_inclusive(apply_weight_workers)
+            P_apply_weight_base = P_x.create_partition_inclusive(range(P_x.size))
             P_apply_weight = P_apply_weight_base.create_cartesian_topology_partition(
                 apply_weight_partition_shape)
             P_apply_weight_base.deactivate()
