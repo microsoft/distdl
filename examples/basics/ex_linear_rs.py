@@ -18,7 +18,7 @@ P_world = MPIPartition(MPI.COMM_WORLD)
 P_world._comm.Barrier()
 
 # Data partition (in, out)
-in_shape = (1, 4)
+in_shape = (2, 1, 4)
 in_size = np.prod(in_shape)
 in_workers = np.arange(0, in_size)
 
@@ -32,7 +32,7 @@ out_channels = 32
 
 # Input
 n = 128
-x_global_shape = (n, in_channels)
+x_global_shape = (batch_size, n, in_channels)
 x = zero_volume_tensor(device=P_x.device)
 if P_x.active:
     x_local_shape = slicing.compute_subshape(P_x.shape,
@@ -42,13 +42,27 @@ if P_x.active:
 x.requires_grad = True
 
 # Parallel GEMM
-linear1 = DistributedLinearReduceScatter(P_x, in_channels, out_channels).to(P_x.device)
-linear2 = DistributedLinearReduceScatter(P_x, in_channels, out_channels, 
-    P_weight=linear1.P_weight, 
-    P_store_bias=linear1.P_store_bias,
-    P_apply_bias=linear1.P_apply_bias
-    ).to(P_x.device)
+reduce_scatter = False
+if reduce_scatter:
+    
+    # Reduce-scatter
+    linear1 = DistributedLinearReduceScatter(P_x, in_channels, out_channels).to(P_x.device)
+    linear2 = DistributedLinearReduceScatter(P_x, out_channels, in_channels, 
+        P_weight=linear1.P_weight, 
+        P_store_bias=linear1.P_store_bias,
+        P_apply_bias=linear1.P_apply_bias
+        ).to(P_x.device)
 
-y = linear1(x)
-z = linear2(y)
-print('z.shape: ', z.shape)
+    y = linear1(x)
+    z = linear2(y)
+    print('z.shape: ', z.shape)
+
+else:
+    
+    # All-gather
+    linear1 = DistributedLinearAllGather(P_x, in_channels, out_channels).to(P_x.device)
+    linear2 = DistributedLinearAllGather(P_x, out_channels, in_channels).to(P_x.device)
+
+    y = linear1(x)
+    z = linear2(y)
+    print('z.shape: ', z.shape)
