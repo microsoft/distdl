@@ -100,6 +100,7 @@ class DistributedEmbedding(Module):
         elif self.P_weight.active:
             self.weight = torch.nn.Parameter(torch.empty((num_embeddings, embedding_dim_local),
                 **factory_kwargs), requires_grad=not _freeze)
+            self.reset_parameters()
         else:
             self.register_buffer('weight', zero_volume_tensor(device=P_x.device, 
                 requires_grad=True))
