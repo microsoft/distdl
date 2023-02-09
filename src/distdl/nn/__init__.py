@@ -32,6 +32,7 @@ from .conv_channel_ag import DistributedChannelAllGatherConvTranspose3d   # noqa
 from .conv_general import DistributedGeneralConv1d  # noqa: F401
 from .conv_general import DistributedGeneralConv2d  # noqa: F401
 from .conv_general import DistributedGeneralConv3d  # noqa: F401
+from .embedding import DistributedEmbedding
 from .halo_exchange import HaloExchange  # noqa: F401
 from .interpolate import Interpolate  # noqa: F401
 from .layernorm import DistributedLayerNorm
@@ -88,6 +89,7 @@ __all__ = ["AllSumReduce",
            "DistributedGeneralConv2d",
            "DistributedGeneralConv3d",
            "HaloExchange",
+           "DistributedEmbedding",
            "DistributedLayerNorm",
            "DistributedLinear",
            "DistributedLinearAllGather",
