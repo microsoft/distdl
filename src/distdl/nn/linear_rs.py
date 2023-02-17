@@ -7,6 +7,7 @@ from distdl.nn.reduce_scatter import ReduceScatter
 from distdl.utilities.slicing import compute_subshape
 from distdl.utilities.torch import TensorStructure
 from distdl.utilities.slicing import worker_layout
+from distdl.nn.repartition import Repartition
 from distdl.nn.broadcast import Broadcast
 from distdl.utilities.torch import zero_volume_tensor
 import distdl.nn.init as init
@@ -54,6 +55,9 @@ class DistributedLinearReduceScatter(Module):
         Partition on which bias is applied. Must have the 
         same size as P_x in every but the last 2 dimensions,
         which must be 1.
+    collect_state: bool, optional
+        If true, creates partitions to gather/scatter weights & 
+        biases for saving/loading state dictionaries.
     """
 
     def __init__(self, P_x, in_features, out_features, bias=True, device=None, dtype=None,
@@ -74,6 +78,7 @@ class DistributedLinearReduceScatter(Module):
 
         self.in_features = in_features
         self.out_features = out_features
+        self.use_bias = bias
 
         # Partition for storing weights (the partition for applying weights is P_x)
         if P_weight is not None:
@@ -148,14 +153,13 @@ class DistributedLinearReduceScatter(Module):
             self.register_buffer('weight', zero_volume_tensor(device=device, requires_grad=True))
 
         # Create bias. Only 1 worker stores the bias and a subset of workers receive it.
-        if bias and self.P_store_bias.active:
+        if self.use_bias and self.P_store_bias.active:
             bias_shape = [1] * P_x.dim
             bias_shape[-2] = out_features
             self.bias = torch.nn.Parameter(torch.empty(tuple(bias_shape), **factory_kwargs))    # store bias
 
-        elif bias and self.P_apply_bias.active:
+        elif self.use_bias and self.P_apply_bias.active:
             self.register_buffer('bias', zero_volume_tensor(device=device, requires_grad=True)) # receive bias
-            
         else:
            self.register_parameter('bias', None)    # don't receive bias
 
@@ -171,11 +175,10 @@ class DistributedLinearReduceScatter(Module):
             init.kaiming_uniform_(self.P_weight, self.weight, a=math.sqrt(5))
             weight_global_shape = assemble_global_tensor_structure(self.weight, self.P_weight).shape
 
-        if self.bias is not None and self.P_store_bias.active:
+        if self.use_bias and self.P_store_bias.active:
             fan_in, _ = init._calculate_fan_in_and_fan_out(weight_global_shape)
             bound = 1 / math.sqrt(fan_in) if fan_in > 0 else 0
             init.uniform_(self.bias, -bound, bound)
-
 
     def forward(self, input):
         r"""Forward function interface.

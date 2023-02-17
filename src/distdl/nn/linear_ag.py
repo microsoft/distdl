@@ -7,6 +7,7 @@ from distdl.nn.all_gather import AllGather
 from distdl.utilities.slicing import compute_subshape
 from distdl.utilities.torch import TensorStructure
 from distdl.utilities.slicing import worker_layout
+from distdl.nn.repartition import Repartition
 from distdl.nn.broadcast import Broadcast
 from distdl.utilities.torch import zero_volume_tensor
 import distdl.nn.init as init
@@ -51,6 +52,9 @@ class DistributedLinearAllGather(Module):
         Partition for applying weights and biases. Must be 
         the same size as P_x, but with the last two dimensions
         swapped.
+    collect_state: bool, optional
+        If true, creates partitions to gather/scatter weights & 
+        biases for saving/loading state dictionaries.
     """
 
     def __init__(self, P_x, in_features, out_features, bias=True, device=None, dtype=None, 
@@ -71,6 +75,7 @@ class DistributedLinearAllGather(Module):
 
         self.in_features = in_features
         self.out_features = out_features
+        self.use_bias = bias
 
         # Partition for storing weights & biases
         if P_store_weight is not None:
@@ -137,14 +142,14 @@ class DistributedLinearAllGather(Module):
             self.register_buffer('weight', zero_volume_tensor(device=device, requires_grad=True))
 
         # Create bias
-        if P_store_weight.active and bias:
+        if self.use_bias and P_store_weight.active:
             bias_shape = [1] * P_x.dim
             bias_shape[-2] = out_features_local
             self.bias = torch.nn.Parameter(torch.empty(tuple(bias_shape), **factory_kwargs))
-        elif bias:
+        elif self.use_bias:
             self.register_buffer('bias', zero_volume_tensor(device=device, requires_grad=True))
         else:
-           self.register_parameter('bias', None)    # don't receive bias
+           self.register_parameter('bias', None)
 
         # Initialize parameters
         self.reset_parameters()
@@ -163,7 +168,6 @@ class DistributedLinearAllGather(Module):
                 fan_in, _ = init._calculate_fan_in_and_fan_out(weight_global_shape)
                 bound = 1 / math.sqrt(fan_in) if fan_in > 0 else 0
                 init.uniform_(self.bias, -bound, bound)
-
 
     def forward(self, input):
         r"""Forward function interface.

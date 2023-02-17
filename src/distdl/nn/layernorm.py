@@ -7,6 +7,7 @@ from distdl.utilities.torch import zero_volume_tensor
 from distdl.nn.module import Module
 from distdl.nn.all_sum_reduce import AllSumReduce
 from distdl.nn.broadcast import Broadcast
+from distdl.nn.repartition import Repartition
 import numpy as np
 
 class DistributedLayerNorm(Module):
@@ -40,6 +41,7 @@ class DistributedLayerNorm(Module):
     def __init__(self, P_x, normalized_shape, elementwise_affine=True, eps=1e-5, device=None, dtype=None):
         super(DistributedLayerNorm, self).__init__()
         
+        self.P_x = P_x
         if not self.P_x.active:
             return
 
@@ -81,6 +83,7 @@ class DistributedLayerNorm(Module):
             P_w_base = P_x.create_partition_inclusive(storage_workers)
             P_w = P_w_base.create_cartesian_topology_partition(weight_partition_shape)
             P_w_base.deactivate()
+            self.P_w = P_w
             self.broadcast = Broadcast(P_w, P_x)
 
             # Determine no. of parameters on local worker
@@ -93,8 +96,8 @@ class DistributedLayerNorm(Module):
             normalized_shape_local = tuple(normalized_shape_local)
 
             if P_w.active:
-                self.bias = torch.nn.Parameter(torch.empty(normalized_shape_local, **factory_kwargs))
                 self.weight = torch.nn.Parameter(torch.empty(normalized_shape_local, **factory_kwargs))
+                self.bias = torch.nn.Parameter(torch.empty(normalized_shape_local, **factory_kwargs))
             else:
                 self.register_buffer('weight', zero_volume_tensor(device=device, requires_grad=True))
                 self.register_buffer('bias', zero_volume_tensor(device=device, requires_grad=True))
@@ -104,6 +107,7 @@ class DistributedLayerNorm(Module):
 
         self.reset_parameters()
 
+    # Initializer for parameters
     def reset_parameters(self):
         if self.elementwise_affine and self.P_w.active:
             torch.nn.init.ones_(self.weight)
@@ -150,6 +154,9 @@ class DistributedLayerNorm(Module):
             Input tensor to be normalized.
 
         """
+
+        if not self.P_x.active:
+            return input.clone()
 
         # Calculate mean and variance
         mean = self._compute_mean(input)
