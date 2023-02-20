@@ -105,4 +105,7 @@ class Module(torch.nn.Module):
         input :
             Tuple of inputs to the layer.
         """
-        return not self._distdl_is_setup or self._distdl_input_changed(input)
+        if distdl.config.check_input_changed:
+            return not self._distdl_is_setup or self._distdl_input_changed(input)
+        else:
+            return not self._distdl_is_setup
