@@ -5,7 +5,8 @@ import pytest
 
 # These tests aim to compare DistributedConvNd functionality to PyTorch's ConvNd.
 
-use_cuda = 'USE_CUDA' in os.environ
+BACKEND_COMM = "mpi"
+BACKEND_ARRAY = "numpy"
 
 params = []
 
@@ -284,7 +285,7 @@ def test_conv_versus_pytorch(barrier_fence_fixture,
     from distdl.utilities.torch import zero_volume_tensor
     from distdl.config import set_backend
 
-    set_backend(backend_comm="mpi", backend_array="numpy")
+    set_backend(backend_comm=BACKEND_COMM, backend_array=BACKEND_ARRAY)
 
     # Isolate the minimum needed ranks
     base_comm, active = comm_split_fixture

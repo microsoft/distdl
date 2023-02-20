@@ -2,6 +2,9 @@ import pytest
 from adjoint_test import check_adjoint_test_tight
 import numpy as np
 
+BACKEND_COMM = "mpi"
+BACKEND_ARRAY = "numpy"
+
 adjoint_parametrizations = []
 
 # Main functionality
@@ -75,6 +78,9 @@ def test_channel_conv2d_adjoint_input(barrier_fence_fixture,
     from distdl.utilities.slicing import compute_subshape
     from distdl.utilities.torch import zero_volume_tensor
     from distdl.nn.conv_channel_ag import DistributedChannelAllGatherConv2d
+    from distdl.config import set_backend
+
+    set_backend(backend_comm=BACKEND_COMM, backend_array=BACKEND_ARRAY)
 
     # Isolate the minimum needed ranks
     base_comm, active = comm_split_fixture
@@ -96,20 +102,20 @@ def test_channel_conv2d_adjoint_input(barrier_fence_fixture,
         padding=[1], 
         device=P_x.device,
         checkpointing=checkpointing,
-        bias=False)
+        bias=False).to(P_world.device)
 
-    x = zero_volume_tensor(x_global_shape[0])
+    x = zero_volume_tensor(x_global_shape[0], device=P_x.device)
     if P_x.active:
         x_local_shape = compute_subshape(P_x.shape, P_x.index, x_global_shape)
         y_local_shape = compute_subshape(P_x.shape, P_x.index, y_global_shape)
-        x = torch.randn(*x_local_shape)
+        x = torch.randn(*x_local_shape, device=P_world.device)
     x.requires_grad = True
 
     y = layer(x)
 
-    dy = zero_volume_tensor(y_local_shape[0])
+    dy = zero_volume_tensor(y_local_shape[0], device=P_world.device)
     if P_x.active:
-        dy = torch.randn(*y_local_shape)
+        dy = torch.randn(*y_local_shape, device=P_world.device)
 
     y.backward(dy)
     dx = x.grad
@@ -148,6 +154,9 @@ def test_channel_conv2d_adjoint_weight(barrier_fence_fixture,
     from distdl.utilities.slicing import compute_subshape
     from distdl.utilities.torch import zero_volume_tensor
     from distdl.nn.conv_channel_ag import DistributedChannelAllGatherConv2d
+    from distdl.config import set_backend
+
+    set_backend(backend_comm=BACKEND_COMM, backend_array=BACKEND_ARRAY)
 
     # Isolate the minimum needed ranks
     base_comm, active = comm_split_fixture
@@ -169,20 +178,20 @@ def test_channel_conv2d_adjoint_weight(barrier_fence_fixture,
         padding=[1], 
         device=P_x.device,
         checkpointing=checkpointing,
-        bias=False)
+        bias=False).to(P_world.device)
 
-    x = zero_volume_tensor(x_global_shape[0])
+    x = zero_volume_tensor(x_global_shape[0], device=P_world.device)
     if P_x.active:
         x_local_shape = compute_subshape(P_x.shape, P_x.index, x_global_shape)
         y_local_shape = compute_subshape(P_x.shape, P_x.index, y_global_shape)
-        x = torch.randn(*x_local_shape)
+        x = torch.randn(*x_local_shape, device=P_world.device)
     x.requires_grad = True
 
     y = layer(x)
 
-    dy = zero_volume_tensor(y_local_shape[0])
+    dy = zero_volume_tensor(y_local_shape[0], device=P_world.device)
     if P_x.active:
-        dy = torch.randn(*y_local_shape)
+        dy = torch.randn(*y_local_shape, device=P_world.device)
 
     y.backward(dy)
 
@@ -225,6 +234,9 @@ def test_channel_conv2d_adjoint_bias(barrier_fence_fixture,
     from distdl.utilities.slicing import compute_subshape
     from distdl.utilities.torch import zero_volume_tensor
     from distdl.nn.conv_channel_ag import DistributedChannelAllGatherConv2d
+    from distdl.config import set_backend
+
+    set_backend(backend_comm=BACKEND_COMM, backend_array=BACKEND_ARRAY)
 
     # Isolate the minimum needed ranks
     base_comm, active = comm_split_fixture
@@ -246,21 +258,21 @@ def test_channel_conv2d_adjoint_bias(barrier_fence_fixture,
         padding=[1], 
         device=P_x.device,
         checkpointing=checkpointing,
-        bias=True)
+        bias=True).to(P_world.device)
     layer.conv_layer[1].weight.data.fill_(0)
 
-    x = zero_volume_tensor(x_global_shape[0])
+    x = zero_volume_tensor(x_global_shape[0], device=P_world.device)
     if P_x.active:
         x_local_shape = compute_subshape(P_x.shape, P_x.index, x_global_shape)
         y_local_shape = compute_subshape(P_x.shape, P_x.index, y_global_shape)
-        x = torch.randn(*x_local_shape)
+        x = torch.randn(*x_local_shape, device=P_world.device)
     x.requires_grad = True
 
     y = layer(x)
 
-    dy = zero_volume_tensor(y_local_shape[0])
+    dy = zero_volume_tensor(y_local_shape[0], device=P_world.device)
     if P_x.active:
-        dy = torch.randn(*y_local_shape)
+        dy = torch.randn(*y_local_shape, device=P_world.device)
 
     y.backward(dy)
 

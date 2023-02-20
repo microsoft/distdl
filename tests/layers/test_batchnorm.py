@@ -7,9 +7,11 @@ import torch
 import distdl
 from distdl.utilities.torch import zero_volume_tensor
 
-use_cuda = 'USE_CUDA' in os.environ
+BACKEND_COMM = "mpi"
+BACKEND_ARRAY = "numpy"
 
 ERROR_THRESHOLD = 1e-4
+
 parametrizations_affine = []
 
 parametrizations_affine.append(
@@ -138,7 +140,7 @@ def test_batch_norm_with_training(barrier_fence_fixture,
 
     torch.manual_seed(0)
 
-    set_backend(backend_comm="mpi", backend_array="numpy")
+    set_backend(backend_comm=BACKEND_COMM, backend_array=BACKEND_ARRAY)
 
     # Isolate the minimum needed ranks
     base_comm, active = comm_split_fixture
@@ -303,7 +305,7 @@ def test_batch_norm_no_training(barrier_fence_fixture,
     from distdl.backends.common.partition import MPIPartition
     from distdl.config import set_backend
 
-    set_backend(backend_comm="mpi", backend_array="numpy")
+    set_backend(backend_comm=BACKEND_COMM, backend_array=BACKEND_ARRAY)
 
     torch.manual_seed(0)
 

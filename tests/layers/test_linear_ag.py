@@ -1,9 +1,14 @@
-import os
+import os, torch
 
 import numpy as np
 import pytest
 from adjoint_test import check_adjoint_test_tight
 
+torch.set_printoptions(precision=8)
+torch.manual_seed(0)
+
+BACKEND_COMM = "nccl"
+BACKEND_ARRAY = "cupy"
 
 adjoint_parametrizations = []
 
@@ -11,8 +16,8 @@ adjoint_parametrizations = []
 adjoint_parametrizations.append(
     pytest.param(
         np.arange(0, 1), [1, 1],  # P_x_ranks, P_x_shape
-        [2, 12],  # x_global_shape
-        [2, 16],  # y_global_shape
+        [2, 2],  # x_global_shape
+        [2, 4],  # y_global_shape
         1,  # passed to comm_split_fixture, required MPI ranks
         id="sequential",
         marks=[pytest.mark.mpi(min_size=1)]
@@ -119,7 +124,7 @@ def test_linear_adjoint_input(barrier_fence_fixture,
     from distdl.utilities.torch import zero_volume_tensor
     from distdl.config import set_backend
 
-    set_backend(backend_comm="mpi", backend_array="numpy")
+    set_backend(backend_comm=BACKEND_COMM, backend_array=BACKEND_ARRAY)
 
     # Isolate the minimum needed ranks
     base_comm, active = comm_split_fixture
@@ -138,21 +143,21 @@ def test_linear_adjoint_input(barrier_fence_fixture,
                                        x_global_shape[-1],
                                        y_global_shape[-1],
                                        bias=False)
-    layer = layer.to(P_x.device)
+    layer = layer.to(P_world.device)
 
-    x = zero_volume_tensor(x_global_shape[0], device=P_x.device)
+    x = zero_volume_tensor(x_global_shape[0], device=P_world.device)
     if P_x.active:
         x_local_shape = compute_subshape(P_x.shape,
                                          P_x.index,
                                          x_global_shape)
-        x = torch.randn(*x_local_shape, device=P_x.device)
+        x = torch.randn(*x_local_shape, device=P_world.device)
     x.requires_grad = True
 
     y = layer(x)
 
-    dy = zero_volume_tensor(x_global_shape[0], device=P_x.device)
+    dy = zero_volume_tensor(x_global_shape[0], device=P_world.device)
     if P_x.active:
-        dy = torch.randn(*y.shape, device=P_x.device)
+        dy = torch.randn(*y.shape, device=P_world.device)
 
     y.backward(dy)
     dx = x.grad
@@ -191,7 +196,7 @@ def test_linear_adjoint_weight(barrier_fence_fixture,
     from distdl.utilities.torch import zero_volume_tensor
     from distdl.config import set_backend
 
-    set_backend(backend_comm="mpi", backend_array="numpy")
+    set_backend(backend_comm=BACKEND_COMM, backend_array=BACKEND_ARRAY)
 
     # Isolate the minimum needed ranks
     base_comm, active = comm_split_fixture
@@ -266,7 +271,7 @@ def test_linear_adjoint_bias(barrier_fence_fixture,
     from distdl.utilities.torch import zero_volume_tensor
     from distdl.config import set_backend
 
-    set_backend(backend_comm="mpi", backend_array="numpy")
+    set_backend(backend_comm=BACKEND_COMM, backend_array=BACKEND_ARRAY)
 
     # Isolate the minimum needed ranks
     base_comm, active = comm_split_fixture

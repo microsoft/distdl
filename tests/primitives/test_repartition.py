@@ -5,6 +5,9 @@ import numpy as np
 import torch
 from adjoint_test import check_adjoint_test_tight
 
+BACKEND_COMM = "mpi"
+BACKEND_ARRAY = "numpy"
+
 adjoint_parametrizations = []
 
 # Main functionality
@@ -145,7 +148,7 @@ def test_repartition_adjoint(barrier_fence_fixture,
     from distdl.utilities.slicing import compute_subshape
     from distdl.utilities.torch import zero_volume_tensor
 
-    set_backend(backend_comm="mpi", backend_array="numpy")
+    set_backend(backend_comm=BACKEND_COMM, backend_array=BACKEND_ARRAY)
 
     # Isolate the minimum needed ranks
     base_comm, active = comm_split_fixture
@@ -262,7 +265,7 @@ def test_excepts_mismatched_input_partition_tensor(barrier_fence_fixture,
     from distdl.utilities.slicing import compute_subshape
     from distdl.utilities.torch import zero_volume_tensor
 
-    set_backend(backend_comm="mpi", backend_array="numpy")
+    set_backend(backend_comm=BACKEND_COMM, backend_array=BACKEND_ARRAY)
 
     # Isolate the minimum needed ranks
     base_comm, active = comm_split_fixture
@@ -320,7 +323,7 @@ def test_excepts_mismatched_output_partition_tensor(barrier_fence_fixture,
     from distdl.utilities.slicing import compute_subshape
     from distdl.utilities.torch import zero_volume_tensor
 
-    set_backend(backend_comm="mpi", backend_array="numpy")
+    set_backend(backend_comm=BACKEND_COMM, backend_array=BACKEND_ARRAY)
 
     # Isolate the minimum needed ranks
     base_comm, active = comm_split_fixture
@@ -378,7 +381,7 @@ def test_excepts_mismatched_nondivisible_tensor(barrier_fence_fixture,
     from distdl.utilities.slicing import compute_subshape
     from distdl.utilities.torch import zero_volume_tensor
 
-    set_backend(backend_comm="mpi", backend_array="numpy")
+    set_backend(backend_comm=BACKEND_COMM, backend_array=BACKEND_ARRAY)
 
     # Isolate the minimum needed ranks
     base_comm, active = comm_split_fixture
@@ -490,7 +493,7 @@ def test_repartition_dtype(barrier_fence_fixture,
     from distdl.utilities.slicing import compute_subshape
     from distdl.utilities.torch import zero_volume_tensor
 
-    set_backend(backend_comm="mpi", backend_array="numpy")
+    set_backend(backend_comm=BACKEND_COMM, backend_array=BACKEND_ARRAY)
 
     # Isolate the minimum needed ranks
     base_comm, active = comm_split_fixture
@@ -590,7 +593,7 @@ def test_repartition_identity(barrier_fence_fixture,
     from distdl.utilities.slicing import compute_subshape
     from distdl.utilities.torch import zero_volume_tensor
 
-    set_backend(backend_comm="mpi", backend_array="numpy")
+    set_backend(backend_comm=BACKEND_COMM, backend_array=BACKEND_ARRAY)
 
     # Isolate the minimum needed ranks
     base_comm, active = comm_split_fixture

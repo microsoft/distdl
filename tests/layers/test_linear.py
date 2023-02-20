@@ -4,7 +4,8 @@ import numpy as np
 import pytest
 from adjoint_test import check_adjoint_test_tight
 
-use_cuda = 'USE_CUDA' in os.environ
+BACKEND_COMM = "mpi"
+BACKEND_ARRAY = "numpy"
 
 adjoint_parametrizations = []
 
@@ -63,7 +64,7 @@ def test_linear_adjoint_input(barrier_fence_fixture,
     from distdl.utilities.torch import zero_volume_tensor
     from distdl.config import set_backend
 
-    set_backend(backend_comm="mpi", backend_array="numpy")
+    set_backend(backend_comm=BACKEND_COMM, backend_array=BACKEND_ARRAY)
 
     # Isolate the minimum needed ranks
     base_comm, active = comm_split_fixture
@@ -149,7 +150,7 @@ def test_linear_adjoint_weight(barrier_fence_fixture,
     from distdl.utilities.torch import zero_volume_tensor
     from distdl.config import set_backend
 
-    set_backend(backend_comm="mpi", backend_array="numpy")
+    set_backend(backend_comm=BACKEND_COMM, backend_array=BACKEND_ARRAY)
 
     # Isolate the minimum needed ranks
     base_comm, active = comm_split_fixture
@@ -238,7 +239,7 @@ def test_linear_adjoint_bias(barrier_fence_fixture,
     from distdl.utilities.torch import zero_volume_tensor
     from distdl.config import set_backend
 
-    set_backend(backend_comm="mpi", backend_array="numpy")
+    set_backend(backend_comm=BACKEND_COMM, backend_array=BACKEND_ARRAY)
 
     # Isolate the minimum needed ranks
     base_comm, active = comm_split_fixture

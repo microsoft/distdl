@@ -18,6 +18,8 @@ class MockConvLayer(HaloMixin, ConvMixin):
 class MockPoolLayer(HaloMixin, PoolingMixin):
     pass
 
+BACKEND_COMM = "mpi"
+BACKEND_ARRAY = "numpy"
 
 adjoint_parametrizations = []
 
@@ -117,7 +119,7 @@ def test_halo_exchange_adjoint(barrier_fence_fixture,
     from distdl.utilities.torch import distdl_padding_to_torch_padding
     from distdl.utilities.torch import zero_volume_tensor
 
-    set_backend(backend_comm="mpi", backend_array="numpy")
+    set_backend(backend_comm=BACKEND_COMM, backend_array=BACKEND_ARRAY)
 
     # Isolate the minimum needed ranks
     base_comm, active = comm_split_fixture

@@ -10,6 +10,10 @@ from distdl.nn.repartition import Repartition
 from distdl.nn.embedding import DistributedEmbedding
 
 ERROR_THRESHOLD = 1e-4
+
+BACKEND_COMM = "mpi"
+BACKEND_ARRAY = "numpy"
+
 parametrizations_affine = []
 
 parametrizations_affine.append(
@@ -46,7 +50,7 @@ def test_batch_norm_with_training(barrier_fence_fixture,
     from distdl.config import set_backend
     torch.manual_seed(0)
 
-    set_backend(backend_comm="mpi", backend_array="numpy")
+    set_backend(backend_comm=BACKEND_COMM, backend_array=BACKEND_ARRAY)
 
     # Isolate the minimum needed ranks
     base_comm, active = comm_split_fixture
@@ -174,7 +178,7 @@ def test_batch_norm_without_training(barrier_fence_fixture,
     from distdl.config import set_backend
     torch.manual_seed(0)
 
-    set_backend(backend_comm="mpi", backend_array="numpy")
+    set_backend(backend_comm=BACKEND_COMM, backend_array=BACKEND_ARRAY)
 
     # Isolate the minimum needed ranks
     base_comm, active = comm_split_fixture
