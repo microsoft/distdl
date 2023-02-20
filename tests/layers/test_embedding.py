@@ -10,6 +10,7 @@ from distdl.nn.repartition import Repartition
 from distdl.nn.embedding import DistributedEmbedding
 
 ERROR_THRESHOLD = 1e-4
+
 BACKEND_COMM = "mpi"
 BACKEND_ARRAY = "numpy"
 

@@ -4,6 +4,9 @@ sys.path.insert(1, os.path.join(sys.path[0], '..'))
 from adjoint_test import check_adjoint_test_tight
 import numpy as np
 
+BACKEND_COMM = "mpi"
+BACKEND_ARRAY = "numpy"
+
 adjoint_parametrizations = []
 
 # Main functionality
@@ -127,7 +130,7 @@ def test_all_sum_reduce_adjoint(barrier_fence_fixture,
     from distdl.nn.all_sum_reduce import AllSumReduce
     from distdl.utilities.torch import zero_volume_tensor
 
-    set_backend(backend_comm="mpi", backend_array="numpy")
+    set_backend(backend_comm=BACKEND_COMM, backend_array=BACKEND_ARRAY)
 
     # Isolate the minimum needed ranks
     base_comm, active = comm_split_fixture

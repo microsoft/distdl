@@ -6,7 +6,8 @@ import torch
 
 import distdl
 
-use_cuda = 'USE_CUDA' in os.environ
+BACKEND_COMM = "mpi"
+BACKEND_ARRAY = "numpy"
 
 input_parametrizations = []
 
@@ -114,7 +115,7 @@ def test_distributed_loss(barrier_fence_fixture,
     from distdl.utilities.torch import zero_volume_tensor
     from distdl.config import set_backend
 
-    set_backend(backend_comm="mpi", backend_array="numpy")
+    set_backend(backend_comm=BACKEND_COMM, backend_array=BACKEND_ARRAY)
 
     # Isolate the minimum needed ranks
     base_comm, active = comm_split_fixture

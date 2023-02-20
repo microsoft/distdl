@@ -10,8 +10,8 @@ from distdl.nn.repartition import Repartition
 from distdl.nn.layernorm import DistributedLayerNorm
 
 ERROR_THRESHOLD = 1e-4
-BACKEND_COMM = "mpi"
-BACKEND_ARRAY = "numpy"
+BACKEND_COMM = "nccl"
+BACKEND_ARRAY = "cupy"
 
 parametrizations_affine = []
 
