@@ -38,7 +38,8 @@ class DistributedLayerNorm(Module):
         Data type of learnable parameters. Default is torch.float.
     """
 
-    def __init__(self, P_x, normalized_shape, elementwise_affine=True, eps=1e-5, device=None, dtype=None):
+    def __init__(self, P_x, normalized_shape, elementwise_affine=True, eps=1e-5, 
+        collect_state=False, device=None, dtype=None):
         super(DistributedLayerNorm, self).__init__()
         
         self.P_x = P_x
@@ -48,6 +49,7 @@ class DistributedLayerNorm(Module):
         if device is None: device = P_x.device
         self.eps = eps
         self.elementwise_affine = elementwise_affine
+        self.collect_state = collect_state
         factory_kwargs = {'device': device, 'dtype': dtype}
 
         if isinstance(normalized_shape, numbers.Integral):
@@ -107,11 +109,74 @@ class DistributedLayerNorm(Module):
 
         self.reset_parameters()
 
+        # State dict hooks for gather/scattering distributed weights
+        self._register_state_dict_hook(self.gather_state_dict)
+        self._register_load_state_dict_pre_hook(self.scatter_state_dict)
+
+        # Partition for collecting weights/biases for saving the state dict
+        if self.collect_state:
+            P_root_base = P_x.create_partition_inclusive([0])
+            self.P_root = P_root_base.create_cartesian_topology_partition([1]*P_x.dim)
+            self.gather = Repartition(self.P_w, self.P_root, preserve_batch=False)
+            self.scatter = Repartition(self.P_root, self.P_w, preserve_batch=False)
+
     # Initializer for parameters
     def reset_parameters(self):
         if self.elementwise_affine and self.P_w.active:
             torch.nn.init.ones_(self.weight)
             torch.nn.init.zeros_(self.bias)
+
+    def gather_state_dict(self, module, destination, prefix, *args):
+        if self.collect_state and self.elementwise_affine and self.P_x.active:
+ 
+            # Pop bias from state dict and serialize it
+            bias_key = next(reversed(destination))
+            bias = self.gather(destination.pop(bias_key))
+            #if self.P_root.active:
+                #torch.save(bias, bias_key)
+
+            # Pop weight from state dict and serialize it
+            weight_key = next(reversed(destination))
+            weight = self.gather(destination.pop(weight_key))
+
+            # Serialize weights
+            if self.P_root.active:
+                #torch.save(weight, weight_key)
+
+                # Add filenames back to state dict
+                destination[weight_key] = weight#weight_key
+                destination[bias_key] = bias#bias_key
+
+        return destination
+
+    def scatter_state_dict(self, destination, prefix, *args):
+        if self.collect_state and self.elementwise_affine and self.P_x.active:
+            
+            # Pop entries from state dict
+            weight_key = next(iter(destination))
+            weight = destination.pop(weight_key)#destination.pop(weight_key)
+            bias_key = next(iter(destination))
+            bias = destination.pop(bias_key)#destination.pop(bias_key)
+
+            # Load states
+            if self.P_root.active:
+                pass
+                #weight = torch.load(weight_key)
+                #bias = torch.load(bias_key)
+            else:
+                weight = zero_volume_tensor(device=self.P_x.device, requires_grad=True)
+                bias = zero_volume_tensor(device=self.P_x.device, requires_grad=True)
+            
+            # Scatter states
+            weight = self.scatter(weight)
+            bias = self.scatter(bias)
+
+            # Add data back to state dict
+            destination[weight_key] = weight
+            destination[bias_key] = bias
+
+        return destination
+
 
     def _compute_mean(self, input):
         r"""

@@ -11,6 +11,7 @@ from distdl.nn.repartition import Repartition
 from distdl.nn.broadcast import Broadcast
 from distdl.utilities.torch import zero_volume_tensor
 import distdl.nn.init as init
+from einops import rearrange
 
 class DistributedLinearReduceScatter(Module):
     r"""A distributed linear or affine layer.
@@ -61,7 +62,7 @@ class DistributedLinearReduceScatter(Module):
     """
 
     def __init__(self, P_x, in_features, out_features, bias=True, device=None, dtype=None,
-        P_weight=None, P_store_bias=None, P_apply_bias=None):
+        P_weight=None, P_store_bias=None, P_apply_bias=None, collect_state=False, geglu=False):
 
         super(DistributedLinearReduceScatter, self).__init__()
 
@@ -78,7 +79,9 @@ class DistributedLinearReduceScatter(Module):
 
         self.in_features = in_features
         self.out_features = out_features
+        self.collect_state = collect_state
         self.use_bias = bias
+        self.geglu = geglu
 
         # Partition for storing weights (the partition for applying weights is P_x)
         if P_weight is not None:
@@ -169,6 +172,17 @@ class DistributedLinearReduceScatter(Module):
         # Reduce-scatter operation
         self.reduce_scatter = ReduceScatter(self.P_x, axes_reduce_scatter=(P_x.dim-1,))
 
+        # State dict hooks for gather/scattering distributed weights
+        self._register_state_dict_hook(self.gather_state_dict)
+        self._register_load_state_dict_pre_hook(self.scatter_state_dict)
+
+        # Partition for collecting weights/biases for saving the state dict
+        if self.collect_state:
+            P_root_base = P_x.create_partition_inclusive([0])
+            self.P_root = P_root_base.create_cartesian_topology_partition([1]*P_x.dim)
+            self.gather_weight = Repartition(P_weight, self.P_root, preserve_batch=False)
+            self.scatter_weight = Repartition(self.P_root, P_weight, preserve_batch=False)
+
     def reset_parameters(self) -> None:
 
         if self.P_weight.active:
@@ -179,6 +193,66 @@ class DistributedLinearReduceScatter(Module):
             fan_in, _ = init._calculate_fan_in_and_fan_out(weight_global_shape)
             bound = 1 / math.sqrt(fan_in) if fan_in > 0 else 0
             init.uniform_(self.bias, -bound, bound)
+
+    def gather_state_dict(self, module, destination, prefix, *args):
+
+        if self.collect_state and self.P_x.active:
+            if self.use_bias and self.bias is not None:
+                
+                # Pop bias from state dict and serialize it
+                bias_key = next(reversed(destination))
+                bias = destination.pop(bias_key)
+
+                #if self.P_store_bias.active:
+                #    torch.save(bias, bias_key)
+
+            # Collect weights (second last entry added to dict)
+            weight_key = next(reversed(destination))
+            weight = self.gather_weight(destination.pop(weight_key))
+
+            # Serialize weights
+            if self.P_root.active:
+                #torch.save(weight, weight_key)
+
+                # Add filenames back to state dict
+                destination[weight_key] = weight#weight_key
+
+                if self.use_bias:
+                    destination[bias_key] = bias#bias_key
+                
+        return destination
+
+    def scatter_state_dict(self, destination, prefix, *args):
+        if self.collect_state and self.P_x.active:
+
+            # Scatter weights
+            weight_key = next(iter(destination))
+            weight = destination.pop(weight_key)#destination.pop(weight_key)
+            if self.P_root.active:
+                pass
+                #weight = torch.load(weight_key)
+            else:
+                weight = zero_volume_tensor(device=self.P_x.device, requires_grad=True)
+            if self.P_weight.active:
+                weight = self.scatter_weight(weight)
+
+            # Load bias
+            if self.use_bias:
+                bias_key = next(iter(destination))
+                bias = destination.pop(bias_key)#destination.pop(bias_key)
+
+                if self.P_store_bias.active:
+                    #bias = torch.load(bias_key)
+                    destination[bias_key] = bias
+
+                elif self.P_apply_bias.active:
+                    bias = zero_volume_tensor(device=self.P_x.device, requires_grad=True)
+                    destination[bias_key] = bias
+
+            if self.P_x.active:
+                destination[weight_key] = weight
+
+        return destination
 
     def forward(self, input):
         r"""Forward function interface.
