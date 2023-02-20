@@ -128,7 +128,7 @@ class MPIPartition:
         if device != None:
            self.device = device
         else:
-            if self._comm == MPI.COMM_WORLD:
+            if not self._comm == MPI.COMM_NULL:
                 self.set_device()
             self.device = backends.backend.get_device()
 

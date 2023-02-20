@@ -1,6 +1,8 @@
 import pytest
 from adjoint_test import check_adjoint_test_tight
 
+BACKEND_COMM = "mpi"
+BACKEND_ARRAY = "numpy"
 
 @pytest.mark.parametrize("comm_split_fixture", [1], indirect=["comm_split_fixture"])
 def test_buffer_expansion(barrier_fence_fixture,
@@ -8,6 +10,9 @@ def test_buffer_expansion(barrier_fence_fixture,
 
     import numpy as np
     from distdl.backends import backend
+    from distdl.config import set_backend
+
+    set_backend(backend_comm=BACKEND_COMM, backend_array=BACKEND_ARRAY)
 
     # Isolate the minimum needed ranks
     base_comm, active = comm_split_fixture
@@ -84,6 +89,9 @@ def test_buffer_management(barrier_fence_fixture,
 
     import numpy as np
     from distdl.backends import backend
+    from distdl.config import set_backend
+    
+    set_backend(backend_comm=BACKEND_COMM, backend_array=BACKEND_ARRAY)
 
     # Isolate the minimum needed ranks
     base_comm, active = comm_split_fixture
@@ -125,7 +133,10 @@ def test_buffer_management_transpose_network(barrier_fence_fixture,
     from distdl.backends import backend
     from distdl.backends.common.partition import MPIPartition
     from distdl.utilities.torch import zero_volume_tensor
-
+    from distdl.config import set_backend
+    
+    set_backend(backend_comm=BACKEND_COMM, backend_array=BACKEND_ARRAY)
+    
     # Isolate the minimum needed ranks
     base_comm, active = comm_split_fixture
     if not active:
@@ -149,9 +160,9 @@ def test_buffer_management_transpose_network(barrier_fence_fixture,
     tr3 = distdl.nn.Repartition(P_4, P_3, buffer_manager=buffer_manager)
     tr4 = distdl.nn.Repartition(P_3, P_1, buffer_manager=buffer_manager)
 
-    x = zero_volume_tensor(1)
+    x = zero_volume_tensor(1, device=P_world.device)
     if P_1.active:
-        x = torch.randn(1, 10)
+        x = torch.randn(1, 10, device=P_world.device)
     x.requires_grad = True
 
     # [0   1   2   3   4   5   6   7   8   9] to
@@ -178,9 +189,9 @@ def test_buffer_management_transpose_network(barrier_fence_fixture,
     n_buffers_by_rank = (3, 2, 2, 1)
     assert len(buffer_manager.buffers_map[np.float32]) == n_buffers_by_rank[P_world.rank]
 
-    dy = zero_volume_tensor(1)
+    dy = zero_volume_tensor(1, device=P_world.device)
     if P_1.active:
-        dy = torch.randn(1, 10)
+        dy = torch.randn(1, 10, device=P_world.device)
     dy.requires_grad = True
 
     y.backward(dy)
@@ -191,7 +202,7 @@ def test_buffer_management_transpose_network(barrier_fence_fixture,
     assert len(buffer_manager.buffers_map[np.float32]) == n_buffers_by_rank[P_world.rank]
 
     # And adjointness is still preserved
-
+    
     x = x.detach()
     dx = dx.detach()
     dy = dy.detach()
@@ -219,6 +230,9 @@ def test_buffer_management_conv2d_network(barrier_fence_fixture,
     from distdl.backends import backend
     from distdl.backends.common.partition import MPIPartition
     from distdl.utilities.torch import zero_volume_tensor
+    from distdl.config import set_backend
+    
+    set_backend(backend_comm=BACKEND_COMM, backend_array=BACKEND_ARRAY)
 
     # Isolate the minimum needed ranks
     base_comm, active = comm_split_fixture
@@ -251,9 +265,9 @@ def test_buffer_management_conv2d_network(barrier_fence_fixture,
                                      bias=False, buffer_manager=buffer_manager)
     tr2 = distdl.nn.Repartition(P_22, P_1)
 
-    x = zero_volume_tensor(1)
+    x = zero_volume_tensor(1, device=P_world.device)
     if P_1.active:
-        x = torch.randn(1, 1, 5, 5)
+        x = torch.randn(1, 1, 5, 5, device=P_world.device)
     x.requires_grad = True
 
     # [[00   01   02   03   04]      [[00   01   02]  [[03   04]
@@ -297,9 +311,9 @@ def test_buffer_management_conv2d_network(barrier_fence_fixture,
     #  [40   41   42]]  [43   44]]     [40   41   42   43   44]]
     y = tr2(x5)
 
-    dy = zero_volume_tensor(1)
+    dy = zero_volume_tensor(1, device=P_world.device)
     if P_1.active:
-        dy = torch.randn(1, 20, 5, 5)
+        dy = torch.randn(1, 20, 5, 5, device=P_world.device)
     dy.requires_grad = True
 
     y.backward(dy)
@@ -336,6 +350,9 @@ def test_buffer_management_mixed_network(barrier_fence_fixture,
     from distdl.backends import backend
     from distdl.backends.common.partition import MPIPartition
     from distdl.utilities.torch import zero_volume_tensor
+    from distdl.config import set_backend
+    
+    set_backend(backend_comm=BACKEND_COMM, backend_array=BACKEND_ARRAY)
 
     # Isolate the minimum needed ranks
     base_comm, active = comm_split_fixture
@@ -368,9 +385,9 @@ def test_buffer_management_mixed_network(barrier_fence_fixture,
                                      bias=False, buffer_manager=buffer_manager)
     tr2 = distdl.nn.Repartition(P_22, P_1, buffer_manager=buffer_manager)
 
-    x = zero_volume_tensor(1)
+    x = zero_volume_tensor(1, device=P_world.device)
     if P_1.active:
-        x = torch.randn(1, 1, 5, 5)
+        x = torch.randn(1, 1, 5, 5, device=P_world.device)
     x.requires_grad = True
 
     # [[00   01   02   03   04]      [[00   01   02]  [[03   04]
@@ -418,9 +435,9 @@ def test_buffer_management_mixed_network(barrier_fence_fixture,
     n_buffers_by_rank = (4, 4, 4, 4)
     assert len(buffer_manager.buffers_map[np.float32]) == n_buffers_by_rank[P_world.rank]
 
-    dy = zero_volume_tensor(1)
+    dy = zero_volume_tensor(1, device=P_world.device)
     if P_1.active:
-        dy = torch.randn(1, 20, 5, 5)
+        dy = torch.randn(1, 20, 5, 5, device=P_world.device)
     dy.requires_grad = True
 
     y.backward(dy)
