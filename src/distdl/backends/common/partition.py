@@ -127,23 +127,17 @@ class MPIPartition:
     def initialize_backend_comm(self):
         if self._comm != MPI.COMM_NULL and self.active and backends.backend.__name__ == 'nccl_cupy':
             if self._nccl is None:
-                
-                #print("Create NCCL comm")
-                #self._nccl = backends.backend.nccl_comm.NCCLBackend(self._comm, self.size, self.rank)
-                
+
                 # Check if NCCL comm for current communicator already exists.
                 root_group = self._root.Get_group()
                 global_rank = root_group.Translate_ranks(self._group, [self._group.rank])
-                all_ranks = str(np.sort(self.allgather_data(global_rank).reshape(-1)))
+                all_ranks = str(self.allgather_data(global_rank).reshape(-1))
                 hash_comm = hash(all_ranks)
-                #print("Requested NCCL comm for ranks: ", all_ranks, hash_comm)
 
                 # If not, create new NCCL comm and add to the store. Otherwise, use existing comm.
                 if hash_comm in backends.backend.comm_store.keys():
-                    #print("Re-use comm")
                     self._nccl = backends.backend.comm_store[hash_comm]
                 else:
-                    #print("Create new comm for ranks: ", all_ranks, hash_comm)
                     self._nccl = backends.backend.nccl_comm.NCCLBackend(self._comm, self.size, self.rank)
                     backends.backend.comm_store.update({hash_comm: self._nccl})
 
