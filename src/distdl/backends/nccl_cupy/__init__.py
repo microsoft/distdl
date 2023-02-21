@@ -17,3 +17,6 @@ from .buffer_cupy import MPIExpandableCupyBuffer as ExpandableBuffer
 from .device import set_device, get_device
 
 __name__ = 'nccl_cupy'
+
+# Dictionary of active nccl communicators
+comm_store = {}
