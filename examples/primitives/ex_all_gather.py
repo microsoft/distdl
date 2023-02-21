@@ -66,11 +66,11 @@ print(f"P_world.rank {P_world.rank}; P_x.index {P_x.index}; x value: \n{x}\n")
 
 # Create the all-gather layer.  Note, only one of the keep/reduce axes is
 # required.  If they are both specified they must be mutually coherent.
-# Commented out declarations are equivalent.  `axes_reduce_scatter` is equivalent
+# Commented out declarations are equivalent.  `axes_all_gather` is equivalent
 # to PyTorch's dimension argument in torch.sum().
 #
 # Here we all-gather the columns (axis 1), along the rows.
-all_gather_cols = AllGather(P_x, axes_reduce_scatter=(1,))
+all_gather_cols = AllGather(P_x, axes_all_gather=(1,))
 
 # Output tensor will be (on a 2 x 3 partition):
 # [ [ 1 2 3 | 1 2 3 | 1 2 3 ]

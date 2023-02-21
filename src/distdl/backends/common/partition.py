@@ -117,14 +117,6 @@ class MPIPartition:
         self.shape = np.array([self.size], dtype=np.int)
         self.dim = len(self.shape)
 
-        # Create backend communicator. For now, the NCCL backend is the only
-        # case for which frontend and backend communicators are different.
-        if initialize_backend_comm is True and self._comm != MPI.COMM_NULL:
-            if backends.backend.__name__ == 'nccl_cupy':
-                self._nccl = backends.backend.nccl_comm.NCCLBackend(self._comm, self.size, self.rank)
-            else:
-                pass
-
         if device != None:
            self.device = device
         else:
@@ -133,9 +125,21 @@ class MPIPartition:
             self.device = backends.backend.get_device()
 
     def initialize_backend_comm(self):
-        if self._comm != MPI.COMM_NULL and backends.backend.__name__ == 'nccl_cupy':
+        if self._comm != MPI.COMM_NULL and self.active and backends.backend.__name__ == 'nccl_cupy':
             if self._nccl is None:
-                self._nccl = backends.backend.nccl_comm.NCCLBackend(self._comm, self.size, self.rank)
+
+                # Check if NCCL comm for current communicator already exists.
+                root_group = self._root.Get_group()
+                global_rank = root_group.Translate_ranks(self._group, [self._group.rank])
+                all_ranks = str(np.sort(self.allgather_data(global_rank).reshape(-1)))
+                hash_comm = hash(all_ranks)
+
+                # If not, create new NCCL comm and add to the store. Otherwise, use existing comm.
+                if hash_comm in backends.backend.comm_store.keys():
+                    self._nccl = backends.backend.comm_store[hash_comm]
+                else:
+                    self._nccl = backends.backend.nccl_comm.NCCLBackend(self._comm, self.size, self.rank)
+                    backends.backend.comm_store.update({hash_comm: self._nccl})
 
     def set_device(self):
         self.device = backends.backend.set_device(rank=self.rank)
@@ -275,8 +279,11 @@ class MPIPartition:
 
         comm = self._root.Create_group(group)
 
-        return MPIPartition(comm, group, root=self._root, device=self.device, 
-            initialize_backend_comm=initialize_backend_comm)
+        P_union = MPIPartition(comm, group, root=self._root, device=self.device)
+        if initialize_backend_comm:
+            P_union.initialize_backend_comm()
+
+        return P_union
 
     def create_cartesian_topology_partition(self, shape, **options):
         r"""Creates new partition with Cartesian topology.
@@ -451,30 +458,34 @@ class MPIPartition:
             if recv_ranks[0] < send_ranks[0]:
                 comm_recv = P_union._comm.Create_group(group_recv, tag=recv_ranks[0])
                 P_recv = MPIPartition(comm_recv, group_recv, root=P_union._root, 
-                    device=P_union.device, initialize_backend_comm=initialize_backend_comm)
+                    device=P_union.device)
                 comm_send = P_union._comm.Create_group(group_send, tag=send_ranks[0])
                 P_send = MPIPartition(comm_send, group_send, root=P_union._root, 
-                    device=P_union.device, initialize_backend_comm=initialize_backend_comm)
+                    device=P_union.device)
             else:
                 comm_send = P_union._comm.Create_group(group_send, tag=send_ranks[0])
                 P_send = MPIPartition(comm_send, group_send, root=P_union._root, 
-                    device=P_union.device, initialize_backend_comm=initialize_backend_comm)
+                    device=P_union.device)
                 comm_recv = P_union._comm.Create_group(group_recv, tag=recv_ranks[0])
                 P_recv = MPIPartition(comm_recv, group_recv, root=P_union._root, 
-                    device=P_union.device, initialize_backend_comm=initialize_backend_comm)
+                    device=P_union.device)
         elif has_send_group and not has_recv_group and not same_send_recv_group:
             comm_send = P_union._comm.Create_group(group_send, tag=send_ranks[0])
             P_send = MPIPartition(comm_send, group_send, root=P_union._root, 
-                device=P_union.device, initialize_backend_comm=initialize_backend_comm)
+                device=P_union.device)
         elif not has_send_group and has_recv_group and not same_send_recv_group:
             comm_recv = P_union._comm.Create_group(group_recv, tag=recv_ranks[0])
             P_recv = MPIPartition(comm_recv, group_recv, root=P_union._root, 
-                device=P_union.device, initialize_backend_comm=initialize_backend_comm)
+                device=P_union.device)
         else:  # if has_send_group and has_recv_group and same_send_recv_group
             comm_send = P_union._comm.Create_group(group_send, tag=send_ranks[0])
             P_send = MPIPartition(comm_send, group_send, root=P_union._root, 
-                device=P_union.device, initialize_backend_comm=initialize_backend_comm)
+                device=P_union.device)
             P_recv = P_send
+
+        if initialize_backend_comm:
+            P_send.initialize_backend_comm()
+            P_recv.initialize_backend_comm()
 
         return P_send, P_recv
 
