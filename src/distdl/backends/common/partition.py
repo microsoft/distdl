@@ -131,7 +131,7 @@ class MPIPartition:
                 # Check if NCCL comm for current communicator already exists.
                 root_group = self._root.Get_group()
                 global_rank = root_group.Translate_ranks(self._group, [self._group.rank])
-                all_ranks = str(np.sort(self.allgather_data(global_rank).reshape(-1)))
+                all_ranks = str(self.allgather_data(global_rank).reshape(-1))
                 hash_comm = hash(all_ranks)
 
                 # If not, create new NCCL comm and add to the store. Otherwise, use existing comm.
