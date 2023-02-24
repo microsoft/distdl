@@ -72,6 +72,11 @@ class DistributedEmbedding(Module):
         if not self.P_x.active:
             return
 
+        # Root partition for initializing weights
+        P_root_base = P_x.create_partition_inclusive([0])
+        self.P_root = P_root_base.create_cartesian_topology_partition([1]*self.P_x.dim)
+        P_root_base.deactivate()
+
         # Partition for storing weights
         weight_partition_shape = [1] * P_x.dim
         weight_partition_shape[-1] = P_x.shape[-1]
@@ -87,6 +92,7 @@ class DistributedEmbedding(Module):
         # Broadcast weights
         self.P_weight = P_weight
         self.broadcast = Broadcast(self.P_weight, self.P_x)
+        self.init_scatter = Repartition(self.P_root, self.P_weight)
 
         # Local embedding size
         embedding_dim_local = compute_subshape(P_x.shape[-1],
@@ -117,9 +123,16 @@ class DistributedEmbedding(Module):
             self.gather_weight = Repartition(P_weight, self.P_root, preserve_batch=False)
             self.scatter_weight = Repartition(self.P_root, P_weight, preserve_batch=False)
 
-    def reset_parameters(self):
+    def reset_parameters(self, init=init.normal_, mean=0.0, std=1.0):
         if self.P_weight.active:
-            init.normal_(self.weight)
+            weight_shape = [1] * self.P_x.dim
+            weight_shape[-2] = self.num_embeddings
+            weight_shape[-1] = self.embedding_dim
+            weight = torch.empty(weight_shape, device=self.P_x.device)
+            init(weight, mean=mean, std=std)
+            weight = self.init_scatter(weight)
+            with torch.no_grad():
+                self.weight[:] = weight
         self._fill_padding_idx_with_zero()
 
     def _fill_padding_idx_with_zero(self):
