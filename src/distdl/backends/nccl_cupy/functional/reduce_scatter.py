@@ -81,11 +81,12 @@ class ReduceScatterFunction(torch.autograd.Function):
             # Allocate output array
             cupy_dtype = torch_to_cupy_dtype_dict[input_tensor_structure.dtype]
             scattered_data = cp.zeros(output_tensor_structure.shape, dtype=cupy_dtype)
+            input_cupy = cp.asarray(input.detach(), dtype=cupy_dtype)
 
             # Re-order input array
             input_flat = cp.zeros(np.prod(input.shape), dtype=cupy_dtype)
             for cart, flat in zip(*slices):
-                input_flat[flat] = cp.array(input[cart].detach().reshape(-1))
+                input_flat[flat] = input_cupy[cart].reshape(-1)
 
             count = cp.prod(cp.array(scattered_data.shape)).item()
             P_reducescatter._nccl.reduce_scatter(input_flat, scattered_data, count, op='sum', stream=None)
@@ -129,12 +130,13 @@ class ReduceScatterFunction(torch.autograd.Function):
         slices = ctx.slices
 
         grad_input = zero_volume_tensor(device=device)
+        cupy_dtype = torch_to_cupy_dtype_dict[input_tensor_structure.dtype]
 
         # All-gather operation
         if P_reducescatter.active:
-            cupy_dtype = torch_to_cupy_dtype_dict[input_tensor_structure.dtype]
+            
             gathered_data = cp.zeros(np.prod(input_tensor_structure.shape), dtype=cupy_dtype)
-            grad_output_cupy = cp.asarray(grad_output.detach().contiguous())
+            grad_output_cupy = cp.asarray(grad_output.detach().contiguous(), dtype=cupy_dtype)
             count = cp.prod(cp.array(grad_output_cupy.shape)).item()
             P_reducescatter._nccl.all_gather(grad_output_cupy, gathered_data, count, stream=None)
 
@@ -142,13 +144,12 @@ class ReduceScatterFunction(torch.autograd.Function):
         if P_reducescatter.active:
 
             # Re-order flat output array from all-gather to correct cartesian shape
-            grad_input = torch.zeros(torch.Size(input_tensor_structure.shape), 
-                dtype=input_tensor_structure.dtype, device=device)
+            grad_input_cupy = cp.zeros(input_tensor_structure.shape, dtype=cupy_dtype)
                 
             for cart, flat in zip(*slices):
-                grad_input[cart] = torch.tensor(gathered_data[flat].reshape(output_tensor_structure.shape), 
-                    device=device)
+                grad_input_cupy[cart] = gathered_data[flat].reshape(output_tensor_structure.shape)
                 
+            grad_input = torch.as_tensor(grad_input_cupy, dtype=input_tensor_structure.dtype, device=device)
             grad_input.requires_grad_(input_tensor_structure.requires_grad)
 
         return grad_input, None, None, None, None
