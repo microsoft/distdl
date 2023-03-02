@@ -160,10 +160,10 @@ class DistributedEmbedding(Module):
 
             # Serialize weights
             if self.P_root.active:
-                #torch.save(weight, weight_key)
+                torch.save(weight, weight_key)
 
                 # Add filenames back to state dict
-                destination[weight_key] = weight#weight_key
+                destination[weight_key] = weight_key
 
         return destination
 
@@ -172,10 +172,9 @@ class DistributedEmbedding(Module):
 
             # Scatter weights
             weight_key = next(iter(destination))
-            weight = destination.pop(weight_key)#destination.pop(weight_key)
+            destination.pop(weight_key)
             if self.P_root.active:
-                pass
-                #weight = torch.load(weight_key)
+                weight = torch.load(weight_key)
             else:
                 weight = zero_volume_tensor(device=self.P_x.device, requires_grad=True)
             if self.P_weight.active:

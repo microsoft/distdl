@@ -132,8 +132,8 @@ class DistributedLayerNorm(Module):
             # Pop bias from state dict and serialize it
             bias_key = next(reversed(destination))
             bias = self.gather(destination.pop(bias_key))
-            #if self.P_root.active:
-                #torch.save(bias, bias_key)
+            if self.P_root.active:
+                torch.save(bias, bias_key)
 
             # Pop weight from state dict and serialize it
             weight_key = next(reversed(destination))
@@ -141,11 +141,11 @@ class DistributedLayerNorm(Module):
 
             # Serialize weights
             if self.P_root.active:
-                #torch.save(weight, weight_key)
+                torch.save(weight, weight_key)
 
                 # Add filenames back to state dict
-                destination[weight_key] = weight#weight_key
-                destination[bias_key] = bias#bias_key
+                destination[weight_key] = weight_key
+                destination[bias_key] = bias_key
 
         return destination
 
@@ -154,15 +154,14 @@ class DistributedLayerNorm(Module):
             
             # Pop entries from state dict
             weight_key = next(iter(destination))
-            weight = destination.pop(weight_key)#destination.pop(weight_key)
+            destination.pop(weight_key)
             bias_key = next(iter(destination))
-            bias = destination.pop(bias_key)#destination.pop(bias_key)
+            destination.pop(bias_key)
 
             # Load states
             if self.P_root.active:
-                pass
-                #weight = torch.load(weight_key)
-                #bias = torch.load(bias_key)
+                weight = torch.load(weight_key)
+                bias = torch.load(bias_key)
             else:
                 weight = zero_volume_tensor(device=self.P_x.device, requires_grad=True)
                 bias = zero_volume_tensor(device=self.P_x.device, requires_grad=True)

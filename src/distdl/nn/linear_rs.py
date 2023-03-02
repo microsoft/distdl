@@ -203,8 +203,8 @@ class DistributedLinearReduceScatter(Module):
                 bias_key = next(reversed(destination))
                 bias = destination.pop(bias_key)
 
-                #if self.P_store_bias.active:
-                #    torch.save(bias, bias_key)
+                if self.P_store_bias.active:
+                    torch.save(bias, bias_key)
 
             # Collect weights (second last entry added to dict)
             weight_key = next(reversed(destination))
@@ -212,13 +212,13 @@ class DistributedLinearReduceScatter(Module):
 
             # Serialize weights
             if self.P_root.active:
-                #torch.save(weight, weight_key)
+                torch.save(weight, weight_key)
 
                 # Add filenames back to state dict
-                destination[weight_key] = weight#weight_key
+                destination[weight_key] = weight_key
 
                 if self.use_bias:
-                    destination[bias_key] = bias#bias_key
+                    destination[bias_key] = bias_key
                 
         return destination
 
@@ -227,10 +227,10 @@ class DistributedLinearReduceScatter(Module):
 
             # Scatter weights
             weight_key = next(iter(destination))
-            weight = destination.pop(weight_key)#destination.pop(weight_key)
+            destination.pop(weight_key)
             if self.P_root.active:
                 pass
-                #weight = torch.load(weight_key)
+                weight = torch.load(weight_key)
             else:
                 weight = zero_volume_tensor(device=self.P_x.device, requires_grad=True)
             if self.P_weight.active:
@@ -239,10 +239,10 @@ class DistributedLinearReduceScatter(Module):
             # Load bias
             if self.use_bias:
                 bias_key = next(iter(destination))
-                bias = destination.pop(bias_key)#destination.pop(bias_key)
+                destination.pop(bias_key)
 
                 if self.P_store_bias.active:
-                    #bias = torch.load(bias_key)
+                    bias = torch.load(bias_key)
                     destination[bias_key] = bias
 
                 elif self.P_apply_bias.active:

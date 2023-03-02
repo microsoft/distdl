@@ -240,7 +240,7 @@ class DistributedLinearAllGather(Module):
                 if self.P_root.active:
                     if self.num_heads is not None: bias = self.qkv_weight_to_serial(bias)
                     if self.geglu: bias = self.geglu_weight_to_serial(bias)
-                    #torch.save(bias, bias_key)
+                    torch.save(bias, bias_key)
 
             # Collect weights and serialize (second last entry added to dict)
             weight_key = next(reversed(destination))
@@ -249,14 +249,14 @@ class DistributedLinearAllGather(Module):
             if self.P_root.active:
                 if self.num_heads is not None: weight = self.qkv_weight_to_serial(weight)
                 if self.geglu: weight = self.geglu_weight_to_serial(weight)
-                #torch.save(weight, weight_key)
+                torch.save(weight, weight_key)
 
                 # Save filenames in state dict rather than the full weights. Only the root
                 # should have the keys in the end.
-                destination[weight_key] = weight#weight_key
+                destination[weight_key] = weight_key
 
                 if self.use_bias:
-                    destination[bias_key] = bias#bias_key
+                    destination[bias_key] = bias_key
 
         return destination
 
@@ -265,9 +265,9 @@ class DistributedLinearAllGather(Module):
 
             # Scatter weights
             weight_key = next(iter(destination))
-            weight = destination.pop(weight_key)#destination.pop(weight_key)
+            destination.pop(weight_key)
             if self.P_root.active:
-                #weight = torch.load(weight_key)
+                weight = torch.load(weight_key)
                 if self.num_heads is not None: weight = self.qkv_weight_to_parallel(weight)
                 if self.geglu: weight = self.geglu_weight_to_parallel(weight)
             else:
@@ -278,9 +278,9 @@ class DistributedLinearAllGather(Module):
             # Scatter bias
             if self.use_bias:
                 bias_key = next(iter(destination))
-                bias = destination.pop(bias_key)#destination.pop(bias_key)
+                destination.pop(bias_key)
                 if self.P_root.active:
-                    #bias = torch.load(bias_key)
+                    bias = torch.load(bias_key)
                     if self.num_heads is not None: bias = self.qkv_weight_to_parallel(bias)
                     if self.geglu: bias = self.geglu_weight_to_parallel(bias)
                 elif self.P_apply_weight.active:
