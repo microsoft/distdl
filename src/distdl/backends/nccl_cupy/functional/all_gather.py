@@ -82,12 +82,15 @@ class AllGatherFunction(torch.autograd.Function):
             cupy_dtype = torch_to_cupy_dtype_dict[input_tensor_structure.dtype]
             gathered_data = cp.zeros(np.prod(output_tensor_structure.shape), dtype=cupy_dtype)
 
-            # All-gather
+            # All-gather (Conversion from torch cuda tensor to cupy array is via pointers. No mem copy.)
             input_cupy = cp.asarray(input.detach(), dtype=cupy_dtype)
+            #assert input.__cuda_array_interface__['data'][0] == input_cupy.__cuda_array_interface__['data'][0]
             count = cp.prod(cp.array(input_cupy.shape)).item()
             P_allgather._nccl.all_gather(input_cupy, gathered_data, count, stream=None)
 
         # If we had to receive data, we need to tensorify it.
+        gathered_data_torch = torch.as_tensor(gathered_data, dtype=output_tensor_structure.dtype, device=device)
+        #assert gathered_data_torch.__cuda_array_interface__['data'][0] == gathered_data.__cuda_array_interface__['data'][0]
         if P_allgather.active:
             
             # Re-order flat output array from all-gather to correct cartesian shape
@@ -95,8 +98,7 @@ class AllGatherFunction(torch.autograd.Function):
                 dtype=output_tensor_structure.dtype, device=device)
                 
             for cart, flat in zip(*slices):
-                output[cart] = torch.tensor(gathered_data[flat].reshape(input_tensor_structure.shape), 
-                    device=device)
+                output[cart] = gathered_data_torch[flat].reshape(input_tensor_structure.shape)
                 
             output.requires_grad_(output_tensor_structure.requires_grad)
 
@@ -142,9 +144,10 @@ class AllGatherFunction(torch.autograd.Function):
             scattered_data = cp.zeros(input_tensor_structure.shape, dtype=cupy_dtype)
 
             # Re-order input array
+            grad_output_cupy = cp.asarray(grad_output.detach(), dtype=cupy_dtype)
             grad_output_flat = cp.zeros(np.prod(grad_output.shape), dtype=cupy_dtype)
             for cart, flat in zip(*slices):
-                grad_output_flat[flat] = cp.array(grad_output[cart].detach().reshape(-1))
+                grad_output_flat[flat] = grad_output_cupy[cart].reshape(-1)
 
             # Reduce-scatter primitive
             count = cp.prod(cp.array(scattered_data.shape)).item()
