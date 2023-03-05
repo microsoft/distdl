@@ -38,6 +38,7 @@ from .interpolate import Interpolate  # noqa: F401
 from .layernorm import DistributedLayerNorm
 from .linear import DistributedLinear  # noqa: F401
 from .linear_ag import DistributedLinearAllGather  # noqa: F401
+from .linear_ag_zero import DistributedLinearAllGatherZero  # noqa: F401
 from .linear_rs import DistributedLinearReduceScatter  # noqa: F401
 from .loss import DistributedBCELoss  # noqa: F401
 from .loss import DistributedBCEWithLogitsLoss  # noqa: F401
@@ -93,6 +94,7 @@ __all__ = ["AllSumReduce",
            "DistributedLayerNorm",
            "DistributedLinear",
            "DistributedLinearAllGather",
+           "DistributedLinearAllGatherZero",
            "DistributedLinearReduceScatter",
            "DistributedL1Loss",
            "DistributedMSELoss",
