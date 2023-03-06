@@ -40,6 +40,7 @@ from .linear import DistributedLinear  # noqa: F401
 from .linear_ag import DistributedLinearAllGather  # noqa: F401
 from .linear_ag_zero import DistributedLinearAllGatherZero  # noqa: F401
 from .linear_rs import DistributedLinearReduceScatter  # noqa: F401
+from .linear_rs_zero import DistributedLinearReduceScatterZero  # noqa: F401
 from .loss import DistributedBCELoss  # noqa: F401
 from .loss import DistributedBCEWithLogitsLoss  # noqa: F401
 from .loss import DistributedKLDivLoss  # noqa: F401
@@ -96,6 +97,7 @@ __all__ = ["AllSumReduce",
            "DistributedLinearAllGather",
            "DistributedLinearAllGatherZero",
            "DistributedLinearReduceScatter",
+           "DistributedLinearReduceScatterZero",
            "DistributedL1Loss",
            "DistributedMSELoss",
            "DistributedPoissonNLLLoss",
