@@ -5,8 +5,8 @@ from distdl.config import set_backend
 
 import distdl.utilities.slicing as slicing
 from distdl.backends.common.partition import MPIPartition
-from distdl.nn.linear_rs import DistributedLinearReduceScatter
-from distdl.nn.linear_ag import DistributedLinearAllGather
+from distdl.nn.linear_rs_zero import DistributedLinearReduceScatterZero
+from distdl.nn.linear_ag_zero import DistributedLinearAllGatherZero
 from distdl.utilities.slicing import compute_subshape
 from distdl.utilities.torch import zero_volume_tensor
 from distdl.nn.repartition import Repartition
@@ -36,9 +36,8 @@ in_channels = 32
 out_channels = 48
 
 # Layer
-network = DistributedLinearAllGather(P_x, in_channels, out_channels, collect_state=True).to(P_x.device)
-#linear2 = DistributedLinearReduceScatter(P_x, out_channels, in_channels, collect_state=True, bias=False).to(P_x.device)
-#network = torch.nn.Sequential(linear1, linear2)
+#network = DistributedLinearAllGatherZero(P_x, in_channels, out_channels, collect_state=True).to(P_x.device)
+network = DistributedLinearReduceScatterZero(P_x, in_channels, out_channels, collect_state=True).to(P_x.device)
 
 # Scatter/gather data
 scatter_x = Repartition(P_root, P_x, preserve_batch=False)
@@ -59,7 +58,7 @@ if mode == 'training':
     s = network.state_dict()
     if P_root.active:
        torch.save(s, 'state.dat')
-    #print(s.keys())
+    print(s.keys())
 
     # Forward pass
     y = network(x)
