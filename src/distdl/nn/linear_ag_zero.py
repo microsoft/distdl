@@ -194,39 +194,40 @@ class DistributedLinearAllGatherZero(Module):
 
     def _unsqueeze_weight(self, weight):
         shape = [1]*self.P_x.dim
-        shape[-2] = weight.shape[-2]
-        shape[-1] = weight.shape[-1]
+        shape[0] = weight.shape[0]
+        shape[1] = weight.shape[1]
         return weight.view(shape)
 
     def _squeeze_weight(self, weight):
-        c_out, c_in = weight.shape[-2:]
-        return weight.view(c_out, c_in)
+        c_in = weight.shape[0]
+        c_out = weight.shape[-2]
+        return weight.view(c_in, c_out)
 
     def qkv_weight_to_serial(self, weight):
         head_size = weight.shape[-2] // self.num_vars // self.num_heads
         num_gpu = self.P_weight.shape[-2]
-        weight = rearrange(self._squeeze_weight(weight), "(p v h) n -> (v p h) n", 
+        weight = rearrange(self._squeeze_weight(weight), "n (p v h) -> n (v p h)", 
             p=num_gpu, v=self.num_vars, h=self.num_heads//num_gpu*head_size)
         return self._unsqueeze_weight(weight)
 
     def qkv_weight_to_parallel(self, weight):
         head_size = weight.shape[-2] // self.num_vars // self.num_heads
         num_gpu = self.P_weight.shape[-2]
-        weight = rearrange(self._squeeze_weight(weight), "(v p h) n -> (p v h) n", 
+        weight = rearrange(self._squeeze_weight(weight), "n (v p h) -> n (p v h)", 
             p=num_gpu, v=self.num_vars, h=self.num_heads//num_gpu*head_size)
         return self._unsqueeze_weight(weight)
 
     def geglu_weight_to_serial(self, weight):
         num_gpu = self.P_weight.shape[-2]
         weight_size = weight.shape[-2] // 2 // num_gpu
-        weight = rearrange(self._squeeze_weight(weight), "(p v h) n -> (v p h) n", 
+        weight = rearrange(self._squeeze_weight(weight), "n (p v h) -> n (v p h)", 
             p=num_gpu, v=2, h=weight_size)
         return self._unsqueeze_weight(weight)
 
     def geglu_weight_to_parallel(self, weight):
         num_gpu = self.P_weight.shape[-2]
         weight_size = weight.shape[-2] // 2 // num_gpu
-        weight = rearrange(self._squeeze_weight(weight), "(v p h) n -> (p v h) n", 
+        weight = rearrange(self._squeeze_weight(weight), "n (v p h -> n (p v h)", 
             p=num_gpu, v=2, h=weight_size)
         return self._unsqueeze_weight(weight)
         
@@ -250,7 +251,7 @@ class DistributedLinearAllGatherZero(Module):
             weight = self.gather_weight(destination.pop(weight_key))
 
             if self.P_root.active:
-                if self.num_heads is not None: weight = self.qkv_weight_to_serial(weight)
+                if self.num_heads is not None: weight = self.qkv_weight_to_serial(weight)   # [ c_in, c_out, 1]
                 if self.geglu: weight = self.geglu_weight_to_serial(weight)
                 torch.save(weight, weight_key)
 

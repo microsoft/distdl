@@ -47,20 +47,16 @@ class DistributedLinearReduceScatterZero(Module):
         Number of features in the *global* output tensor.
     bias : bool
         Indicates if a bias term should be used.
-    P_store_bias: optional
-        Partition for storing the bias. Must have the same
-        dimension as P_x with size 1 in every dimension.
-    P_apply_bias: optional
-        Partition on which bias is applied. Must have the 
-        same size as P_x in every but the last 2 dimensions,
-        which must be 1.
+    P_bias: optional
+        Partition for bias. Must have the same size as P_x in 
+        every but the last 2 dimensions, which must be 1.
     collect_state: bool, optional
         If true, creates partitions to gather/scatter weights & 
         biases for saving/loading state dictionaries.
     """
 
     def __init__(self, P_x, in_features, out_features, bias=True, device=None, dtype=None,
-        P_store_bias=None, P_apply_bias=None, collect_state=False, geglu=False):
+        P_bias=None, collect_state=False, geglu=False):
 
         super(DistributedLinearReduceScatterZero, self).__init__()
 
@@ -81,22 +77,12 @@ class DistributedLinearReduceScatterZero(Module):
         self.use_bias = bias
         self.geglu = geglu
 
-
-        # Partition for storing bias
-        if P_store_bias is not None:
-            assert P_x.dim == P_store_bias.dim
-            assert np.prod(P_store_bias.shape) == 1
-        elif bias:
-            P_store_bias_base = P_x.create_partition_inclusive([0])
-            P_store_bias = P_store_bias_base.create_cartesian_topology_partition([1] * P_x.dim)
-            P_store_bias_base.deactivate()
-
         # Partition for applying bias
-        if P_apply_bias is not None:
-            assert P_x.dim == P_apply_bias.dim
-            assert np.prod(P_apply_bias.shape[-2:]) == 1
+        if P_bias is not None:
+            assert P_x.dim == P_bias.dim
+            assert np.prod(P_bias.shape[-2:]) == 1
             for i in range(P_x.dim-2):
-                assert P_apply_bias.shape[i] == P_x.shape[i]
+                assert P_bias.shape[i] == P_x.shape[i]
         elif bias:
             apply_bias_partition_shape = P_x.shape.copy()
             apply_bias_partition_shape[-2:] = 1
@@ -106,19 +92,18 @@ class DistributedLinearReduceScatterZero(Module):
                 index_bias[i] = slice(0, P_x.shape[i])
             apply_bias_workers = worker_layout(P_x.shape)[tuple(index_bias)].reshape(-1).tolist()
             
-            P_apply_bias_base = P_x.create_partition_inclusive(apply_bias_workers)
-            P_apply_bias = P_apply_bias_base.create_cartesian_topology_partition(apply_bias_partition_shape)
-            P_apply_bias_base.deactivate()
+            P_bias_base = P_x.create_partition_inclusive(apply_bias_workers)
+            P_bias = P_bias_base.create_cartesian_topology_partition(apply_bias_partition_shape)
+            P_bias_base.deactivate()
 
         # Store partitions for later  access
         if bias:
-            self.P_store_bias = P_store_bias
-            self.P_apply_bias = P_apply_bias
+            self.P_bias = P_bias
 
         # Function to broadcast weights and biases
         self.all_gather_weight = AllGather(P_x, axes_all_gather=(0,))
-        if bias and self.P_apply_bias.active:
-            self.broadcast_bias = Broadcast(P_store_bias, P_apply_bias)
+        if bias and self.P_bias.active:
+            self.all_gather_bias = AllGather(P_bias, axes_all_gather=(0,))
 
         # Create weights
         if P_x.active:
@@ -142,13 +127,10 @@ class DistributedLinearReduceScatterZero(Module):
             self.register_buffer('weight', zero_volume_tensor(device=device, requires_grad=True))
 
         # Create bias. Only 1 worker stores the bias and a subset of workers receive it.
-        if self.use_bias and self.P_store_bias.active:
+        if self.use_bias and self.P_bias.active:
             bias_shape = [1] * P_x.dim
-            bias_shape[-2] = out_features
+            bias_shape[0] = out_features_local
             self.bias = torch.nn.Parameter(torch.empty(tuple(bias_shape), **factory_kwargs))    # store bias
-
-        elif self.use_bias and self.P_apply_bias.active:
-            self.register_buffer('bias', zero_volume_tensor(device=device, requires_grad=True)) # receive bias
         else:
            self.register_parameter('bias', None)    # don't receive bias
 
@@ -168,6 +150,9 @@ class DistributedLinearReduceScatterZero(Module):
             self.P_root = P_root_base.create_cartesian_topology_partition([1]*P_x.dim)
             self.gather_weight = Repartition(P_x, self.P_root, preserve_batch=False)
             self.scatter_weight = Repartition(self.P_root, P_x, preserve_batch=False)
+            if self.use_bias:
+                self.gather_bias = Repartition(self.P_bias, self.P_root, preserve_batch=False)
+                self.scatter_bias = Repartition(self.P_root, self.P_bias, preserve_batch=False)
 
     def reset_parameters(self) -> None:
 
@@ -175,7 +160,7 @@ class DistributedLinearReduceScatterZero(Module):
             init.kaiming_uniform_(self.P_x, self.weight, a=math.sqrt(5))
             weight_global_shape = assemble_global_tensor_structure(self.weight, self.P_x).shape
 
-        if self.use_bias and self.P_store_bias.active:
+        if self.use_bias and self.P_bias.active:
             fan_in, _ = init._calculate_fan_in_and_fan_out(weight_global_shape)
             bound = 1 / math.sqrt(fan_in) if fan_in > 0 else 0
             init.uniform_(self.bias, -bound, bound)
@@ -183,13 +168,13 @@ class DistributedLinearReduceScatterZero(Module):
     def gather_state_dict(self, module, destination, prefix, *args):
 
         if self.collect_state and self.P_x.active:
-            if self.use_bias and self.bias is not None:
+            if self.use_bias and self.P_bias.active:
                 
                 # Pop bias from state dict and serialize it
                 bias_key = next(reversed(destination))
-                bias = destination.pop(bias_key)
+                bias = self.gather_bias(destination.pop(bias_key))
 
-                if self.P_store_bias.active:
+                if self.P_root.active:
                     torch.save(bias, bias_key)
 
             # Collect weights (second last entry added to dict)
@@ -215,7 +200,6 @@ class DistributedLinearReduceScatterZero(Module):
             weight_key = next(iter(destination))
             destination.pop(weight_key)
             if self.P_root.active:
-                pass
                 weight = torch.load(weight_key)
             else:
                 weight = zero_volume_tensor(device=self.P_x.device, requires_grad=True)
@@ -227,13 +211,12 @@ class DistributedLinearReduceScatterZero(Module):
                 bias_key = next(iter(destination))
                 destination.pop(bias_key)
 
-                if self.P_store_bias.active:
+                if self.P_root.active:
                     bias = torch.load(bias_key)
-                    destination[bias_key] = bias
-
-                elif self.P_apply_bias.active:
+                else:
                     bias = zero_volume_tensor(device=self.P_x.device, requires_grad=True)
-                    destination[bias_key] = bias
+                if self.P_bias.active:
+                    destination[bias_key] = self.scatter_bias(bias)
 
             if self.P_x.active:
                 destination[weight_key] = weight
@@ -258,8 +241,8 @@ class DistributedLinearReduceScatterZero(Module):
         weight = weight.view(self.out_features, -1)
 
         # Broadcast bias
-        if self.bias is not None:
-           bias = self.broadcast_bias(self.bias).view(self.out_features)
+        if self.bias is not None and self.P_bias.active:
+           bias = self.all_gather_bias(self.bias).view(self.out_features)
         else:
            bias = self.bias
 
