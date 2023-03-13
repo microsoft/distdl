@@ -79,40 +79,33 @@ class DistributedEmbedding(Module):
 
         # Partition for storing weights
         weight_partition_shape = [1] * P_x.dim
-        weight_partition_shape[-2] = P_x.shape[-2]
         weight_partition_shape[-1] = P_x.shape[-1]
 
         index_weight = [slice(0, 1)] * P_x.dim
         index_weight[-1] = slice(0, P_x.shape[-1])
-        index_weight[-2] = slice(0, P_x.shape[-2])
         weight_workers = worker_layout(P_x.shape)[tuple(index_weight)].reshape(-1).tolist()
 
         P_weight_base = P_x.create_partition_inclusive(weight_workers)
         P_weight = P_weight_base.create_cartesian_topology_partition(weight_partition_shape)
         P_weight_base.deactivate()
-        print("P_weight.shape: ", P_weight.shape)
 
         # Broadcast weights
         self.P_weight = P_weight
         self.broadcast = Broadcast(self.P_weight, self.P_x)
         self.init_scatter = Repartition(self.P_root, self.P_weight)
 
-        # Local embedding size and no. of embeddings
+        # Local embedding size
         embedding_dim_local = compute_subshape(P_x.shape[-1],
                                                P_x.index[-1],
                                               [embedding_dim])[0]
-
-        num_embeddings_local = compute_subshape(P_x.shape[-2],
-                                                P_x.index[-2],
-                                               [num_embeddings])[0]
         # Weights
         if _weight is not None:
             assert _weight.shape[-1] == embedding_dim_local
-            assert _weight.shape[-2] == num_embeddings_local
+            assert _weight.shape[-2] == num_embeddings
             if self.P_weight.active:
                 self.weight = torch.nn.Parameter(_weight, requires_grad=not _freeze)
         elif self.P_weight.active:
-            self.weight = torch.nn.Parameter(torch.empty((num_embeddings_local, 
+            self.weight = torch.nn.Parameter(torch.empty((num_embeddings, 
                 embedding_dim_local), **factory_kwargs), requires_grad=not _freeze)
             self.reset_parameters()
         else:
@@ -205,7 +198,6 @@ class DistributedEmbedding(Module):
 
         # Broadcast weights
         weight = self._squeeze(self.broadcast(self._expand(self.weight)))
-        print("Input.shape: ", input.shape, weight.shape)
 
         return torch.nn.functional.embedding(input, weight, self.padding_idx, self.max_norm,
             self.norm_type, self.scale_grad_by_freq, self.sparse)
