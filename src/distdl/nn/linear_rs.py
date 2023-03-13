@@ -46,6 +46,11 @@ class DistributedLinearReduceScatter(Module):
         Number of features in the *global* output tensor.
     bias : bool
         Indicates if a bias term should be used.
+    P_y: optional
+        Partition for the output if output is partitioned
+        along the second last dimension instead of the last.
+        Must have the same size and shape as P_x with the 
+        second two last dimensions swapped.
     P_weight : optional
         Partition for the weights. Must be of size 1 in
         every dimension but the last.
@@ -61,8 +66,9 @@ class DistributedLinearReduceScatter(Module):
         biases for saving/loading state dictionaries.
     """
 
-    def __init__(self, P_x, in_features, out_features, bias=True, device=None, dtype=None,
-        P_weight=None, P_store_bias=None, P_apply_bias=None, collect_state=False, geglu=False):
+    def __init__(self, P_x, in_features, out_features, bias=True, device=None, dtype=None, 
+        P_y=None, P_weight=None, P_store_bias=None, P_apply_bias=None, 
+        collect_state=False, geglu=False):
 
         super(DistributedLinearReduceScatter, self).__init__()
 
@@ -72,7 +78,17 @@ class DistributedLinearReduceScatter(Module):
         if not self.P_x.active:
             return
         else:        
-            assert P_x.shape[-2] == 1
+            assert P_x.shape[-2] == 1 or P_x.shape[-1] == 1
+
+        # Input partition can be different than output partition
+        # (i.e. if input is partitioned along tokens)
+        if P_y is None:
+            self.P_y = P_x
+        else:
+            assert P_y.dim == P_x.dim
+            assert P_y.shape[-2] == P_x.shape[-1]
+            assert P_y.shape[-1] == 1
+            self.P_y = P_y
 
         if device is None: device = P_x.device
         factory_kwargs = {'device': device, 'dtype': dtype}
@@ -170,7 +186,8 @@ class DistributedLinearReduceScatter(Module):
         self.reset_parameters()
 
         # Reduce-scatter operation
-        self.reduce_scatter = ReduceScatter(self.P_x, axes_reduce_scatter=(P_x.dim-1,))
+        scatter_dim = torch.argmax(torch.tensor(self.P_y.shape[-2:])) + self.P_y.dim - 2
+        self.reduce_scatter = ReduceScatter(self.P_y, axes_reduce_scatter=(scatter_dim,))
 
         # State dict hooks for gather/scattering distributed weights
         self._register_state_dict_hook(self.gather_state_dict)

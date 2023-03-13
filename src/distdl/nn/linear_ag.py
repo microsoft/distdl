@@ -23,7 +23,7 @@ class DistributedLinearAllGather(Module):
     The base unit of work is given by the partition over the weight tensor.
     This class requires the following of the tensor partitions:
 
-    1. :math:`P_x` over input/output tensor :math:`x` has shape :math:`1 \times
+    1. :math:`P_y` over input/output tensor :math:`x` has shape :math:`1 \times
        P_{\text{f_in}}`.
 
     The bias term does not have its own partition.  The first dimension of the
@@ -36,7 +36,7 @@ class DistributedLinearAllGather(Module):
 
     Parameters
     ----------
-    P_x :
+    P_y :
         Partition of input/output tensor. Must be of size 1
         in the second last dimension (i.e. the channel out
         dimension.)
@@ -46,33 +46,48 @@ class DistributedLinearAllGather(Module):
         Number of features in the *global* output tensor.
     bias : bool
         Indicates if a bias term should be used.
+    P_x : optional
+        Partition of the input tensor if input is partitioned
+        along the second last dimension. Must be of size 1
+        along the last dimension and the 2nd last dimension
+        must be the same size as P_y's last dimension.
     P_store_weight : optional
         Partition for storing weights and biases. Must be of 
         size 1 in every dimension but the 2nd last.
     P_apply_weight: optional
         Partition for applying weights and biases. Must be 
-        the same size as P_x, but with the last two dimensions
+        the same size as P_y, but with the last two dimensions
         swapped.
     collect_state: bool, optional
         If true, creates partitions to gather/scatter weights & 
         biases for saving/loading state dictionaries.
     """
 
-    def __init__(self, P_x, in_features, out_features, bias=True, device=None, dtype=None, 
-        P_store_weight=None, P_apply_weight=None, collect_state=False, num_heads=None, 
+    def __init__(self, P_y, in_features, out_features, bias=True, device=None, dtype=None, 
+        P_x=None, P_store_weight=None, P_apply_weight=None, collect_state=False, num_heads=None, 
         num_vars=3, geglu=False):
 
         super(DistributedLinearAllGather, self).__init__()
 
-        # P_x is assumed to have shape [ *, 1, p]
+        # P_y is assumed to have shape [ *, 1, p]
         # Data is assumed to have shape [ *, n, channel_in/p ]
-        self.P_x = P_x
-        if not self.P_x.active:
+        self.P_y = P_y
+        if not self.P_y.active:
             return
         else:        
-            assert P_x.shape[-2] == 1
+            assert P_y.shape[-2] == 1 or P_y.shape[-1] == 1
 
-        if device is None: device = P_x.device
+        # Input partition can be different than output partition
+        # (i.e. if input is partitioned along tokens)
+        if P_x is None:
+            self.P_x = P_y
+        else:
+            assert P_x.dim == P_y.dim
+            assert P_x.shape[-2] == P_y.shape[-1]
+            assert P_x.shape[-1] == 1
+            self.P_x = P_x
+
+        if device is None: device = P_y.device
         factory_kwargs = {'device': device, 'dtype': dtype}
 
         self.in_features = in_features
@@ -85,39 +100,39 @@ class DistributedLinearAllGather(Module):
 
         # Partition for storing weights & biases
         if P_store_weight is not None:
-            assert P_x.dim == P_store_weight.dim
-            assert P_store_weight.shape[-2] == P_x.shape[-1]
+            assert P_y.dim == P_store_weight.dim
+            assert P_store_weight.shape[-2] == P_y.shape[-1]
             assert P_store_weight.shape[-1] == 1
-            if P_x.dim > 2:
-                assert np.prod(P_store_weight.shape[:P_x.dim-2]) == 1
+            if P_y.dim > 2:
+                assert np.prod(P_store_weight.shape[:P_y.dim-2]) == 1
         else:
-            store_weight_partition_shape = [1] * P_x.dim
-            store_weight_partition_shape[-2] = P_x.shape[-1]
+            store_weight_partition_shape = [1] * P_y.dim
+            store_weight_partition_shape[-2] = P_y.shape[-1]
 
-            index_store_weight = [slice(0, 1)] * P_x.dim
-            index_store_weight[-1] = slice(0, P_x.shape[-1])
-            store_weight_workers = worker_layout(P_x.shape)[tuple(index_store_weight)].\
+            index_store_weight = [slice(0, 1)] * P_y.dim
+            index_store_weight[-1] = slice(0, P_y.shape[-1])
+            store_weight_workers = worker_layout(P_y.shape)[tuple(index_store_weight)].\
                 reshape(-1).tolist()
 
-            P_store_weight_base = P_x.create_partition_inclusive(store_weight_workers)
+            P_store_weight_base = P_y.create_partition_inclusive(store_weight_workers)
             P_store_weight = P_store_weight_base.create_cartesian_topology_partition(
                 store_weight_partition_shape)
             P_store_weight_base.deactivate()
 
-        # Partition for applying weights & biases (same size as P_x, but with last
+        # Partition for applying weights & biases (same size as P_y, but with last
         # two dims swapped).
         if P_apply_weight is not None:
-            assert P_x.dim == P_apply_weight.dim
+            assert P_y.dim == P_apply_weight.dim
             assert P_apply_weight.shape[-1] == 1
-            assert P_apply_weight.shape[-2] == P_x.shape[-1]
-            for i in range(P_x.dim-2):
-                assert P_apply_weight.shape[i] == P_x.shape[i]
+            assert P_apply_weight.shape[-2] == P_y.shape[-1]
+            for i in range(P_y.dim-2):
+                assert P_apply_weight.shape[i] == P_y.shape[i]
         else:
-            apply_weight_partition_shape = P_x.shape.copy()
+            apply_weight_partition_shape = P_y.shape.copy()
             apply_weight_partition_shape[-1] = 1
-            apply_weight_partition_shape[-2] = P_x.shape[-1]
+            apply_weight_partition_shape[-2] = P_y.shape[-1]
 
-            P_apply_weight_base = P_x.create_partition_inclusive(range(P_x.size))
+            P_apply_weight_base = P_y.create_partition_inclusive(range(P_y.size))
             P_apply_weight = P_apply_weight_base.create_cartesian_topology_partition(
                 apply_weight_partition_shape)
             P_apply_weight_base.deactivate()
@@ -134,8 +149,8 @@ class DistributedLinearAllGather(Module):
         # Create weights
         if P_store_weight.active:
 
-            # Local shape of weights, which must have the same no. of dimensions as P_x
-            weight_shape = [1] * P_x.dim
+            # Local shape of weights, which must have the same no. of dimensions as P_y
+            weight_shape = [1] * P_y.dim
             out_features_local = compute_subshape(P_store_weight.shape[-2],
                                                   P_store_weight.index[-2],
                                                  [out_features])[0]
@@ -149,7 +164,7 @@ class DistributedLinearAllGather(Module):
 
         # Create bias
         if self.use_bias and P_store_weight.active:
-            bias_shape = [1] * P_x.dim
+            bias_shape = [1] * P_y.dim
             bias_shape[-2] = out_features_local
             self.bias = torch.nn.Parameter(torch.empty(tuple(bias_shape), **factory_kwargs))
         elif self.use_bias:
@@ -161,7 +176,8 @@ class DistributedLinearAllGather(Module):
         self.reset_parameters()
 
         # All-gather operation
-        self.all_gather = AllGather(self.P_x, axes_all_gather=(P_x.dim-1,))
+        gather_dim = torch.argmax(torch.tensor(self.P_x.shape[-2:])) + self.P_x.dim - 2
+        self.all_gather = AllGather(self.P_x, axes_all_gather=(gather_dim,))
 
         # State dict hooks for gather/scattering distributed weights
         self._register_state_dict_hook(self.gather_state_dict)
@@ -169,8 +185,8 @@ class DistributedLinearAllGather(Module):
 
         # Partition for collecting weights/biases for saving the state dict
         if self.collect_state:
-            P_root_base = P_x.create_partition_inclusive([0])
-            self.P_root = P_root_base.create_cartesian_topology_partition([1]*P_x.dim)
+            P_root_base = P_y.create_partition_inclusive([0])
+            self.P_root = P_root_base.create_cartesian_topology_partition([1]*P_y.dim)
             self.gather_weight = Repartition(P_store_weight, self.P_root, preserve_batch=False)
             self.scatter_weight = Repartition(self.P_root, P_store_weight, preserve_batch=False)
             if self.use_bias:
@@ -190,7 +206,7 @@ class DistributedLinearAllGather(Module):
                 init.uniform_(self.bias, -bound, bound)
 
     def _unsqueeze_weight(self, weight):
-        shape = [1]*self.P_x.dim
+        shape = [1]*self.P_y.dim
         shape[-2] = weight.shape[-2]
         shape[-1] = weight.shape[-1]
         return weight.view(shape)
@@ -229,7 +245,7 @@ class DistributedLinearAllGather(Module):
         
     def gather_state_dict(self, module, destination, prefix, *args):
 
-        if self.collect_state and self.P_x.active:
+        if self.collect_state and self.P_y.active:
             if self.use_bias:
                 
                 # Collect bias and serialize (last entry added to dict).
@@ -261,7 +277,7 @@ class DistributedLinearAllGather(Module):
         return destination
 
     def scatter_state_dict(self, destination, prefix, *args):
-        if self.collect_state and self.P_x.active:
+        if self.collect_state and self.P_y.active:
 
             # Scatter weights
             weight_key = next(iter(destination))
@@ -271,7 +287,7 @@ class DistributedLinearAllGather(Module):
                 if self.num_heads is not None: weight = self.qkv_weight_to_parallel(weight)
                 if self.geglu: weight = self.geglu_weight_to_parallel(weight)
             else:
-                weight = zero_volume_tensor(device=self.P_x.device, requires_grad=True)
+                weight = zero_volume_tensor(device=self.P_y.device, requires_grad=True)
             if self.P_store_weight.active:
                 weight = self.scatter_weight(weight)
 
@@ -284,14 +300,14 @@ class DistributedLinearAllGather(Module):
                     if self.num_heads is not None: bias = self.qkv_weight_to_parallel(bias)
                     if self.geglu: bias = self.geglu_weight_to_parallel(bias)
                 elif self.P_apply_weight.active:
-                    bias = zero_volume_tensor(device=self.P_x.device, requires_grad=True)
+                    bias = zero_volume_tensor(device=self.P_y.device, requires_grad=True)
                 if self.P_store_weight.active:
                     bias = self.scatter_bias(bias)
                 if self.P_apply_weight.active:
                     destination[bias_key] = bias
             
             # Add scattered weight to state dict
-            if self.P_x.active:
+            if self.P_y.active:
                 destination[weight_key] = weight
                 
         return destination
@@ -306,7 +322,7 @@ class DistributedLinearAllGather(Module):
 
         """
 
-        if not self.P_x.active:
+        if not self.P_y.active:
             return input.clone()
 
         # All-gather input
