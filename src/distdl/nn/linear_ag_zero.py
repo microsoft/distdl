@@ -243,7 +243,7 @@ class DistributedLinearAllGatherZero(Module):
     def geglu_weight_to_parallel(self, weight):
         num_gpu = self.P_weight.shape[-2]
         weight_size = weight.shape[-2] // 2 // num_gpu
-        weight = rearrange(self._squeeze_weight(weight), "n (v p h -> n (p v h)", 
+        weight = rearrange(self._squeeze_weight(weight), "n (v p h) -> n (p v h)", 
             p=num_gpu, v=2, h=weight_size)
         return self._unsqueeze_weight(weight)
         
