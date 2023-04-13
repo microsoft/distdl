@@ -5,17 +5,16 @@ import numpy as np
 import torch
 
 class AllGather(Module):
-    r"""A distributed all-sum-reduce layer.
+    r"""A distributed allgather layer.
 
-    This class provides the user interface to the reduce-scatter
-    distributed data movement primitive.  Implementation details are back-end
-    specific.
+    This class provides the user interface to the allgather distributed data 
+    movement primitive.  Implementation details are back-end specific.
 
-    The AllGather algorithm performs an reduce-scatter within a single
-    partition. Thus, the standard DistDL sum-reduction/broadcast rules are
-    implicitly satisfied.
+    The AllGather algorithm performs an allgather within a single partition. 
+    Thus, the standard DistDL sum-reduction/broadcast rules are implicitly 
+    satisfied.
 
-    Functionally, the input tensor is reduced along dimensions specified by
+    Functionally, the input tensor is gathered along dimensions specified by
     the `axes_all_gather` field and the result of that reduction is scattered
     along the same dimensions.  However, the underlying implementation will
     not typically apply these two operations directly.
@@ -28,6 +27,7 @@ class AllGather(Module):
         Partition of input and output tensor.
     axes_all_gather : tuple, optional
         Partition dimensions along which the allreduction and scattering takes place.
+        Currently, only supportes all-gather operation along single dimension.
     axes_keep : tuple, optional
         Partition dimensions to reduce-scatter to.  Complement of `axes_all_gather`.
         Currently, only supportes all-gather operation along single dimension.
@@ -106,7 +106,7 @@ class AllGather(Module):
         r"""AllGather module setup function.
 
         Constructs the necessary partition functions to implement the above
-        described reduce-scatter pattern.  This function performs collective
+        described allgather pattern.  This function performs collective
         communication across the input and output partitions.
 
         This function is called every time something changes in the input

@@ -5,7 +5,7 @@ import numpy as np
 import torch
 
 class ReduceScatter(Module):
-    r"""A distributed all-sum-reduce layer.
+    r"""A distributed reduce-scatter layer.
 
     This class provides the user interface to the reduce-scatter
     distributed data movement primitive.  Implementation details are back-end
@@ -28,6 +28,7 @@ class ReduceScatter(Module):
         Partition of input and output tensor.
     axes_reduce_scatter : tuple, optional
         Partition dimensions along which the allreduction and scattering takes place.
+        Currently, only supportes reduce-scatter operation along single dimension.
     axes_keep : tuple, optional
         Partition dimensions to reduce-scatter to.  Complement of `axes_reduce_scatter`.
         Currently, only supportes reduce-scatter operation along single dimension.

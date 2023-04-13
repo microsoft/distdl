@@ -16,7 +16,8 @@ class DistributedEmbedding(Module):
 
     Distributed version of torch.nn.Embedding for storing embeddings of
     a fixed fixed dictionary and size. Embeddings are partitioned along
-    the last dimension (i.e., the embedding dimension).
+    the last dimension (i.e., the embedding dimension). Sequence parallelism
+    (partitioning the 2nd last dimension) is currently not supported.
     
     Parameters
     ----------
@@ -42,11 +43,22 @@ class DistributedEmbedding(Module):
     sparse : bool, optional
         If True, gradient w.r.t. weight matrix will be a sparse tensor. 
         See Notes for more details regarding sparse gradients.
+    collect_state : bool, optional
+        If True, the entire embedding matrix is gathered to the root worker and 
+        serialized to disk when the state_dict() function is called. Instead
+        of the weight itself, the state dictionary will contain a path to the
+        serialized file. Default False.
+    device : torch.device, optional
+        Device on which to allocate the embedding matrix. Default is the device
+        as specified by the input partition P_x.
+    dtype : torch.dtype, optional
+        Data type of the embedding matrix. Default is torch.float32.
     """
 
     def __init__(self, P_x, num_embeddings, embedding_dim, padding_idx=None,
         max_norm=None, norm_type=2., scale_grad_by_freq=False, sparse=False,
-        _weight=None, _freeze=False, device=None, dtype=None):
+        _weight=None, _freeze=False, collect_state=False, device=None, 
+        dtype=None):
 
         factory_kwargs = {'device': P_x.device, 'dtype': dtype}
         super(DistributedEmbedding, self).__init__()
@@ -65,10 +77,16 @@ class DistributedEmbedding(Module):
         self.norm_type = norm_type
         self.scale_grad_by_freq = scale_grad_by_freq
         self.sparse = sparse
+        self.collect_state = collect_state
 
         self.P_x = P_x
         if not self.P_x.active:
             return
+
+        # Root partition for initializing weights
+        P_root_base = P_x.create_partition_inclusive([0])
+        self.P_root = P_root_base.create_cartesian_topology_partition([1]*self.P_x.dim)
+        P_root_base.deactivate()
 
         # Partition for storing weights
         weight_partition_shape = [1] * P_x.dim
@@ -85,6 +103,7 @@ class DistributedEmbedding(Module):
         # Broadcast weights
         self.P_weight = P_weight
         self.broadcast = Broadcast(self.P_weight, self.P_x)
+        self.init_scatter = Repartition(self.P_root, self.P_weight)
 
         # Local embedding size
         embedding_dim_local = compute_subshape(P_x.shape[-1],
@@ -104,9 +123,27 @@ class DistributedEmbedding(Module):
             self.register_buffer('weight', zero_volume_tensor(device=P_x.device, 
                 requires_grad=True))
 
-    def reset_parameters(self):
+        # State dict hooks for gather/scattering distributed weights
+        self._register_state_dict_hook(self.gather_state_dict)
+        self._register_load_state_dict_pre_hook(self.scatter_state_dict)
+
+        # Gather/collect weights for saving/setting state dict
+        if self.collect_state:
+            P_root_base = P_x.create_partition_inclusive([0])
+            self.P_root = P_root_base.create_cartesian_topology_partition([1]*P_x.dim)
+            self.gather_weight = Repartition(P_weight, self.P_root, preserve_batch=False)
+            self.scatter_weight = Repartition(self.P_root, P_weight, preserve_batch=False)
+
+    def reset_parameters(self, init=init.normal_, mean=0.0, std=1.0):
         if self.P_weight.active:
-            init.normal_(self.weight)
+            weight_shape = [1] * self.P_x.dim
+            weight_shape[-2] = self.num_embeddings
+            weight_shape[-1] = self.embedding_dim
+            weight = torch.empty(weight_shape, device=self.P_x.device)
+            init(weight, mean=mean, std=std)
+            weight = self.init_scatter(weight)
+            with torch.no_grad():
+                self.weight[:] = weight
         self._fill_padding_idx_with_zero()
 
     def _fill_padding_idx_with_zero(self):
@@ -124,6 +161,39 @@ class DistributedEmbedding(Module):
     def _squeeze(self, weight):
         weight = weight.view(weight.shape[-2:])        
         return weight
+
+    def gather_state_dict(self, module, destination, prefix, *args):
+        if self.collect_state and self.P_x.active:
+
+            # Collect weights (second last entry added to dict)
+            weight_key = next(reversed(destination))
+            weight = self._squeeze(self.gather_weight(self._expand(destination.pop(weight_key))))
+
+            # Serialize weights
+            if self.P_root.active:
+                torch.save(weight, weight_key)
+
+                # Add filenames back to state dict
+                destination[weight_key] = weight_key
+
+        return destination
+
+    def scatter_state_dict(self, destination, prefix, *args):
+        if self.collect_state and self.P_x.active:
+
+            # Scatter weights
+            weight_key = next(iter(destination))
+            destination.pop(weight_key)
+            if self.P_root.active:
+                weight = torch.load(weight_key)
+            else:
+                weight = zero_volume_tensor(device=self.P_x.device, requires_grad=True)
+            if self.P_weight.active:
+                weight = self._squeeze(self.scatter_weight(self._expand(weight)))
+
+            destination[weight_key] = weight
+
+        return destination
 
     def forward(self, input):
         r"""Forward function interface.

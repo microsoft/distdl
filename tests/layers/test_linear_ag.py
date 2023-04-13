@@ -18,6 +18,7 @@ adjoint_parametrizations.append(
         np.arange(0, 1), [1, 1],  # P_x_ranks, P_x_shape
         [2, 2],  # x_global_shape
         [2, 4],  # y_global_shape
+        False,  # use ZeRO?
         1,  # passed to comm_split_fixture, required MPI ranks
         id="sequential",
         marks=[pytest.mark.mpi(min_size=1)]
@@ -29,6 +30,7 @@ adjoint_parametrizations.append(
         np.arange(0, 4), [1, 4],  # P_x_ranks, P_x_shape
         [1, 12],  # x_global_shape
         [1, 16],  # y_global_shape
+        False,  # use ZeRO?
         4,  # passed to comm_split_fixture, required MPI ranks
         id="distributed-2d-a",
         marks=[pytest.mark.mpi(min_size=4)]
@@ -40,6 +42,7 @@ adjoint_parametrizations.append(
         np.arange(0, 4), [1, 1, 4],  # P_x_ranks, P_x_shape
         [1, 8, 12],  # x_global_shape
         [1, 8, 16],  # y_global_shape
+        False,  # use ZeRO?
         4,  # passed to comm_split_fixture, required MPI ranks
         id="distributed-3d-a",
         marks=[pytest.mark.mpi(min_size=4)]
@@ -51,6 +54,7 @@ adjoint_parametrizations.append(
         np.arange(0, 8), [2, 1, 4],  # P_x_ranks, P_x_shape
         [2, 4, 12],  # x_global_shape
         [2, 4, 16],  # y_global_shape
+        False,  # use ZeRO?
         8,  # passed to comm_split_fixture, required MPI ranks
         id="distributed-3d-b",
         marks=[pytest.mark.mpi(min_size=8)]
@@ -62,6 +66,7 @@ adjoint_parametrizations.append(
         np.arange(0, 4), [1, 1, 1, 4],  # P_x_ranks, P_x_shape
         [1, 2, 4, 12],  # x_global_shape
         [1, 2, 4, 16],  # y_global_shape
+        False,  # use ZeRO?
         4,  # passed to comm_split_fixture, required MPI ranks
         id="distributed-4d-a",
         marks=[pytest.mark.mpi(min_size=4)]
@@ -73,6 +78,7 @@ adjoint_parametrizations.append(
         np.arange(0, 4), [1, 2, 1, 2],  # P_x_ranks, P_x_shape
         [2, 2, 4, 12],  # x_global_shape
         [2, 2, 4, 16],  # y_global_shape
+        False,  # use ZeRO?
         4,  # passed to comm_split_fixture, required MPI ranks
         id="distributed-4d-b",
         marks=[pytest.mark.mpi(min_size=4)]
@@ -84,6 +90,7 @@ adjoint_parametrizations.append(
         np.arange(0, 4), [2, 1, 1, 2],  # P_x_ranks, P_x_shape
         [2, 2, 4, 12],  # x_global_shape
         [2, 2, 4, 16],  # y_global_shape
+        False,  # use ZeRO?
         4,  # passed to comm_split_fixture, required MPI ranks
         id="distributed-4d-b",
         marks=[pytest.mark.mpi(min_size=4)]
@@ -95,6 +102,79 @@ adjoint_parametrizations.append(
         np.arange(0, 8), [2, 2, 1, 2],  # P_x_ranks, P_x_shape
         [2, 2, 4, 12],  # x_global_shape
         [2, 2, 4, 16],  # y_global_shape
+        False,  # use ZeRO?
+        8,  # passed to comm_split_fixture, required MPI ranks
+        id="distributed-4d-b",
+        marks=[pytest.mark.mpi(min_size=8)]
+        )
+    )
+
+adjoint_parametrizations.append(
+    pytest.param(
+        np.arange(0, 4), [1, 1, 4],  # P_x_ranks, P_x_shape
+        [1, 8, 12],  # x_global_shape
+        [1, 8, 16],  # y_global_shape
+        True,  # use ZeRO?
+        4,  # passed to comm_split_fixture, required MPI ranks
+        id="distributed-3d-a",
+        marks=[pytest.mark.mpi(min_size=4)]
+        )
+    )
+
+adjoint_parametrizations.append(
+    pytest.param(
+        np.arange(0, 8), [2, 1, 4],  # P_x_ranks, P_x_shape
+        [2, 4, 12],  # x_global_shape
+        [2, 4, 16],  # y_global_shape
+        True,  # use ZeRO?
+        8,  # passed to comm_split_fixture, required MPI ranks
+        id="distributed-3d-b",
+        marks=[pytest.mark.mpi(min_size=8)]
+        )
+    )
+
+adjoint_parametrizations.append(
+    pytest.param(
+        np.arange(0, 4), [1, 1, 1, 4],  # P_x_ranks, P_x_shape
+        [1, 2, 4, 12],  # x_global_shape
+        [1, 2, 4, 16],  # y_global_shape
+        True,  # use ZeRO?
+        4,  # passed to comm_split_fixture, required MPI ranks
+        id="distributed-4d-a",
+        marks=[pytest.mark.mpi(min_size=4)]
+        )
+    )
+
+adjoint_parametrizations.append(
+    pytest.param(
+        np.arange(0, 4), [1, 2, 1, 2],  # P_x_ranks, P_x_shape
+        [2, 2, 4, 12],  # x_global_shape
+        [2, 2, 4, 16],  # y_global_shape
+        True,  # use ZeRO?
+        4,  # passed to comm_split_fixture, required MPI ranks
+        id="distributed-4d-b",
+        marks=[pytest.mark.mpi(min_size=4)]
+        )
+    )
+
+adjoint_parametrizations.append(
+    pytest.param(
+        np.arange(0, 4), [2, 1, 1, 2],  # P_x_ranks, P_x_shape
+        [2, 2, 4, 12],  # x_global_shape
+        [2, 2, 4, 16],  # y_global_shape
+        True,  # use ZeRO?
+        4,  # passed to comm_split_fixture, required MPI ranks
+        id="distributed-4d-b",
+        marks=[pytest.mark.mpi(min_size=4)]
+        )
+    )
+
+adjoint_parametrizations.append(
+    pytest.param(
+        np.arange(0, 8), [2, 2, 1, 2],  # P_x_ranks, P_x_shape
+        [2, 2, 4, 12],  # x_global_shape
+        [2, 2, 4, 16],  # y_global_shape
+        True,  # use ZeRO?
         8,  # passed to comm_split_fixture, required MPI ranks
         id="distributed-4d-b",
         marks=[pytest.mark.mpi(min_size=8)]
@@ -106,6 +186,7 @@ adjoint_parametrizations.append(
 @pytest.mark.parametrize("P_x_ranks, P_x_shape,"
                          "x_global_shape,"
                          "y_global_shape,"
+                         "use_zero,"
                          "comm_split_fixture",
                          adjoint_parametrizations,
                          indirect=["comm_split_fixture"])
@@ -113,16 +194,21 @@ def test_linear_adjoint_input(barrier_fence_fixture,
                               comm_split_fixture,
                               P_x_ranks, P_x_shape,
                               x_global_shape,
-                              y_global_shape):
+                              y_global_shape,
+                              use_zero):
 
     import numpy as np
     import torch
 
     from distdl.backends.common.partition import MPIPartition
-    from distdl.nn.linear_ag import DistributedLinearAllGather
     from distdl.utilities.slicing import compute_subshape
     from distdl.utilities.torch import zero_volume_tensor
     from distdl.config import set_backend
+
+    if use_zero:
+        from distdl.nn.linear_ag_zero import DistributedLinearAllGatherZero as Linear
+    else:
+        from distdl.nn.linear_ag import DistributedLinearAllGather as Linear
 
     set_backend(backend_comm=BACKEND_COMM, backend_array=BACKEND_ARRAY)
 
@@ -139,10 +225,10 @@ def test_linear_adjoint_input(barrier_fence_fixture,
     x_global_shape = np.asarray(x_global_shape)
     y_global_shape = np.asarray(y_global_shape)
 
-    layer = DistributedLinearAllGather(P_x,
-                                       x_global_shape[-1],
-                                       y_global_shape[-1],
-                                       bias=False)
+    layer = Linear(P_x,
+                   x_global_shape[-1],
+                   y_global_shape[-1],
+                   bias=False)
     layer = layer.to(P_world.device)
 
     x = zero_volume_tensor(x_global_shape[0], device=P_world.device)
@@ -178,6 +264,7 @@ def test_linear_adjoint_input(barrier_fence_fixture,
 @pytest.mark.parametrize("P_x_ranks, P_x_shape,"
                          "x_global_shape,"
                          "y_global_shape,"
+                         "use_zero,"
                          "comm_split_fixture",
                          adjoint_parametrizations,
                          indirect=["comm_split_fixture"])
@@ -185,16 +272,21 @@ def test_linear_adjoint_weight(barrier_fence_fixture,
                                comm_split_fixture,
                                P_x_ranks, P_x_shape,
                                x_global_shape,
-                               y_global_shape):
+                               y_global_shape,
+                               use_zero):
 
     import numpy as np
     import torch
 
     from distdl.backends.common.partition import MPIPartition
-    from distdl.nn.linear_ag import DistributedLinearAllGather
     from distdl.utilities.slicing import compute_subshape
     from distdl.utilities.torch import zero_volume_tensor
     from distdl.config import set_backend
+
+    if use_zero:
+        from distdl.nn.linear_ag_zero import DistributedLinearAllGatherZero as Linear
+    else:
+        from distdl.nn.linear_ag import DistributedLinearAllGather as Linear
 
     set_backend(backend_comm=BACKEND_COMM, backend_array=BACKEND_ARRAY)
 
@@ -211,10 +303,10 @@ def test_linear_adjoint_weight(barrier_fence_fixture,
     x_global_shape = np.asarray(x_global_shape)
     y_global_shape = np.asarray(y_global_shape)
 
-    layer = DistributedLinearAllGather(P_x,
-                                       x_global_shape[-1],
-                                       y_global_shape[-1],
-                                       bias=False)
+    layer = Linear(P_x,
+                   x_global_shape[-1],
+                   y_global_shape[-1],
+                   bias=False)
     layer = layer.to(P_x.device)
 
     x = zero_volume_tensor(x_global_shape[0], device=P_x.device)
@@ -253,6 +345,7 @@ def test_linear_adjoint_weight(barrier_fence_fixture,
 @pytest.mark.parametrize("P_x_ranks, P_x_shape,"
                          "x_global_shape,"
                          "y_global_shape,"
+                         "use_zero,"
                          "comm_split_fixture",
                          adjoint_parametrizations,
                          indirect=["comm_split_fixture"])
@@ -260,16 +353,21 @@ def test_linear_adjoint_bias(barrier_fence_fixture,
                              comm_split_fixture,
                              P_x_ranks, P_x_shape,
                              x_global_shape,
-                             y_global_shape):
+                             y_global_shape,
+                             use_zero):
 
     import numpy as np
     import torch
 
     from distdl.backends.common.partition import MPIPartition
-    from distdl.nn.linear_ag import DistributedLinearAllGather
     from distdl.utilities.slicing import compute_subshape
     from distdl.utilities.torch import zero_volume_tensor
     from distdl.config import set_backend
+
+    if use_zero:
+        from distdl.nn.linear_ag_zero import DistributedLinearAllGatherZero as Linear
+    else:
+        from distdl.nn.linear_ag import DistributedLinearAllGather as Linear
 
     set_backend(backend_comm=BACKEND_COMM, backend_array=BACKEND_ARRAY)
 
@@ -286,10 +384,10 @@ def test_linear_adjoint_bias(barrier_fence_fixture,
     x_global_shape = np.asarray(x_global_shape)
     y_global_shape = np.asarray(y_global_shape)
 
-    layer = DistributedLinearAllGather(P_x,
-                                       x_global_shape[-1],
-                                       y_global_shape[-1],
-                                       bias=True)
+    layer = Linear(P_x,
+                   x_global_shape[-1],
+                   y_global_shape[-1],
+                   bias=True)
     layer = layer.to(P_x.device)
     layer.weight.data.fill_(0)
 

@@ -5,8 +5,8 @@ from distdl.config import set_backend
 
 import distdl.utilities.slicing as slicing
 from distdl.backends.common.partition import MPIPartition
-from distdl.nn.linear_rs_zero import DistributedLinearReduceScatterZero
-from distdl.nn.linear_ag_zero import DistributedLinearAllGatherZero
+#from distdl.nn.linear_rs_expert import DistributedExpertReduceScatter
+from distdl.nn.linear_ag_expert import DistributedExpertAllGather
 from distdl.utilities.slicing import compute_subshape
 from distdl.utilities.torch import zero_volume_tensor
 from distdl.nn.repartition import Repartition
@@ -30,14 +30,13 @@ P_x_base = P_world.create_partition_inclusive(in_workers)
 P_x = P_x_base.create_cartesian_topology_partition(in_shape)
 
 # Input channel dimension is partitioned
-batch_size = 4
-num_tokens = 16
+num_experts = 16
+num_tokens = 24
 in_channels = 32
 out_channels = 48
 
 # Layer
-#network = DistributedLinearAllGatherZero(P_x, in_channels, out_channels, collect_state=True).to(P_x.device)
-network = DistributedLinearReduceScatterZero(P_x, in_channels, out_channels, collect_state=True).to(P_x.device)
+network = DistributedExpertAllGather(P_x, num_experts, in_channels, out_channels, collect_state=True).to(P_x.device)
 
 # Scatter/gather data
 scatter_x = Repartition(P_root, P_x, preserve_batch=False)
@@ -51,14 +50,14 @@ if mode == 'training':
     # Data
     x = zero_volume_tensor(device=P_x.device)
     if P_root.active:
-        x = torch.randn(batch_size, num_tokens, in_channels).to(P_x.device)
+        x = torch.randn(num_experts, num_tokens, in_channels).to(P_x.device)
         torch.save(x, 'x.dat')
     x = scatter_x(x)
 
     s = network.state_dict()
     if P_root.active:
        torch.save(s, 'state.dat')
-    print(s.keys())
+    #print(s.keys())
 
     # Forward pass
     y = network(x)
