@@ -16,7 +16,7 @@ from einops import rearrange
 
 class DistributedLinearReduceScatterZero(Module):
    r"""A distributed linear or affine layer with 2D parallelism for weights 
-    and input/outputs.
+    and input/outputs (also called ZeRO-3 or FSDP).
 
     This class provides the user interface to a distributed linear layer
     with 2D partitioning of input/output data and 2D partitioning of weights 
