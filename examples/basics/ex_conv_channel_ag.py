@@ -9,7 +9,7 @@ from distdl.nn.conv_channel_ag import DistributedChannelAllGatherConv2d
 from distdl.utilities.torch import zero_volume_tensor
 
 # Set backend
-set_backend(backend_comm="nccl", backend_array="cupy")
+set_backend(backend_comm="mpi", backend_array="numpy")
 
 # Set up MPI cartesian communicator
 P_world = MPIPartition(MPI.COMM_WORLD)
@@ -35,7 +35,7 @@ x.requires_grad = True
 
 # Distributed conv layer: The all-gather version is preferrable to the reduce-scatter version when the
 # number of input channels is smaller than the number of output channels.
-conv2d = DistributedChannelAllGatherConv2d(P_x, 16, 16, (3, 3), padding=(1, 1), device=P_x.device)
+conv2d = DistributedChannelAllGatherConv2d(P_x, 16, 16, (3, 3), padding=(1, 1))
 
 # Forward pass
 if P_x.rank == 0: print("Forward")

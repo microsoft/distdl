@@ -14,14 +14,14 @@ from distdl.utilities.torch import zero_volume_tensor
 from distdl.nn.repartition import Repartition
 
 # Set backend
-set_backend(backend_comm="nccl", backend_array="cupy")
+set_backend(backend_comm="mpi", backend_array="numpy")
 
 # Set up MPI cartesian communicator
 P_world = MPIPartition(MPI.COMM_WORLD)
 P_world._comm.Barrier()
 
-# Data partition (in, out)
-in_shape = (1, 1, 1)
+# Data partition corresponding to [ batch, tokens, embedding ]
+in_shape = (2, 1, 4)    # [ data-parallel workers, 1, model-parallel workers ]
 in_size = np.prod(in_shape)
 in_workers = np.arange(0, in_size)
 
@@ -38,54 +38,14 @@ scatter = Repartition(P_root, P_x)
 batch_size = 4
 num_embeddings = 16
 embedding_dim = 32
+
+# Input is range of row indices that we want to extract from the embedding matrix
 input_idx = torch.arange(num_embeddings, device=P_x.device)
 
-#mode = 'training'
-mode = 'inference'
+# Create embedding layer
+embedding = DistributedEmbedding(P_x, num_embeddings, embedding_dim)
 
-if mode == 'training':
+# Forward pass
+y = embedding(input_idx)
 
-    # Create embedding
-    embedding = DistributedEmbedding(P_x, num_embeddings, embedding_dim, collect_state=True)
-    
-    # Store state dict
-    s = embedding.state_dict()
-    if P_root.active:   
-        torch.save(s, 's.dat')
-        print(s.keys())
-
-    # Forward pass
-    y = embedding(input_idx)
-
-    # Collect and save output
-    gather = Repartition(P_x, P_root)
-    y = gather(y.view(1, *y.shape))
-
-    # Save output
-    if P_root.active:
-        torch.save(y, 'y.dat')
-
-elif mode == 'inference':
-
-    # Load input/output
-    y = zero_volume_tensor(device=P_x.device)
-    if P_root.active:
-        y = torch.load('y.dat')
-
-    # Load state dict
-    embedding = DistributedEmbedding(P_x, num_embeddings, embedding_dim, collect_state=True)
-    s = torch.load('s.dat')
-    print(s.keys())
-    if P_x.active:
-        embedding.load_state_dict(s)
-
-    # Forward pass
-    y_ = embedding(input_idx)
-
-    # Collect and save output
-    gather = Repartition(P_x, P_root)
-    y_ = gather(y_.view(1, *y_.shape))
-
-    # Print error
-    if P_root.active:
-        print(torch.norm(y - y_) / torch.norm(y_))
+print("y.shape from rank {}: {}".format(P_x.rank, y.shape))
