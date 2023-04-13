@@ -14,61 +14,62 @@ import distdl.nn.init as init
 from einops import rearrange
 
 class DistributedLinearReduceScatter(Module):
-    r"""A distributed linear or affine layer.
+   r"""A distributed linear or affine layer with weight row parallelism.
 
-    This class provides the user interface to a distributed linear layer.
-    It utlizes back-end specific parallel data movement primitives but
-    does not require its own back-end implementation.
+    This class provides the user interface to a distributed linear layer
+    with 2D partitioning of input/output data and 1D partitioning of weights 
+    and biases. Inputs can be partitioned along the batch dimension (dimension 0) 
+    and/or the last dimension, as specified by the input partition P_x.
 
-    The base unit of work is given by the partition over the weight tensor.
-    This class requires the following of the tensor partitions:
+    Outputs can be partitioned along the batch dimension (dimension 0) plus either
+    the last dimension or second last dimension. If inputs are partitioned along 
+    the second last dimension, an additional output partition P_y must be specified.
+    If P_y is not supplied, the output partitoning is assumed to be the same as the 
+    intput partitioning.
 
-    1. :math:`P_x` over input/output tensor :math:`x` has shape :math:`1 \times
-       P_{\text{f_in}}`.
-
-    The bias term does not have its own partition.  The first dimension of the
-    input and output partitions is the batch dimension and the second is the
-    feature dimension.
-
-    .. warning::
-       This departs from PyTorch Linear layers, which allow intermediate
-       dimensions in the tensors.
+    Weights and biases are partitoned along the input feature dimension. Therefore,
+    a reduce-scatter is performed on the output after the matrix multiplication. For 
+    this reason, this layer is preferrable when the output feature dimension is
+    smaller than the intput feature dimension. For the reverse case, see 
+    DistributedLinearAllGather. Weights and biases are stored on the 1st data-
+    parallel worker only.
 
     Parameters
     ----------
     P_x :
         Partition of input/output tensor. Must be of size 1
-        in the second last dimension (i.e. the channel out
-        dimension.)
+        in the second last dimension.
     in_features :
         Number of features in the *global* input tensor.
     out_features :
         Number of features in the *global* output tensor.
     bias : bool
         Indicates if a bias term should be used.
-    P_y: optional
-        Partition for the output if output is partitioned
-        along the second last dimension instead of the last.
-        Must have the same size and shape as P_x with the 
-        second two last dimensions swapped.
+    P_y : optional
+        Partition of the output tensor if output is partitioned
+        along the second last dimension. Must be of size 1
+        along the last dimension and the 2nd last dimension
+        must be the same size as P_x's last dimension.
     P_weight : optional
-        Partition for the weights. Must be of size 1 in
-        every dimension but the last.
+        Partition for weights. Must have the same size as P_x in
+        the last dimensions with size 1 in all other dimensions.
     P_store_bias: optional
-        Partition for storing the bias. Must have the same
-        dimension as P_x with size 1 in every dimension.
+        Partition for storing the bias. Must be of size 1 in all
+        dimensions.
     P_apply_bias: optional
-        Partition on which bias is applied. Must have the 
-        same size as P_x in every but the last 2 dimensions,
-        which must be 1.
+        Partition for applying the bias. Must be of size 1 in all 
+        dimensions but the first, which must be the same size as
+        P_x's first dimension.
     collect_state: bool, optional
-        If true, creates partitions to gather/scatter weights & 
-        biases for saving/loading state dictionaries.
+        If true, collects the weights and biases to the root worker and
+        serializes them to disk when the state_dict() function is called.
+        Instead of the weights and biases, the state dictionary contains 
+        paths to those files. Default is false.
     """
 
     def __init__(self, P_x, in_features, out_features, bias=True, device=None, dtype=None, 
         P_y=None, P_weight=None, P_store_bias=None, P_apply_bias=None, 
-        collect_state=False, geglu=False):
+        collect_state=False):
 
         super(DistributedLinearReduceScatter, self).__init__()
 
@@ -97,7 +98,6 @@ class DistributedLinearReduceScatter(Module):
         self.out_features = out_features
         self.collect_state = collect_state
         self.use_bias = bias
-        self.geglu = geglu
 
         # Partition for storing weights (the partition for applying weights is P_x)
         if P_weight is not None:

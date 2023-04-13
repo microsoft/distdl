@@ -17,7 +17,7 @@ class DistributedChannelAllGatherConvBase(Module):
 
     In contrast to the alternative channel convolutions, the convolutional
     filters are only partitioned along the output channel dimension, but
-    not along the output channels. To bring the intput to the correct 
+    not along the input channels. To bring the input to the correct 
     partitioning scheme for the convolution, an all-gather operation is 
     applied to the input prior to the convolution operation.
 

@@ -14,32 +14,39 @@ import distdl.nn.init as init
 from einops import rearrange
 
 class DistributedLinearAllGather(Module):
-    r"""A distributed linear or affine layer.
+    r"""A distributed linear or affine layer with weight column parallelism.
 
-    This class provides the user interface to a distributed linear layer.
-    It utlizes back-end specific parallel data movement primitives but
-    does not require its own back-end implementation.
+    This class provides the user interface to a distributed linear layer
+    with 2D partitioning of input/output data and 1D partitioning of weights 
+    and biases. Outputs can be partitioned along the batch dimension (dimension 0) 
+    and/or the last dimension, as specified by the output partition P_y.
 
-    The base unit of work is given by the partition over the weight tensor.
-    This class requires the following of the tensor partitions:
+    Inputs can be partitioned along the batch dimension (dimension 0) plus either
+    the last dimension or second last dimension. If inputs are partitioned along 
+    the second last dimension, an additional input partition P_x must be specified.
+    If P_x is not supplied, the input partitoning is assumed to be the same as the 
+    output partitioning.
 
-    1. :math:`P_y` over input/output tensor :math:`x` has shape :math:`1 \times
-       P_{\text{f_in}}`.
+    Weights and biases are partitoned along the output feature dimension. Therefore,
+    an allgather is performed on the input prior to the matrix multiplication. For 
+    this reason, this layer is preferrable when the input feature dimension is
+    smaller than the output feature dimension. For the reverse case, see 
+    DistributedLinearReduceScatter. Weights and biases are stored on the 1st data-
+    parallel worker only.
 
-    The bias term does not have its own partition.  The first dimension of the
-    input and output partitions is the batch dimension and the second is the
-    feature dimension.
-
-    .. warning::
-       This departs from PyTorch Linear layers, which allow intermediate
-       dimensions in the tensors.
+    This class supports computing QKV tensors for multi-head attention. If 
+    collect_state is set to true, the number of attention heads must be specified, 
+    as well as the number of output variables (3 for QKV, 2 for QK, 1 for Q only). 
+    Supplying the no. of heads and output variables is required to rearrange
+    the weights and biases such that they yield the same result if the layer is 
+    called for a different number of (model-parallel) workers (e.g., if we load 
+    trained weights on a single GPU for inference).
 
     Parameters
     ----------
     P_y :
         Partition of input/output tensor. Must be of size 1
-        in the second last dimension (i.e. the channel out
-        dimension.)
+        in the second last dimension.
     in_features :
         Number of features in the *global* input tensor.
     out_features :
@@ -59,8 +66,20 @@ class DistributedLinearAllGather(Module):
         the same size as P_y, but with the last two dimensions
         swapped.
     collect_state: bool, optional
-        If true, creates partitions to gather/scatter weights & 
-        biases for saving/loading state dictionaries.
+        If true, collects the weights and biases to the root worker and
+        serializes them to disk when the state_dict() function is called.
+        Instead of the weights and biases, the state dictionary contains 
+        paths to those files. Default is false.
+    num_heads: int, optional
+        Total number of attention heads across all workers for multi-head attention. 
+        Only required if collect_state=True. Default is None.
+    num_vars: int, optional
+        Number of output variables if used as a linear layer for QKV computations.
+        Set to 3 for QKV, 2 for KV, and 1 for Q. Only required if collect_state=True.
+        Default is 3 (QKV).
+    geglu: bool, optional
+        Set to true if a gated linear unit is used directly after the linear layer and
+        collect_state=True. Default is False.
     """
 
     def __init__(self, P_y, in_features, out_features, bias=True, device=None, dtype=None, 
@@ -215,6 +234,9 @@ class DistributedLinearAllGather(Module):
         c_out, c_in = weight.shape[-2:]
         return weight.view(c_out, c_in)
 
+    # If we collect the weights on the root worker, we need to rearrange the weights, 
+    # such that the split into QKV occurs in the slowest (dim 0) dimension. This enables
+    # us to load weights for a different partitioning scheme than they were saved in.
     def qkv_weight_to_serial(self, weight):
         head_size = weight.shape[-2] // self.num_vars // self.num_heads
         num_gpu = self.P_store_weight.shape[-2]
@@ -222,6 +244,9 @@ class DistributedLinearAllGather(Module):
             p=num_gpu, v=self.num_vars, h=self.num_heads//num_gpu*head_size)
         return self._unsqueeze_weight(weight)
 
+    # Similarly, if we want to load weights from a serial partitioning scheme and 
+    # use them in a parallel scheme, we need to rearrange the weights to move the 
+    # QKV/QK split into the 2nd slowest dimension (dim 1).
     def qkv_weight_to_parallel(self, weight):
         head_size = weight.shape[-2] // self.num_vars // self.num_heads
         num_gpu = self.P_store_weight.shape[-2]
@@ -229,6 +254,9 @@ class DistributedLinearAllGather(Module):
             p=num_gpu, v=self.num_vars, h=self.num_heads//num_gpu*head_size)
         return self._unsqueeze_weight(weight)
 
+    # If we collect the weights on the root worker and want to use a gated linear
+    # unit right after the linear layer, we need to rearrange the weights, such that
+    # the behavior on a single GPU is the same as on multiple GPUs.
     def geglu_weight_to_serial(self, weight):
         num_gpu = self.P_store_weight.shape[-2]
         weight_size = weight.shape[-2] // 2 // num_gpu
@@ -236,6 +264,8 @@ class DistributedLinearAllGather(Module):
             p=num_gpu, v=2, h=weight_size)
         return self._unsqueeze_weight(weight)
 
+    # Rearrangment function for loading weights from a serial partitioning scheme
+    # if a gated linear unit is used right after the linear layer.
     def geglu_weight_to_parallel(self, weight):
         num_gpu = self.P_store_weight.shape[-2]
         weight_size = weight.shape[-2] // 2 // num_gpu

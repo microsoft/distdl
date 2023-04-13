@@ -16,7 +16,8 @@ class DistributedEmbedding(Module):
 
     Distributed version of torch.nn.Embedding for storing embeddings of
     a fixed fixed dictionary and size. Embeddings are partitioned along
-    the last dimension (i.e., the embedding dimension).
+    the last dimension (i.e., the embedding dimension). Sequence parallelism
+    (partitioning the 2nd last dimension) is currently not supported.
     
     Parameters
     ----------
@@ -42,6 +43,16 @@ class DistributedEmbedding(Module):
     sparse : bool, optional
         If True, gradient w.r.t. weight matrix will be a sparse tensor. 
         See Notes for more details regarding sparse gradients.
+    collect_state : bool, optional
+        If True, the entire embedding matrix is gathered to the root worker and 
+        serialized to disk when the state_dict() function is called. Instead
+        of the weight itself, the state dictionary will contain a path to the
+        serialized file. Default False.
+    device : torch.device, optional
+        Device on which to allocate the embedding matrix. Default is the device
+        as specified by the input partition P_x.
+    dtype : torch.dtype, optional
+        Data type of the embedding matrix. Default is torch.float32.
     """
 
     def __init__(self, P_x, num_embeddings, embedding_dim, padding_idx=None,

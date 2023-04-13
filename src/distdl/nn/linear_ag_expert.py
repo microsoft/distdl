@@ -14,44 +14,44 @@ import distdl.nn.init as init
 from einops import rearrange
 
 class DistributedExpertAllGather(Module):
-    r"""A distributed linear or affine layer.
+    r"""A distributed linear for mixture of experts (MoE) with column parallelism.
 
-    This class provides the user interface to a distributed linear layer.
-    It utlizes back-end specific parallel data movement primitives but
-    does not require its own back-end implementation.
+    This class provides the user interface to a distributed linear layer for
+    Mixture of Experts. In contrast to the standard (distributed) linear layer, 
+    weights and biases of this layer contain an additional expert dimension.
+    Supported partitionings for the input/output are along the expert dimension 
+    (dimension 0) and/or the feature/embedding dimension (dimension 2). 
 
-    The base unit of work is given by the partition over the weight tensor.
-    This class requires the following of the tensor partitions:
+    Weights are partitoned along the expert and output feature dimension. Therefore, 
+    the forward pass calls an AllGather on the input prior to the matrix multiplication. 
+    For this reason, the column-parallel version is preferrable when the input feature 
+    dimension is smaller than the output feature dimension. For the reverse case, see
+    DistributedExpertReduceScatter.
 
-    1. :math:`P_x` over input/output tensor :math:`x` has shape :math:`1 \times
-       P_{\text{f_in}}`.
-
-    The bias term does not have its own partition.  The first dimension of the
-    input and output partitions is the batch dimension and the second is the
-    feature dimension.
-
-    .. warning::
-       This departs from PyTorch Linear layers, which allow intermediate
-       dimensions in the tensors.
+    This class assumes that the input/output tensors are three-dimensional with the
+    following dimension ordering: [expert, capacity, feature_in/out].
 
     Parameters
     ----------
     P_x :
-        Partition of input/output tensor. Must be of size 1
-        in the second last dimension (i.e. the channel out
-        dimension.)
+        3D Partition of input/output tensor. Must be of size 1
+        in the second dimension (i.e., the capacity dimension.)
+    num_experts :
+        Number of experts in the *global* input tensor.
     in_features :
         Number of features in the *global* input tensor.
     out_features :
         Number of features in the *global* output tensor.
     bias : bool
-        Indicates if a bias term should be used.
+        Indicates if a bias term should be used. Default is true.
     P_weight : optional
-        Partition for storing weights and biases. Must be of 
-        size 1 in every dimension but the 2nd last.
+        Partition for storing weights and biases. Must be of identical
+        size as P_x, but with the last two dimensions swapped.
     collect_state: bool, optional
-        If true, creates partitions to gather/scatter weights & 
-        biases for saving/loading state dictionaries.
+        If true, collects the weights and biases to the root worker and
+        serializes them to disk when the state_dict() function is called.
+        Instead of the weights and biases, the state dictionary contains 
+        paths to those files. Default is false.
     """
 
     def __init__(self, P_x, num_experts, in_features, out_features, bias=True, device=None, dtype=None, 

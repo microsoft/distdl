@@ -32,6 +32,10 @@ class DistributedLayerNorm(Module):
         A boolean value that when set to True, this module has learnable per-element affine 
         parameters of size normalized_shape initialized to ones (for weights) and zeros (for biases). 
         Default is True.
+    collect_state : optional
+        If True, weights and biases are gathered to the root worker and serialized to disk when the
+        state_dict() function is called. Instead of the weights and biases themselves, the state 
+        dictionary will contain paths to the serialized files. Default is False.
     device: optional
         Computational device. Default is P_x.device.
     dtype: optional
