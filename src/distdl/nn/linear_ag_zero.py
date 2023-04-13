@@ -47,8 +47,8 @@ class DistributedLinearAllGatherZero(Module):
     Parameters
     ----------
     P_y :
-        Partition of input/output tensor. Must be of size 1
-        in the second last dimension.
+        Partition of input/output tensor with shape [ D, ..., 1, M ], where D is 
+        the no. of data parallel workers and M is the no. of model parallel workers.
     in_features :
         Number of features in the *global* input tensor.
     out_features :
@@ -56,17 +56,12 @@ class DistributedLinearAllGatherZero(Module):
     bias : bool
         Indicates if a bias term should be used.
     P_x : optional
-        Partition of the input tensor if input is partitioned
-        along the second last dimension. Must be of size 1
-        along the last dimension and the 2nd last dimension
-        must be the same size as P_y's last dimension.
-    P_store_weight : optional
-        Partition for storing weights and biases. Must be of 
-        size 1 in every dimension but the 2nd last.
-    P_apply_weight: optional
-        Partition for applying weights and biases. Must be 
-        the same size as P_y, but with the last two dimensions
-        swapped.
+        Partition of the input tensor if input is partitioned along the second 
+        last dimension. Must have shape of form [ D, ..., M, 1 ].
+    P_weight : optional
+        Partition for storing weights and biases with shape [ D, ..., M, 1 ].
+    P_store_bias : optional
+        Partition for storing biases with shape [ 1, ..., M, 1 ].
     collect_state: bool, optional
         If true, collects the weights and biases to the root worker and
         serializes them to disk when the state_dict() function is called.

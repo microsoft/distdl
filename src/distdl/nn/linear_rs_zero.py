@@ -15,7 +15,7 @@ import distdl.nn.init as init
 from einops import rearrange
 
 class DistributedLinearReduceScatterZero(Module):
-   r"""A distributed linear or affine layer with 2D parallelism for weights 
+    r"""A distributed linear or affine layer with 2D parallelism for weights 
     and input/outputs (also called ZeRO-3 or FSDP).
 
     This class provides the user interface to a distributed linear layer
@@ -39,8 +39,9 @@ class DistributedLinearReduceScatterZero(Module):
     Parameters
     ----------
     P_x :
-        Partition of input/output tensor. Must be of size 1
-        in the second last dimension.
+        Partition of input/output tensor with shape of form: [ D, ..., 1, M ], where D 
+        is the number of data-parallel workers, and M is the number of model-parallel workers. 
+        Weights are distributed on the P_x partition as well.
     in_features :
         Number of features in the *global* input tensor.
     out_features :
@@ -48,20 +49,10 @@ class DistributedLinearReduceScatterZero(Module):
     bias : bool
         Indicates if a bias term should be used.
     P_y : optional
-        Partition of the output tensor if output is partitioned
-        along the second last dimension. Must be of size 1
-        along the last dimension and the 2nd last dimension
-        must be the same size as P_x's last dimension.
-    P_weight : optional
-        Partition for weights. Must have the same size as P_x in
-        the last dimensions with size 1 in all other dimensions.
-    P_store_bias: optional
-        Partition for storing the bias. Must be of size 1 in all
-        dimensions.
-    P_apply_bias: optional
-        Partition for applying the bias. Must be of size 1 in all 
-        dimensions but the first, which must be the same size as
-        P_x's first dimension.
+        Partition of the output tensor if output is partitioned along the second last 
+        dimension. Shape must be of form: [ D, ..., M, 1 ].
+    P_bias : optional
+        Partition for biases of shape: [ D, ..., 1, 1 ].
     collect_state: bool, optional
         If true, collects the weights and biases to the root worker and
         serializes them to disk when the state_dict() function is called.
