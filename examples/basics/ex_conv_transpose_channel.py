@@ -5,7 +5,8 @@ from distdl.config import set_backend
 
 import distdl.utilities.slicing as slicing
 from distdl.backends.common.partition import MPIPartition
-from distdl.nn.conv_channel_rs import DistributedChannelReduceScatterConv2d
+from distdl.nn.conv_channel_ag import DistributedChannelAllGatherConvTranspose2d
+from distdl.nn.conv_channel_rs import DistributedChannelReduceScatterConvTranspose2d
 from distdl.utilities.torch import zero_volume_tensor
 
 # Set backend
@@ -24,7 +25,7 @@ P_x_base = P_world.create_partition_inclusive(in_workers)
 P_x = P_x_base.create_cartesian_topology_partition(in_shape)
 
 # Input data
-x_global_shape = np.array([2, 16, 64, 64])
+x_global_shape = np.array([2, 8, 8, 8])
 x = zero_volume_tensor(device=P_x.device)
 if P_x.active:
     x_local_shape = slicing.compute_subshape(P_x.shape,
@@ -36,13 +37,17 @@ x.requires_grad = True
 # Distributed conv layer
 if P_x.rank == 0: print("Forward")
 
-# Distributed conv layer: The reduce-scatter version is preferrable to the all-gather version when the
+# Distributed conv transpose layer: The reduce-scatter version is preferrable to the all-gather version when the
 # number of output channels is smaller than the number of input channels.
-conv2d = DistributedChannelReduceScatterConv2d(P_x, 16, 16, (3, 3), padding=(1, 1))
-y = conv2d(x)
+conv2d_in = DistributedChannelAllGatherConvTranspose2d(P_x, 8, 16, (2, 2), stride=(2, 2))   # upsampling effect
+conv2d_out = DistributedChannelReduceScatterConvTranspose2d(P_x, 16, 4, (2, 2), stride=(2, 2))
+
+# Apply conv layers
+y = conv2d_in(x)
+y = conv2d_out(y)
 
 # Backward pass
 if P_x.rank == 0: print("Backward")
 y.sum().backward()
 
-print("y.shape from rank {}: {}".format(P_x.rank, y.shape))
+print("x.shape: {}, y.shape: {} from rank {}".format(x.shape, y.shape, P_x.rank))

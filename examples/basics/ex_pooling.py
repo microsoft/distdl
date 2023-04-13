@@ -9,7 +9,7 @@ from distdl.nn.pooling import DistributedMaxPool2d
 from distdl.utilities.torch import zero_volume_tensor
 
 # Set backend
-set_backend(backend_comm="mpi", backend_array="numpy")
+set_backend(backend_comm="nccl", backend_array="cupy")
 
 # Set up MPI cartesian communicator
 P_world = MPIPartition(MPI.COMM_WORLD)
