@@ -34,8 +34,8 @@ class DistributedExpertReduceScatter(Module):
     Parameters
     ----------
     P_x :
-        3D Partition of input/output tensor. Must be of size 1
-        in the second dimension (i.e., the capacity dimension.)
+        3D Partition of input/output tensor with shape [ E, 1, M ], where E is the no. 
+        of expert-parallel workers and M is the no. of model parallel workers.
     num_experts :
         Number of experts in the *global* input tensor.
     in_features :
@@ -45,8 +45,7 @@ class DistributedExpertReduceScatter(Module):
     bias : bool
         Indicates if a bias term should be used. Default is true.
     P_bias : optional
-        Partition for the bias. Must be of the same size as P_x in 
-        dimension 0 and size 1 in dimensions 1 and 2.
+        Partition for the bias of shape: [ E, 1, 1 ].
     collect_state: bool, optional
         If true, collects the weights and biases to the root worker and
         serializes them to disk when the state_dict() function is called.
