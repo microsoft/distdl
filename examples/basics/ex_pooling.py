@@ -5,18 +5,18 @@ from distdl.config import set_backend
 
 import distdl.utilities.slicing as slicing
 from distdl.backends.common.partition import MPIPartition
-from distdl.nn.conv_channel_rs import DistributedChannelReduceScatterConv2d
+from distdl.nn.pooling import DistributedMaxPool2d
 from distdl.utilities.torch import zero_volume_tensor
 
 # Set backend
-set_backend(backend_comm="mpi", backend_array="cupy")
+set_backend(backend_comm="nccl", backend_array="cupy")
 
 # Set up MPI cartesian communicator
 P_world = MPIPartition(MPI.COMM_WORLD)
 P_world._comm.Barrier()
 
 # Data partition
-in_shape = (1, 4, 1, 1)
+in_shape = (2, 1, 2, 2)     # [ batch, channel, height, width ]
 in_size = np.prod(in_shape)
 in_workers = np.arange(0, in_size)
 
@@ -24,20 +24,18 @@ P_x_base = P_world.create_partition_inclusive(in_workers)
 P_x = P_x_base.create_cartesian_topology_partition(in_shape)
 
 # Input data
-x_global_shape = np.array([2, 16, 64, 64])
+x_global_shape = np.array([4, 8, 16, 16])
+
+# Initialize x locally on each worker for its local shape
 x = zero_volume_tensor(device=P_x.device)
 if P_x.active:
     x_local_shape = slicing.compute_subshape(P_x.shape,
                                              P_x.index,
                                              x_global_shape)
     x = torch.zeros(*x_local_shape, device=x.device) + (P_x.rank + 1)
-x.requires_grad = True
 
-# Distributed conv layer
-if P_x.rank == 0: print("Forward")
-conv2d = DistributedChannelReduceScatterConv2d(P_x, 16, 16, (3, 3), padding=(1, 1), device=P_x.device, checkpointing=False)
-y = conv2d(x)
+# Distributed maxpool layer
+maxpool = DistributedMaxPool2d(P_x, (2, 2), stride=(2, 2))
+y = maxpool(x)
 
-# Backward pass
-if P_x.rank == 0: print("Backward")
-y.sum().backward()
+print("x.shape {} and y.shape {} from rank {}".format(x.shape, y.shape, P_x.rank))
