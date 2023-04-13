@@ -16,7 +16,7 @@ P_world = MPIPartition(MPI.COMM_WORLD)
 P_world._comm.Barrier()
 
 # Data partition
-in_shape = (1, 4, 1, 1)
+in_shape = (1, 4, 1, 1) # [ batch, channel, height, width ]
 in_size = np.prod(in_shape)
 in_workers = np.arange(0, in_size)
 
@@ -35,9 +35,14 @@ x.requires_grad = True
 
 # Distributed conv layer
 if P_x.rank == 0: print("Forward")
+
+# Distributed conv layer: The reduce-scatter version is preferrable to the all-gather version when the
+# number of output channels is smaller than the number of input channels.
 conv2d = DistributedChannelReduceScatterConv2d(P_x, 16, 16, (3, 3), padding=(1, 1), device=P_x.device, checkpointing=False)
 y = conv2d(x)
 
 # Backward pass
 if P_x.rank == 0: print("Backward")
 y.sum().backward()
+
+print("y.shape from rank {}: {}".format(P_x.rank, y.shape))

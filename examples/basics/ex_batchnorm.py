@@ -5,9 +5,9 @@ from distdl.config import set_backend
 
 import distdl.utilities.slicing as slicing
 from distdl.backends.common.partition import MPIPartition
-from distdl.nn.layernorm import DistributedLayerNorm
 from distdl.nn.repartition import Repartition
 from distdl.utilities.torch import zero_volume_tensor
+from distdl.nn.batchnorm import DistributedBatchNorm
 
 # Set backend
 set_backend(backend_comm="nccl", backend_array="cupy")
@@ -32,10 +32,9 @@ P_x = P_x_base.create_cartesian_topology_partition(in_shape)
 batchsize = 12
 num_tokens = 8
 num_features = 32
-normalized_shape = (num_features)
 
 # Layer norm
-layer_norm = DistributedLayerNorm(P_x, normalized_shape, elementwise_affine=True, collect_state=True)
+batch_norm = DistributedBatchNorm(P_x, num_tokens)
 
 # Scatter data
 scatter = Repartition(P_root, P_x, preserve_batch=False)
@@ -51,5 +50,5 @@ if P_root.active:
 x = scatter(x)
 
 # Forward pass
-y = layer_norm(x)
+y = batch_norm(x)
 print("y.shape from rank {}: {}".format(P_x.rank, y.shape))

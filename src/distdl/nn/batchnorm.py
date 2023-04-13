@@ -15,7 +15,6 @@ class DistributedBatchNorm(Module):
 
     Applies Batch Normalization using mini-batch statistics.
     This layer is a distributed and generalized version of the PyTorch BatchNormNd layers.
-    Currently, parallelism is supported in all dimensions except the feature dimension (dimension 2).
 
     Parameters
     ----------
@@ -44,8 +43,9 @@ class DistributedBatchNorm(Module):
 
     def __init__(self, P_x,
                  num_features, eps=1e-05, momentum=0.1, affine=True,
-                 track_running_stats=True):
+                 track_running_stats=True, device=None, dtype=None):
         super(DistributedBatchNorm, self).__init__()
+
         self.num_dimensions = len(P_x.shape)
         if self.num_dimensions < 2:
             raise ValueError('Number of dimensions of P_x should be at least 2.')
@@ -55,6 +55,9 @@ class DistributedBatchNorm(Module):
         self.affine = affine
         self.track_running_stats = track_running_stats
         self.inputs_seen = 0
+        
+        if device is None: device = P_x.device
+        factory_kwargs = {'device': device, 'dtype': dtype}
 
         # Determine the size of the local trainable parameters (this is a bit of a hack)
         possible_input_shape = P_x.shape.tolist()
@@ -82,8 +85,8 @@ class DistributedBatchNorm(Module):
         P_sum_base.deactivate()
 
         if self.track_running_stats:
-            self.register_buffer('running_mean', torch.zeros(internal_data_shape))
-            self.register_buffer('running_var', torch.ones(internal_data_shape))
+            self.register_buffer('running_mean', torch.zeros(internal_data_shape, **factory_kwargs))
+            self.register_buffer('running_var', torch.ones(internal_data_shape, **factory_kwargs))
         else:
             self.running_mean = None
             self.running_var = None
@@ -94,11 +97,11 @@ class DistributedBatchNorm(Module):
 
         if self.affine:
             if self.P_sum.active:
-                self.gamma = torch.nn.Parameter(torch.ones(internal_data_shape))
-                self.beta = torch.nn.Parameter(torch.zeros(internal_data_shape))
+                self.gamma = torch.nn.Parameter(torch.ones(internal_data_shape, **factory_kwargs))
+                self.beta = torch.nn.Parameter(torch.zeros(internal_data_shape, **factory_kwargs))
             else:
-                self.register_buffer('gamma', zero_volume_tensor(requires_grad=True))
-                self.register_buffer('beta', zero_volume_tensor(requires_grad=True))
+                self.register_buffer('gamma', zero_volume_tensor(device=device, requires_grad=True))
+                self.register_buffer('beta', zero_volume_tensor(device=device, requires_grad=True))
 
     def _distdl_module_setup(self, input):
         r"""Distributed batch norm module setup function.

@@ -16,7 +16,7 @@ P_world = MPIPartition(MPI.COMM_WORLD)
 P_world._comm.Barrier()
 
 # Data partition
-in_shape = (1, 1, 2, 2)
+in_shape = (2, 1, 2, 2)     # [ batch, channel, height, width ]
 in_size = np.prod(in_shape)
 in_workers = np.arange(0, in_size)
 
@@ -26,20 +26,17 @@ P_x = P_x_base.create_cartesian_topology_partition(in_shape)
 # Input data
 x_global_shape = np.array([2, 4, 64, 64])
 
+# Initialize x locally on each worker for its local shape
 x = zero_volume_tensor(device=P_x.device)
-
 if P_x.active:
     x_local_shape = slicing.compute_subshape(P_x.shape,
                                              P_x.index,
                                              x_global_shape)
+    print("Local shape: ", x_local_shape)
     x = torch.zeros(*x_local_shape, device=x.device) + (P_x.rank + 1)
-
-x.requires_grad = True
-
-print(x.shape)
 
 # Distributed conv layer
 conv2d = DistributedFeatureConv2d(P_x, 4, 6, (3, 3), stride=(1, 1), padding=(1, 1), padding_mode='zeros')
 y = conv2d(x)
 
-print(y.shape)
+print("y.shape from rank {}: {}".format(P_x.rank, y.shape))
