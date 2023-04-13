@@ -74,7 +74,7 @@ class DistributedLinearAllGatherZero(Module):
         paths to those files. Default is false.
     num_heads: int, optional
         Total number of attention heads across all workers for multi-head attention. 
-        Only required if collect_state=True. Default is None.
+        Only required if collect_state=True. Default is 0.
     num_vars: int, optional
         Number of output variables if used as a linear layer for QKV computations.
         Set to 3 for QKV, 2 for KV, and 1 for Q. Only required if collect_state=True.
@@ -242,8 +242,9 @@ class DistributedLinearAllGatherZero(Module):
         return weight.view(c_in, c_out)
 
     # If we collect the weights on the root worker, we need to rearrange the weights, 
-    # such that the split into QKV occurs in the slowest (dim 0) dimension. This enables
-    # us to load weights for a different partitioning scheme than they were saved in.
+    # such that the split into QKV occurs in the 2nd slowest dimension (dim 1). This 
+    # enables us to load weights for a different partitioning scheme than they were 
+    # saved in.
     def qkv_weight_to_serial(self, weight):
         head_size = weight.shape[-2] // self.num_vars // self.num_heads
         num_gpu = self.P_weight.shape[-2]
@@ -253,7 +254,7 @@ class DistributedLinearAllGatherZero(Module):
 
     # Similarly, if we want to load weights from a serial partitioning scheme and 
     # use them in a parallel scheme, we need to rearrange the weights to move the 
-    # QKV/QK split into the 2nd slowest dimension (dim 1).
+    # QKV/QK split into the 3rd slowest dimension (dim 2).
     def qkv_weight_to_parallel(self, weight):
         head_size = weight.shape[-2] // self.num_vars // self.num_heads
         num_gpu = self.P_weight.shape[-2]
