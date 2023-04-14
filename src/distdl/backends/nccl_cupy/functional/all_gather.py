@@ -85,7 +85,7 @@ class AllGatherFunction(torch.autograd.Function):
             # All-gather (Conversion from torch cuda tensor to cupy array is via pointers. No mem copy.)
             input_cupy = cp.asarray(input.detach(), dtype=cupy_dtype)
             #assert input.__cuda_array_interface__['data'][0] == input_cupy.__cuda_array_interface__['data'][0]
-            count = cp.prod(cp.array(input_cupy.shape)).item()
+            count = np.prod(input_cupy.shape).item()
             P_allgather._nccl.all_gather(input_cupy, gathered_data, count, stream=None)
 
         # If we had to receive data, we need to tensorify it.
@@ -150,7 +150,7 @@ class AllGatherFunction(torch.autograd.Function):
                 grad_output_flat[flat] = grad_output_cupy[cart].reshape(-1)
 
             # Reduce-scatter primitive
-            count = cp.prod(cp.array(scattered_data.shape)).item()
+            count = np.prod(scattered_data.shape).item()
             P_allgather._nccl.reduce_scatter(grad_output_flat, scattered_data, count, op='sum', stream=None)
 
         # If we had to receive data, we need to tensorify it.

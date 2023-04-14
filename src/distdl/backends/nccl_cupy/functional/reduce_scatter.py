@@ -88,7 +88,7 @@ class ReduceScatterFunction(torch.autograd.Function):
             for cart, flat in zip(*slices):
                 input_flat[flat] = input_cupy[cart].reshape(-1)
 
-            count = cp.prod(cp.array(scattered_data.shape)).item()
+            count = np.prod(scattered_data.shape).item()
             P_reducescatter._nccl.reduce_scatter(input_flat, scattered_data, count, op='sum', stream=None)
 
         # If we had to receive data, we need to tensorify it.
@@ -137,7 +137,7 @@ class ReduceScatterFunction(torch.autograd.Function):
             
             gathered_data = cp.zeros(np.prod(input_tensor_structure.shape), dtype=cupy_dtype)
             grad_output_cupy = cp.asarray(grad_output.detach().contiguous(), dtype=cupy_dtype)
-            count = cp.prod(cp.array(grad_output_cupy.shape)).item()
+            count = np.prod(grad_output_cupy.shape).item()
             P_reducescatter._nccl.all_gather(grad_output_cupy, gathered_data, count, stream=None)
 
         # If we had to receive data, we need to tensorify it.
