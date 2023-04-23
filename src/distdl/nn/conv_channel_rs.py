@@ -140,7 +140,6 @@ class _DistributedChannelReduceScatterConvNd(Module):
         index_weight = [slice(0, 1)] * P_x.dim
         index_weight[1] = slice(0, P_x.shape[1])
         weight_workers = worker_layout(P_x.shape)[tuple(index_weight)].reshape(-1).tolist()
-        print('weight workers: ', weight_workers)
 
         P_weight_base = P_x.create_partition_inclusive(weight_workers)
         P_weight = P_weight_base.create_cartesian_topology_partition(weight_partition_shape)
@@ -158,7 +157,6 @@ class _DistributedChannelReduceScatterConvNd(Module):
             index_bias = [slice(0, 1)] * P_x.dim
             index_bias[0] = slice(0, P_x.shape[0])
             apply_bias_workers = worker_layout(P_x.shape)[tuple(index_bias)].reshape(-1).tolist()
-            print('apply bias workers: ', apply_bias_workers)
 
             P_apply_bias_base = P_x.create_partition_inclusive(apply_bias_workers)
             P_apply_bias = P_apply_bias_base.create_cartesian_topology_partition(apply_bias_partition_shape)
