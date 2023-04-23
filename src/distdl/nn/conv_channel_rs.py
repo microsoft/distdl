@@ -11,6 +11,7 @@ import distdl.nn.init as init
 from distdl.nn.module import Module
 from distdl.nn.reduce_scatter import ReduceScatter
 from distdl.nn.broadcast import Broadcast
+from distdl.nn.repartition import Repartition
 from distdl.utilities.slicing import compute_subshape
 from distdl.utilities.torch import TensorStructure
 from distdl.utilities.slicing import worker_layout
@@ -86,6 +87,7 @@ class _DistributedChannelReduceScatterConvNd(Module):
     output_padding: Tuple[int, ...]
     groups: int
     padding_mode: str
+    collect_state: bool
     weight: Tensor
     bias: Optional[Tensor]
 
@@ -102,6 +104,7 @@ class _DistributedChannelReduceScatterConvNd(Module):
                  groups: int,
                  bias: bool,
                  padding_mode: str,
+                 collect_state: bool,
                  device=None,
                  dtype=None) -> None:
         factory_kwargs = {'device': P_x.device, 'dtype': dtype}
@@ -182,6 +185,7 @@ class _DistributedChannelReduceScatterConvNd(Module):
         self.output_padding = output_padding
         self.groups = groups
         self.padding_mode = padding_mode
+        self.collect_state = collect_state
         # `_reversed_padding_repeated_twice` is the padding to be passed to
         # `F.pad` if needed (e.g., for non-zero padding types that are
         # implemented as two ops: padding + conv). `F.pad` accepts paddings in
@@ -227,14 +231,22 @@ class _DistributedChannelReduceScatterConvNd(Module):
         else:
             self.register_parameter('bias', None)
 
-        print('weight.shape: ', self.weight.shape)
-        if self.bias is not None:
-            print('bias.shape: ', self.bias.shape)
-
         self.reset_parameters()
 
         # Reduce scatter operator
         self.reduce_scatter = ReduceScatter(self.P_x, axes_reduce_scatter=(1,))
+
+        # State dict hooks for gather/scattering distributed weights
+        self._register_state_dict_hook(self.gather_state_dict)
+        self._register_load_state_dict_pre_hook(self.scatter_state_dict)
+
+        # Partition for collecting weights/biases for saving the state dict
+        if self.collect_state:
+            P_root_base = P_x.create_partition_inclusive([0])
+            self.P_root = P_root_base.create_cartesian_topology_partition([1]*P_x.dim)
+            self.gather_weight = Repartition(P_weight, self.P_root, preserve_batch=False)
+            self.scatter_weight = Repartition(self.P_root, P_weight, preserve_batch=False)
+
 
     def reset_parameters(self) -> None:
         # Setting a=sqrt(5) in kaiming_uniform is the same as initializing with
@@ -271,6 +283,64 @@ class _DistributedChannelReduceScatterConvNd(Module):
         super().__setstate__(state)
         if not hasattr(self, 'padding_mode'):
             self.padding_mode = 'zeros'
+
+    def gather_state_dict(self, module, destination, prefix, *args):
+
+        if self.collect_state and self.P_x.active:
+            if self.bias is not None:   #self.use_bias and self.bias is not None:
+                
+                # Pop bias from state dict and serialize it
+                bias_key = next(reversed(destination))
+                bias = destination.pop(bias_key)
+
+                if self.P_store_bias.active:
+                    torch.save(bias, bias_key)
+
+            # Collect weights (second last entry added to dict)
+            weight_key = next(reversed(destination))
+            weight = self.gather_weight(destination.pop(weight_key))
+
+            # Serialize weights
+            if self.P_root.active:
+                torch.save(weight, weight_key)
+
+                # Add filenames back to state dict
+                destination[weight_key] = weight_key
+
+                if self.bias is not None:   #self.use_bias:
+                    destination[bias_key] = bias_key
+                
+        return destination
+
+    def scatter_state_dict(self, destination, prefix, *args):
+        if self.collect_state and self.P_x.active:
+
+            # Scatter weights
+            weight_key = next(iter(destination))
+            destination.pop(weight_key)
+            if self.P_root.active:
+                pass
+                weight = torch.load(weight_key)
+            else:
+                weight = zero_volume_tensor(device=self.P_x.device, requires_grad=True)
+            if self.P_weight.active:
+                weight = self.scatter_weight(weight)
+
+            # Load bias
+            if self.bias is not None:   #self.use_bias:
+                bias_key = next(iter(destination))
+                destination.pop(bias_key)
+
+                if self.P_store_bias.active:
+                    bias = torch.load(bias_key)
+                    destination[bias_key] = bias
+
+                elif self.P_apply_bias.active:
+                    bias = zero_volume_tensor(device=self.P_x.device, requires_grad=True)
+                    destination[bias_key] = bias
+
+            if self.P_x.active:
+                destination[weight_key] = weight
 
 class DistributedChannelReduceScatterConv1d(_DistributedChannelReduceScatterConvNd):
     __doc__ = r"""Applies a 1D convolution over an input signal composed of several input
@@ -362,6 +432,7 @@ class DistributedChannelReduceScatterConv1d(_DistributedChannelReduceScatterConv
         groups: int = 1,
         bias: bool = True,
         padding_mode: str = 'zeros',  # TODO: refine this type
+        collect_state: bool = False,
         device=None,
         dtype=None
     ) -> None:
@@ -374,7 +445,7 @@ class DistributedChannelReduceScatterConv1d(_DistributedChannelReduceScatterConv
         dilation_ = _single(dilation)
         super().__init__(
             P_x, in_channels, out_channels, kernel_size_, stride_, padding_, dilation_,
-            False, _single(0), groups, bias, padding_mode, **factory_kwargs)
+            False, _single(0), groups, bias, padding_mode, collect_state, **factory_kwargs)
 
     def _conv_forward(self, input: Tensor, weight: Tensor, bias: Optional[Tensor]):
         if self.padding_mode != 'zeros':
@@ -503,6 +574,7 @@ class DistributedChannelReduceScatterConv2d(_DistributedChannelReduceScatterConv
         groups: int = 1,
         bias: bool = True,
         padding_mode: str = 'zeros',  # TODO: refine this type
+        collect_state: bool = False,
         device=None,
         dtype=None
     ) -> None:
@@ -513,7 +585,7 @@ class DistributedChannelReduceScatterConv2d(_DistributedChannelReduceScatterConv
         dilation_ = _pair(dilation)
         super().__init__(
             P_x, in_channels, out_channels, kernel_size_, stride_, padding_, dilation_,
-            False, _pair(0), groups, bias, padding_mode, **factory_kwargs)
+            False, _pair(0), groups, bias, padding_mode, collect_state, **factory_kwargs)
 
     def _conv_forward(self, input: Tensor, weight: Tensor, bias: Optional[Tensor]):
         if self.padding_mode != 'zeros':
@@ -633,6 +705,7 @@ class DistributedChannelReduceScatterConv3d(_DistributedChannelReduceScatterConv
         groups: int = 1,
         bias: bool = True,
         padding_mode: str = 'zeros',
+        collect_state: bool = False,
         device=None,
         dtype=None
     ) -> None:
@@ -643,7 +716,7 @@ class DistributedChannelReduceScatterConv3d(_DistributedChannelReduceScatterConv
         dilation_ = _triple(dilation)
         super().__init__(
             P_x, in_channels, out_channels, kernel_size_, stride_, padding_, dilation_,
-            False, _triple(0), groups, bias, padding_mode, **factory_kwargs)
+            False, _triple(0), groups, bias, padding_mode, collect_state, **factory_kwargs)
 
     def _conv_forward(self, input: Tensor, weight: Tensor, bias: Optional[Tensor]):
         if self.padding_mode != "zeros":
@@ -682,7 +755,7 @@ class DistributedChannelReduceScatterConv3d(_DistributedChannelReduceScatterConv
 class _DistributedChannelReduceScatterConvTransposeNd(_DistributedChannelReduceScatterConvNd):
     def __init__(self, P_x, in_channels, out_channels, kernel_size, stride,
                  padding, dilation, transposed, output_padding,
-                 groups, bias, padding_mode, device=None, dtype=None) -> None:
+                 groups, bias, padding_mode, collect_state, device=None, dtype=None) -> None:
         if padding_mode != 'zeros':
             raise ValueError('Only "zeros" padding mode is supported for {}'.format(self.__class__.__name__))
 
@@ -690,7 +763,7 @@ class _DistributedChannelReduceScatterConvTransposeNd(_DistributedChannelReduceS
         super().__init__(
             P_x, in_channels, out_channels, kernel_size, stride,
             padding, dilation, transposed, output_padding,
-            groups, bias, padding_mode, **factory_kwargs)
+            groups, bias, padding_mode, collect_state, **factory_kwargs)
 
     # dilation being an optional parameter is for backwards
     # compatibility
@@ -823,6 +896,7 @@ class DistributedChannelReduceScatterConvTranspose1d(_DistributedChannelReduceSc
         bias: bool = True,
         dilation: _size_1_t = 1,
         padding_mode: str = 'zeros',
+        collect_state: bool = False,
         device=None,
         dtype=None
     ) -> None:
@@ -834,7 +908,7 @@ class DistributedChannelReduceScatterConvTranspose1d(_DistributedChannelReduceSc
         output_padding = _single(output_padding)
         super().__init__(
             P_x, in_channels, out_channels, kernel_size, stride, padding, dilation,
-            True, output_padding, groups, bias, padding_mode, **factory_kwargs)
+            True, output_padding, groups, bias, padding_mode, collect_state, **factory_kwargs)
 
     def forward(self, input: Tensor, output_size: Optional[List[int]] = None) -> Tensor:
         if self.padding_mode != 'zeros':
@@ -974,6 +1048,7 @@ class DistributedChannelReduceScatterConvTranspose2d(_DistributedChannelReduceSc
         bias: bool = True,
         dilation: _size_2_t = 1,
         padding_mode: str = 'zeros',
+        collect_state: bool = False,
         device=None,
         dtype=None
     ) -> None:
@@ -985,7 +1060,7 @@ class DistributedChannelReduceScatterConvTranspose2d(_DistributedChannelReduceSc
         output_padding = _pair(output_padding)
         super().__init__(
             P_x, in_channels, out_channels, kernel_size, stride, padding, dilation,
-            True, output_padding, groups, bias, padding_mode, **factory_kwargs)
+            True, output_padding, groups, bias, padding_mode, collect_state, **factory_kwargs)
 
     def forward(self, input: Tensor, output_size: Optional[List[int]] = None) -> Tensor:
         if self.padding_mode != 'zeros':
@@ -1119,6 +1194,7 @@ class DistributedChannelReduceScatterConvTranspose3d(_DistributedChannelReduceSc
         bias: bool = True,
         dilation: _size_3_t = 1,
         padding_mode: str = 'zeros',
+        collect_state: bool = False,
         device=None,
         dtype=None
     ) -> None:
@@ -1130,7 +1206,7 @@ class DistributedChannelReduceScatterConvTranspose3d(_DistributedChannelReduceSc
         output_padding = _triple(output_padding)
         super().__init__(
             P_x, in_channels, out_channels, kernel_size, stride, padding, dilation,
-            True, output_padding, groups, bias, padding_mode, **factory_kwargs)
+            True, output_padding, groups, bias, padding_mode, collect_state, **factory_kwargs)
 
     def forward(self, input: Tensor, output_size: Optional[List[int]] = None) -> Tensor:
         if self.padding_mode != 'zeros':
