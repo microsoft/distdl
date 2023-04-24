@@ -184,6 +184,7 @@ class _DistributedChannelReduceScatterConvNd(Module):
         self.groups = groups
         self.padding_mode = padding_mode
         self.collect_state = collect_state
+        self.use_bias = bias
         # `_reversed_padding_repeated_twice` is the padding to be passed to
         # `F.pad` if needed (e.g., for non-zero padding types that are
         # implemented as two ops: padding + conv). `F.pad` accepts paddings in
@@ -222,9 +223,9 @@ class _DistributedChannelReduceScatterConvNd(Module):
             else:
                 self.register_buffer('weight', zero_volume_tensor(device=P_x.device, requires_grad=True))
 
-        if bias and self.P_store_bias.active:
+        if self.use_bias and self.P_store_bias.active:
             self.bias = torch.nn.Parameter(torch.empty(out_channels, **factory_kwargs))
-        elif bias and self.P_apply_bias.active:
+        elif self.use_bias and self.P_apply_bias.active:
             self.register_buffer('bias', zero_volume_tensor(device=P_x.device, requires_grad=True)) # receive bias
         else:
             self.register_parameter('bias', None)
@@ -254,7 +255,7 @@ class _DistributedChannelReduceScatterConvNd(Module):
             init.kaiming_uniform_(self.P_weight, self.weight, a=math.sqrt(5))
             weight_global_shape = assemble_global_tensor_structure(self.weight, self.P_weight).shape
 
-        if self.bias is not None and self.P_store_bias.active:
+        if self.use_bias and self.P_store_bias.active:
             fan_in, _ = init._calculate_fan_in_and_fan_out(weight_global_shape)
             if fan_in != 0:
                 bound = 1 / math.sqrt(fan_in)
@@ -305,7 +306,7 @@ class _DistributedChannelReduceScatterConvNd(Module):
                 # Add filenames back to state dict
                 destination[weight_key] = weight_key
 
-                if self.bias is not None:   #self.use_bias:
+                if self.use_bias:
                     destination[bias_key] = bias_key
                 
         return destination
@@ -325,7 +326,7 @@ class _DistributedChannelReduceScatterConvNd(Module):
                 weight = self.scatter_weight(weight)
 
             # Load bias
-            if self.bias is not None:   #self.use_bias:
+            if self.use_bias:
                 bias_key = next(iter(destination))
                 destination.pop(bias_key)
 
