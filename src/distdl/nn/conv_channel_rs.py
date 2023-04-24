@@ -1,5 +1,5 @@
 import numpy as np
-import torch, math
+import torch, math, einops
 from typing import Optional, List, Tuple, Union
 
 from torch import Tensor
@@ -297,7 +297,12 @@ class _DistributedChannelReduceScatterConvNd(Module):
 
             # Collect weights (second last entry added to dict)
             weight_key = next(reversed(destination))
-            weight = self.gather_weight(destination.pop(weight_key))
+            weight = destination.pop(weight_key)
+            if self.transposed and self.P_weight.active:
+                weight = einops.rearrange(weight, 'a b ... -> b a ...')
+            weight = self.gather_weight(weight)
+            if self.transposed and self.P_root.active:
+                weight = einops.rearrange(weight, 'b a ... -> a b ...')
 
             # Serialize weights
             if self.P_root.active:
@@ -318,12 +323,15 @@ class _DistributedChannelReduceScatterConvNd(Module):
             weight_key = next(iter(destination))
             destination.pop(weight_key)
             if self.P_root.active:
-                pass
                 weight = torch.load(weight_key)
+                if self.transposed:
+                    weight = einops.rearrange(weight, 'a b ... -> b a ...')
             else:
                 weight = zero_volume_tensor(device=self.P_x.device, requires_grad=True)
             if self.P_weight.active:
                 weight = self.scatter_weight(weight)
+                if self.transposed:
+                    weight = einops.rearrange(weight, 'b a ... -> a b ...')
 
             # Load bias
             if self.use_bias:
@@ -910,6 +918,9 @@ class DistributedChannelReduceScatterConvTranspose1d(_DistributedChannelReduceSc
             True, output_padding, groups, bias, padding_mode, collect_state, **factory_kwargs)
 
     def forward(self, input: Tensor, output_size: Optional[List[int]] = None) -> Tensor:
+        if not self.P_x.active:
+            return input.clone()
+            
         if self.padding_mode != 'zeros':
             raise ValueError('Only `zeros` padding mode is supported for ConvTranspose1d')
 
@@ -1062,6 +1073,9 @@ class DistributedChannelReduceScatterConvTranspose2d(_DistributedChannelReduceSc
             True, output_padding, groups, bias, padding_mode, collect_state, **factory_kwargs)
 
     def forward(self, input: Tensor, output_size: Optional[List[int]] = None) -> Tensor:
+        if not self.P_x.active:
+            return input.clone()
+
         if self.padding_mode != 'zeros':
             raise ValueError('Only `zeros` padding mode is supported for ConvTranspose2d')
 
@@ -1208,6 +1222,9 @@ class DistributedChannelReduceScatterConvTranspose3d(_DistributedChannelReduceSc
             True, output_padding, groups, bias, padding_mode, collect_state, **factory_kwargs)
 
     def forward(self, input: Tensor, output_size: Optional[List[int]] = None) -> Tensor:
+        if not self.P_x.active:
+            return input.clone()
+
         if self.padding_mode != 'zeros':
             raise ValueError('Only `zeros` padding mode is supported for ConvTranspose3d')
 
