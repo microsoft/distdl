@@ -17,7 +17,7 @@ P_world = MPIPartition(MPI.COMM_WORLD)
 P_world._comm.Barrier()
 
 # Data partition
-in_shape = (1, 4, 1, 1) # [ batch, channel, height, width ]
+in_shape = (2, 4, 1, 1) # [ batch, channel, height, width ]
 in_size = np.prod(in_shape)
 in_workers = np.arange(0, in_size)
 
