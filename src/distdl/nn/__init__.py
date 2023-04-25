@@ -62,7 +62,8 @@ from .sum_reduce import SumReduce  # noqa: F401
 from .transpose import DistributedTranspose  # noqa: F401
 from .upsampling import DistributedUpsample  # noqa: F401
 
-__all__ = ["AllSumReduce",
+__all__ = ["AllGather",
+           "AllSumReduce",
            "Broadcast",
            "DistributedBatchNorm",
            "DistributedConv1d",
@@ -121,5 +122,5 @@ __all__ = ["AllSumReduce",
            "DistributedTranspose",
            "Interpolate",
            "DistributedUpsample",
-           "loss",
+           "loss"
            ]
