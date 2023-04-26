@@ -3,7 +3,7 @@ Contents
 ========
 
 .. toctree::
-   :maxdepth: 3
+   :maxdepth: 4
 
    user_guide/index
    code_reference/index

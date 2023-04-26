@@ -91,6 +91,46 @@ The adjoint operation (PyTorch grad function class) is generated automatically
 via autograd and calls the ``backward()`` function implemented by the back-end
 functional interface.
 
+AllGather rules
+===============
+
+DistDL AllGather layers will gather data along the dimension of a cartesian partition that is 
+specified during instantiation of the layer. In contrast, standard implementations of AllGather 
+(e.g., in MPI, NCCL) view data as a 1D array and concatenate the data from each worker along the 
+1D array. The following examples illustrate the cartesian AllGather operation in DistDL for 
+different partition shapes.
+
+Standard AllGathers
+-------------------
+
+Example 1
+~~~~~~~~~
+
+A 1D partition with shape :math:`3` gathers sub-tensors from across the different
+workers. After the all-gather, each worker has a copy of the full tensor.
+
+.. figure:: /_images/all_gather_example_1d.png
+    :alt: Image of 1D all-gather.
+
+Example 2
+~~~~~~~~~
+
+A 2D partition with shape :math:`3 x 2` gathers sub-tensors from across the different
+workers along the first dimension. After the all-gather, each worker has a copy of the full 2D tensor.
+
+.. figure:: /_images/all_gather_example_2d.png
+    :alt: Image of 2D all-gather.
+
+Example 3
+~~~~~~~~~
+
+A 3D partition with shape :math:`3 \times 3 \times 3` gathers sub-tensors from across the different
+workers along the third dimension. 
+
+.. figure:: /_images/all_gather_example_3d.png
+    :alt: Image of 3D all-gather.
+
+
 Examples
 ========
 
@@ -112,6 +152,7 @@ along the last dimension:
 >>> y = layer(x)
 
 The output tensor :math:`{y}` will have shape ``[3, 7, 12]``. 
+
 
 API
 ===
