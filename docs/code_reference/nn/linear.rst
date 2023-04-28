@@ -20,35 +20,219 @@ it implements
 where the tensors :math:`x`, :math:`y`, :math:`W`, and :math:`b` are
 partitioned over a number of workers.
 
-For the purposes of this documentation, we will assume that an arbitrary
-global input tensor :math:`{x}` is partitioned by :math:`P_x` and that another
-partition :math:`P_y` exists.  Additionally, we will assume that the weight
-tensor :math:`W` is partitioned by :math:`P_W`.  The bias :math:`b` is
-implicitly partitioned.
-
 Implementation
 ==============
 
-For the construction of this layer, we assume that the fundamental unit of
-work is driven by dense subtensors of :math:`W`.  Thus, the structure of the
-partition :math:`P_W` drives the design.
+DistDL provides different implementations of the distributed linear layer,
+that generally differ in the way the input/output and weight tensors are 
+partitioned. The partitioning scheme in turn induces the choice of the 
+primitive used for communication. The following versions are currently 
+supported:
 
-The distributed linear layer is an application of distributed GEMM.  The
-optimal implementation will be system and problem dependent.  The current
-implementation is greedy from the perspective of the number of workers.
+* *Linear layer with all-gather*: Weights are partitioned along the output feature dimension. The layer performs an all-gather of the input along the model-parallel workers, followed by a local GEMM. A fully-sharded data parallel version of this layer is available as well.
 
-.. note::
-   Other algorithms, which reduce the number of required workers can be built
-   from similar primitives.  We are happy to implement those if they are
-   suggested.
+* *Linear layer with reduce-scatter*: Weights are partitioned along the input feature dimension. The layer performs a local GEMM first and then applies a reduce-scatter along the model-parallel workers. A fully-sharded data parallel version of this layer is supported.
 
-The current implementation stores the learnable weights and biases inside
-local sequential Linear layer functions.  To avoid double counting the bias,
-only a subset of these local sequential Linear layers has an active bias
-vector.
+* *General linear layer*: Weights are partitioned along both the input and output feature dimensions. This version first performs a broadcast of the data, followed by a local GEMM and sum-reduction.
+
+
+Public interfaces
+-----------------
+
+DistDL provides a public interface to the many distributed linear layer
+implementations that follows the same pattern as other public interfaces
+and keeps in line with the PyTorch interface.  The ``distdl.nn`` module provides the
+:class:`distdl.nn.DistributedLinearAllGather`,
+:class:`distdl.nn.DistributedLinearReduceScatter`,
+:class:`distdl.nn.DistributedLinearAllGatherZero`,
+:class:`distdl.nn.DistributedLinearReduceScatterZero`, and
+:class:`distdl.nn.DistributedLinear` classes, based on the structure 
+of :math:`P_x`, :math:`P_y`, and the choice of the underlying primitive.
+
+Linear layer with all-gather
+----------------------------
+
+The all-gather version of the linear layer is based on the all-gather primitive, which is called on the input tensor prior to performing the matrix multiplication. This version of the linear layer is preferred over the reduce-scatter variant when the number of input features/channels is smaller than the number of output features/channels.
+
+Weights in the all-gather version are partitioned along the output feature dimension. The respective tensor partition :math:`P_w` is created internally. Two options for partitioning the input data are available, whereas the output tensor is always partitioned along the first (batch) and last (feature/channel/embedding) dimension.
+
+Single input/output partition
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. figure:: /_images/linear_example_ag_p_x.png
+   :alt: Example for linear layer with all-gather and single input/output partition.
+
+Both the input and output tensors are partitioned on the same partition :math:`P_x`, whose shape is :math:`P_d \times 1 \times ... \times P_m`, where :math:`P_d` is the number of data-parallel workers and :math:`P_m` is the number of model-parallel workers. Weights are partitioned internally on :math:`P_w` along the output channel/feature dimension. The bias (not shown in the figure) is created on one of the model-parallel partitions only. During the forward pass, the input tensor is all-gathered along the model-parallel dimension, followed by a local GEMM. The output tensor is then partitioned along the same dimension as the input tensor.
+
+
+>>> P_x_base = P_world.create_partition_inclusive(np.arange(0, 8))
+>>> P_x = P_x_base.create_cartesian_topology_partition([2, 1, 4])
+>>>
+>>> in_features = 16
+>>> out_features = 12
+>>>
+>>> x_local_shape = np.array([2, 8, 4])
+>>>
+>>> layer = DistributedLinearAllGather(P_x, in_features, out_features)
+>>>
+>>> x = zero_volume_tensor()
+>>> if P_x.active:
+>>>     x = torch.rand(*x_local_shape)
+>>>
+>>> y = layer(x)
+
+
+Separate input/output partitions
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. figure:: /_images/linear_example_ag_p_x_p_y.png
+   :alt: Example for linear layer with all-gather and separate input/output partitions.
+
+The input and output tensor are partitioned on separate partitions. The input tensor is partitioned on :math:`P_x`, whose shape is :math:`P_d \times ... \times P_m \times 1`, where :math:`P_d` is the number of data-parallel workers and :math:`P_m` is the number of model-parallel workers. The output tensor is partitioned on :math:`P_y`, whose shape is :math:`P_d \times 1 \times ... \times P_m`. Weights are partitioned internally on :math:`P_w` along the input channel/feature dimension. During the forward pass, the input tensor is all-gathered along the model-parallel dimension, followed by a local GEMM. 
+
+>>> P_x_base = P_world.create_partition_inclusive(np.arange(0, 8))
+>>> P_x = P_x_base.create_cartesian_topology_partition([2, 1, 4])
+>>>
+>>> P_y = P_x_base.create_cartesian_topology_partition([2, 4, 1])
+>>>
+>>> in_features = 16
+>>> out_features = 12
+>>>
+>>> x_local_shape = np.array([2, 8, 4])
+>>>
+>>> layer = DistributedLinearAllGather(P_y, in_features, out_features, P_x=P_x)
+>>>
+>>> x = zero_volume_tensor()
+>>> if P_y.active:
+>>>     x = torch.rand(*x_local_shape)
+>>>
+>>> y = layer(x)
+
+Fully-sharded data parallelism
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Both conventional data parallelism and fully-sharded data parallelism (FSDP or ZeRO-3) are supported. In standard data parallelism, weights are only initialized on one set of model-parallel parallel workers and they are broadcasted to their respective data-parallel counterparts during the forward pass (see figure below). During the backward pass, the broadcast induces a sum-reduce operation. Note that DistDL differs in this regard from other frameworks for data parallelism, in which each worker (or set of model-parallel workers) keep a copy of the weights and then perform an all-reduce operation along (data-parallel) workers during the backward pass.
+
+.. figure:: /_images/linear_example_ag_dp.png
+   :alt: Example for linear layer with all-gather and standard data parallelism.
+
+The FSDP version of the linear all-gather layer partitions weights along the data-parallel workers in addition to the model-parallel workers. During the forward pass, model-parallel workers collect their full local tensor through an all-gather along the data-parallel workers.
+
+.. figure:: /_images/linear_example_ag_zero.png
+   :alt: Example for linear layer with all-gather and fully-sharded data parallelism.
+
+Note that the linear all-gather layer with FSDP is implemented as a separate module, rather than being a wrapper that is called on the distributed all-gather version. The reason for this is that the FSDP layer directly initializes the fully-sharded weights on each worker, rather than partitioning the weights after the initialization.
+
+>>> P_x_base = P_world.create_partition_inclusive(np.arange(0, 8))
+>>> P_x = P_x_base.create_cartesian_topology_partition([2, 1, 4])
+>>>
+>>> P_y = P_x_base.create_cartesian_topology_partition([2, 4, 1])
+>>>
+>>> in_features = 16
+>>> out_features = 12
+>>>
+>>> x_local_shape = np.array([2, 8, 4])
+>>>
+>>> layer = DistributedLinearAllGatherZero(P_y, in_features, out_features, P_x=P_x)
+>>>
+>>> x = zero_volume_tensor()
+>>> if P_y.active:
+>>>     x = torch.rand(*x_local_shape)
+>>>
+>>> y = layer(x)
+
+Examples
+~~~~~~~~
+
+Linear layer with reduce-scatter
+--------------------------------
+
+The reduce-scatter version of the linear layer is based on the reduce-scatter primitive, which is called on the output tensor after performing the matrix multiplication. The reduce-scatter version of the linear layer is preferred over the all-gather version when the number of output features/channels is smaller than the number of input features/channels.
+
+Weights in the reduce-scatter version are partitioned along the input feature dimension. The respective tensor partition :math:`P_w` is created internally. Two options for partitioning the output data are available, whereas the input tensor is always partitioned along the first (batch) and last (feature/channel/embedding) dimension.
+
+
+Single input/output partition
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. figure:: /_images/linear_example_rs_p_x.png
+   :alt: Example for linear layer with reduce-scatter and single input/output partition.
+
+Both the input and output tensors are partitioned on the same partition :math:`P_x`, whose shape is :math:`P_d \times 1 \times ... \times P_m`, where :math:`P_d` is the number of data-parallel workers and :math:`P_m` is the number of model-parallel workers. Weights are partitioned internally on :math:`P_w` along the input channel/feature dimension. The bias (not shown in the figure) is partitioned along the model-parallel partitions as well. During the forward pass, the GEMM is carried out first, followed by a reduce-scatter to sum the output across the model-parallel workers and partition it along the last dimension. 
+
+>>> P_x_base = P_world.create_partition_inclusive(np.arange(0, 8))
+>>> P_x = P_x_base.create_cartesian_topology_partition([2, 1, 4])
+>>>
+>>> in_features = 16
+>>> out_features = 12
+>>>
+>>> x_local_shape = np.array([2, 8, 4])
+>>>
+>>> layer = DistributedLinearReduceScatter(P_x, in_features, out_features)
+>>>
+>>> x = zero_volume_tensor()
+>>> if P_x.active:
+>>>     x = torch.rand(*x_local_shape)
+>>>
+>>> y = layer(x)
+
+
+Separate input/output partitions
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. figure:: /_images/linear_example_rs_p_x_p_y.png
+   :alt: Example for linear layer with reduce-scatter and single input/output partition.
+
+The input and output tensor are partitioned on two distinct partitions. The input tensor is partitioned on :math:`P_x`, whose shape is :math:`P_d \times ... \times 1 \times P_m`, where :math:`P_d` is the number of data-parallel workers and :math:`P_m` is the number of model-parallel workers. The output tensor is partitioned on :math:`P_y`, whose shape is :math:`P_d \times ... \times P_m \times 1`. Weights are partitioned internally on :math:`P_w` along the output channel/feature dimension. During the forward pass, the input tensor is all-gathered along the model-parallel dimension, followed by a local GEMM. 
+
+>>> P_x_base = P_world.create_partition_inclusive(np.arange(0, 8))
+>>> P_x = P_x_base.create_cartesian_topology_partition([2, 1, 4])
+>>>
+>>> P_y = P_x_base.create_cartesian_topology_partition([2, 4, 1])
+>>>
+>>> in_features = 16
+>>> out_features = 12
+>>>
+>>> x_local_shape = np.array([2, 8, 4])
+>>>
+>>> layer = DistributedLinearReduceScatter(P_x, in_features, out_features, P_y=P_y)
+>>>
+>>> x = zero_volume_tensor()
+>>> if P_x.active:
+>>>     x = torch.rand(*x_local_shape)
+>>>
+>>> y = layer(x)
+
+Fully-sharded data parallelism
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The FSDP version of the linear reduce-scatter version operates similar to the all-gather version. Weights are partitioned along the model-parallel workers across the input feature dimension and along data-parallel workers across the output feature dimension.
+
+>>> P_x_base = P_world.create_partition_inclusive(np.arange(0, 8))
+>>> P_x = P_x_base.create_cartesian_topology_partition([2, 1, 4])
+>>>
+>>> P_y = P_x_base.create_cartesian_topology_partition([2, 4, 1])
+>>>
+>>> in_features = 16
+>>> out_features = 12
+>>>
+>>> x_local_shape = np.array([2, 8, 4])
+>>>
+>>> layer = DistributedLinearReduceScatterZero(P_x, in_features, out_features, P_y=P_y)
+>>>
+>>> x = zero_volume_tensor()
+>>> if P_x.active:
+>>>     x = torch.rand(*x_local_shape)
+>>>
+>>> y = layer(x)
+
+
+General linear layer
+--------------------
+
 
 Assumptions
------------
+~~~~~~~~~~~
 
 * The global input tensor :math:`x` has shape :math:`n_{\text{batch}} \times
   n_{\text{features in}}`.
@@ -86,7 +270,7 @@ Assumptions
    :math:`P_W` has shape :math:`3 \times 4`.
 
 Forward
--------
+~~~~~~~
 
 Under the above assumptions, the forward algorithm is:
 
@@ -125,7 +309,7 @@ Under the above assumptions, the forward algorithm is:
    rows of :math:`P_W`.
 
 Adjoint
--------
+~~~~~~~
 
 The adjoint algorithm is not explicitly implemented.  PyTorch's ``autograd``
 feature automatically builds the adjoint of the Jacobian of the distributed
@@ -162,7 +346,7 @@ linear forward application.  Essentially, the algorithm is as follows:
 
 
 Examples
-========
+~~~~~~~~
 
 To apply a linear layer which maps a tensor on a ``1 x 4`` partition to a
 tensor on a ``1 x 3`` partition:
