@@ -183,7 +183,7 @@ Separate input/output partitions
 .. figure:: /_images/linear_example_rs_p_x_p_y.png
    :alt: Example for linear layer with reduce-scatter and single input/output partition.
 
-The input and output tensor are partitioned on two distinct partitions. The input tensor is partitioned on :math:`P_x`, whose shape is :math:`P_d \times ... \times 1 \times P_m`, where :math:`P_d` is the number of data-parallel workers and :math:`P_m` is the number of model-parallel workers. The output tensor is partitioned on :math:`P_y`, whose shape is :math:`P_d \times ... \times P_m \times 1`. Weights are partitioned internally on :math:`P_w` along the output channel/feature dimension. During the forward pass, the input tensor is all-gathered along the model-parallel dimension, followed by a local GEMM. 
+The input and output tensor are partitioned on two distinct partitions. The input tensor is partitioned on :math:`P_x`, whose shape is :math:`P_d \times ... \times 1 \times P_m`, where :math:`P_d` is the number of data-parallel workers and :math:`P_m` is the number of model-parallel workers. The output tensor is partitioned on :math:`P_y`, whose shape is :math:`P_d \times ... \times P_m \times 1`. Weights are partitioned internally on :math:`P_w` along the output channel/feature dimension. During the forward pass, the local GEMM is followed by a reduce-scatter operation, which sums the output across the model-parallel workers and partitions it along the 2nd last dimension.
 
 >>> P_x_base = P_world.create_partition_inclusive(np.arange(0, 8))
 >>> P_x = P_x_base.create_cartesian_topology_partition([2, 1, 4])
