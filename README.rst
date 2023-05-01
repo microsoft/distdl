@@ -71,9 +71,7 @@ DistDL will be available on pip shortly.
 Documentation
 =============
 
-
-https://distdl.readthedocs.io/
-
+[Follow this link to the documentation](docs/_build/index.html)
 
 Development
 ===========
