@@ -56,24 +56,26 @@ Overview
 
 A Distributed Deep Learning package for PyTorch.
 
-* Free software: BSD 2-Clause License
+* Free software: MIT License
 
 Installation
 ============
 
-You can install the in-development version with:
+DistDL is currently still in private development and needs to be installed from source.
 
-    pip install https://github.com/distdl/distdl/archive/master.zip
+    ```
+    # Clone repository
+    git clone git@github.com:microsoft/distdl.git
 
-DistDL will be available on pip shortly.
-
+    # Install locally
+    cd distdl
+    pip install -e .
+    ```
 
 Documentation
 =============
 
-
-
-[docs/_build/index.html]
+[Follow this link to the documentation](docs/_build/index.html)
 
 Development
 ===========
