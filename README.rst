@@ -64,6 +64,7 @@ Installation
 DistDL is currently still in private development and needs to be installed from source.
 
 .. code-block:: bash
+        
     # Clone repository
     git clone git@github.com:microsoft/distdl.git
 
