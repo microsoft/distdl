@@ -63,14 +63,14 @@ Installation
 
 DistDL is currently still in private development and needs to be installed from source.
 
-    ```
-    # Clone repository
-    git clone git@github.com:microsoft/distdl.git
+```
+# Clone repository
+git clone git@github.com:microsoft/distdl.git
 
-    # Install locally
-    cd distdl
-    pip install -e .
-    ```
+# Install locally
+cd distdl
+pip install -e .
+```
 
 Documentation
 =============
