@@ -1,5 +1,0 @@
-sphinx
-sphinx-py3doc-enhanced-theme
-sphinx_automodapi
-docutils>=0.16
-torch
