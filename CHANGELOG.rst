@@ -45,3 +45,19 @@ Changelog
 * Added initial GPU support for MPI backend (experimental)
 * Moved from Travis-CI to GitHub Actions
 * Multiple documentation fixes
+
+
+0.5.0 (2023-05-01)
+------------------
+* New version on Microsoft fork of original project
+* Reorganized code to support multiple backends
+* Add backends w/ GPU support (CUDA-aware MPI, NCCL, Torch)
+* Added all-gather and reduce-scatter primitives
+* Added new linear layers w/ all-gather and reduce-scatter
+* Added linear layers with FSDP/ZeRO support
+* Add new convolutional layers with all-gather reduce-scatter channel partitioning
+* Added linear layers for mixture of experts (MoE) with all-gather and reduce-scatter
+* Added layer normalization
+* Added embedding layer
+* Add additional examples for each layer
+* Expand documentation (add new layers and primitives)

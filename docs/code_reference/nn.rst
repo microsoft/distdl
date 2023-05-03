@@ -40,6 +40,8 @@ We implement a number of primitives.
    :header-rows: 0
    :align: left
 
+   * - :ref:`code_reference/nn/all_gather:AllGather Layer`
+     - Performs an all-gather within a partition.
    * - :ref:`code_reference/nn/all_sum_reduce:AllSumReduce Layer`
      - Performs an all-sum-reduction within a partition.
    * - :ref:`code_reference/nn/broadcast:Broadcast Layer`
@@ -48,6 +50,8 @@ We implement a number of primitives.
      - Performs the halo exchange operation of a tensor on a partition.
    * - :ref:`code_reference/nn/sum_reduce:SumReduce Layer`
      - Performs a sum-reduction of a tensor from one partition to another.
+   * - :ref:`code_reference/nn/reduce_scatter:ReduceScatter Layer`
+     - Performs a reduce-scatter within a partition.
    * - :ref:`code_reference/nn/repartition:Repartition Layer`
      - Performs a repartition or a tensor from one partition to another.
 
@@ -68,6 +72,10 @@ We implement a number of distributed layers based on the actual layers and the p
      - Distributed pooling layers.
    * - :ref:`code_reference/nn/linear:Linear Layer`
      - Distributed linear layer.
+   * - :ref:`code_reference/nn/norm:Normalization Layers`
+     - Distributed normalization layers.
+   * - :ref:`code_reference/nn/embedding:Embedding Layer`
+     - Distributed embedding layer.
    * - :ref:`code_reference/nn/upsampling:Upsampling Layer`
      - Distributed upsampling layer.
 
@@ -85,19 +93,19 @@ We implement a number of distributed loss functions based on the PyTorch losses 
    * - :ref:`code_reference/nn/loss:Loss Functions`
      - Distributed loss functions.
 
-Additional Sequential Layers
-============================
+.. Additional Sequential Layers
+.. ============================
 
-We implement some useful sequential modules.
+.. We implement some useful sequential modules.
 
-.. list-table::
-   :widths: 35 65
-   :width: 100%
-   :header-rows: 0
-   :align: left
+.. .. list-table::
+..    :widths: 35 65
+..    :width: 100%
+..    :header-rows: 0
+..    :align: left
 
-   * - :ref:`code_reference/nn/interpolate:Interpolate Layer`
-     - N-dimensional, interpolation.
+..    * - :ref:`code_reference/nn/interpolate:Interpolation Layer`
+..      - N-dimensional, interpolation.
 
-   * - :ref:`code_reference/nn/padding:Padding Layer`
-     - N-dimensional, unbalanced padding.
+  ..  * - :ref:`code_reference/nn/padding:Padding Layer`
+  ..    - N-dimensional, unbalanced padding.

@@ -96,7 +96,7 @@ functional interface.
 Examples
 ========
 
-To reduce a 2-dimensional tensor that lives on a ``2 x 2 x 3`` partition
+To reduce a 3-dimensional tensor that lives on a ``2 x 2 x 3`` partition
 along the last two dimesions:
 
 >>> P_x_base = P_world.create_partition_inclusive(np.arange(0, 12))

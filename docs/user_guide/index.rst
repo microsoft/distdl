@@ -8,8 +8,9 @@ Installation
 
 At the command line::
 
-    pip install distdl
-
+    git clone git@github.com:microsoft/distdl.git
+    cd distdl
+    pip3 install -e .
 
 Usage
 =====
@@ -59,12 +60,6 @@ Tensors
 
 DistDL assumes that tensors representing inputs, outputs, and network parameters
 are PyTorch :any:`torch.Tensor` objects.
-
-.. warning::
-   Current implementation restrictions require these tensors to be on the ``cpu``
-   device and that they can be contiguously viewed as a NumPy array.
-
-   This restriction will be lifted in future versions.
 
 Zero-volume Tensors
 ~~~~~~~~~~~~~~~~~~~
@@ -157,9 +152,9 @@ should be load balanced so that each worker does approximately equal work.
 Consequently, it is assumed that the inputs are also load balanced, as a load
 balanced output from one layer is the input to the next.
 
-Defining A Distributed Network
-==============================
+.. Defining A Distributed Network
+.. ==============================
 
-A detailed example is a work-in-progress.  For now, see the `DistDL examples
-repository <https://www.github.com/distdl/distdl-examples>`_ for an example of
-a simple distributed network.
+.. A detailed example is a work-in-progress.  For now, see the `DistDL examples
+.. repository <https://www.github.com/distdl/distdl-examples>`_ for an example of
+.. a simple distributed network.

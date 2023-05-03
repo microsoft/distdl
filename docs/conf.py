@@ -30,23 +30,24 @@ autosectionlabel_prefix_document = True
 source_suffix = '.rst'
 master_doc = 'index'
 project = 'DistDL'
-year = '2020'
-author = 'Russell J. Hewett'
-copyright = '{0}, {1}'.format(year, author)
-version = release = '0.5.0-dev'
+year = '2023'
+author = 'Russell J. Hewett, Philipp A. Witte'
+company = 'Microsoft'
+copyright = '{0}, {1}'.format(year, company)
+version = release = '0.5.0'
 
 pygments_style = 'trac'
 # templates_path = ['.']
 extlinks = {
-    'issue': ('https://github.com/distdl/distdl/issues/%s', '#'),
-    'pr': ('https://github.com/distdl/distdl/pull/%s', 'PR #'),
+    'issue': ('https://github.com/microsoft/distdl/issues/%s', '#'),
+    'pr': ('https://github.com/microsoft/distdl/pull/%s', 'PR #'),
 }
 
 import sphinx_py3doc_enhanced_theme  # noqa: E402
 html_theme = "sphinx_py3doc_enhanced_theme"
 html_theme_path = [sphinx_py3doc_enhanced_theme.get_html_theme_path()]
 html_theme_options = {
-    'githuburl': 'https://github.com/distdl/distdl/'
+    'githuburl': 'https://github.com/microsoft/distdl/'
 }
 
 html_use_smartypants = True
