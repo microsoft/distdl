@@ -1,6 +1,6 @@
-========
-Overview
-========
+======
+DistDL
+======
 
 .. .. start-badges
 
@@ -54,9 +54,29 @@ Overview
 
 .. end-badges
 
-A Distributed Deep Learning package for PyTorch.
+Overview
+========
 
-* Free software: MIT License
+DistDL is a package for tensor parallelism in PyTorch. From a user perspective, it provides two main features:
+
+* An MPI-based partitioning system to distribute tensors across multiple processes and communication primitives to move data between or within partitions.
+
+* Tensor-parallel implementations of PyTorch's nn modules such as linear layers, convolutional layers, layer norms, et cetera.
+
+DistDL is designed to be used in conjunction with PyTorch and is not a replacement, but rather a complement to it. DistDL provides a set of distributed modules that are designed to be used in place of their serial PyTorch counterparts. These distributed modules are designed to be used in the same way as their PyTorch counterparts, but they are implemented using tensor-parallelism. This means that the user can write their code in the same way as they would for a single-GPU PyTorch implementation, but the code will run in a distributed fashion. DistDL also provides a set of communication primitives that can be used to implement custom tensor-parallel modules.
+
+DistDL generally does not distinguish between data-parallelism and model-parallelism. Instead, the form of parallelism is induced by the partitioning of the tensors. For example, a tensor that is partitioned across two processes along the first dimension is data-parallel, while a tensor that is partitioned across two processes along the second dimension is model-parallel. Partitioning a tensor across multiple dimensions induces a hybrid form of parallelism.
+
+The overall package structure is as follows:
+
+* ``distdl.nn``: Contains distributed implementations of PyTorch's nn modules (linear layers, convolutions, etc.)
+
+* ``distdl.backends``: Contains backend-specific implementations of communication primitives and their adjoints. Currently supported backends are MPI (CPU, GPU) and NCCL (GPU).
+
+* ``distdl.utilities``: Contains utility functions for working with distributed tensors.
+
+* ``distdl.functional``: Contains distributed implementations of PyTorch's functional modules.
+
 
 Installation
 ============
