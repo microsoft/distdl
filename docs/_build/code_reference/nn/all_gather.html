@@ -1,0 +1,282 @@
+<!DOCTYPE html>
+
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="generator" content="Docutils 0.19: https://docutils.sourceforge.io/" />
+
+    <title>AllGather Layer &#8212; DistDL 0.5.0 documentation</title>
+    <link rel="stylesheet" type="text/css" href="../../_static/pygments.css" />
+    <link rel="stylesheet" type="text/css" href="../../_static/pydoctheme.css" />
+    <link rel="stylesheet" type="text/css" href="../../_static/graphviz.css" />
+    
+    <script data-url_root="../../" id="documentation_options" src="../../_static/documentation_options.js"></script>
+    <script src="../../_static/doctools.js"></script>
+    <script src="../../_static/sphinx_highlight.js"></script>
+    <script async="async" src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+    
+    <script src="../../_static/sidebar.js"></script>
+    
+    <link rel="index" title="Index" href="../../genindex.html" />
+    <link rel="search" title="Search" href="../../search.html" />
+    <link rel="next" title="AllSumReduce Layer" href="all_sum_reduce.html" />
+    <link rel="prev" title="distdl.nn" href="../nn.html" />
+    <meta http-equiv="X-UA-Compatible" content="IE=Edge" />
+    <link rel="shortcut icon" type="image/png" href="../../_static/favicon.png" />
+    <meta name="viewport" content="width=device-width,initial-scale=0.8">
+    
+    
+
+  </head><body>
+    <div class="related">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="responsive-menu"><a href="#sidebar-anchor" title="Navigation">&#9776;</a></li>
+        <li><a href="../../index.html">DistDL-0.5.0</a> &#187;</li>
+          <li><a href="../index.html" >Code Reference</a> &#187;</li>
+          <li><a href="../nn.html" accesskey="U">distdl.nn</a> &#187;</li> 
+      </ul>
+    </div>
+    
+        <div class="badge">
+            <a href="https://github.com/microsoft/distdl/">Fork me on GitHub</a>
+            <img src="../../_static/right-red@2x.png">
+        </div>
+    
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <section id="allgather-layer">
+<h1>AllGather Layer<a class="headerlink" href="#allgather-layer" title="Permalink to this heading">¶</a></h1>
+<nav class="contents local" id="contents">
+<ul class="simple">
+<li><p><a class="reference internal" href="#overview" id="id1">Overview</a></p></li>
+<li><p><a class="reference internal" href="#motivation" id="id2">Motivation</a></p></li>
+<li><p><a class="reference internal" href="#implementation" id="id3">Implementation</a></p>
+<ul>
+<li><p><a class="reference internal" href="#assumptions" id="id4">Assumptions</a></p></li>
+<li><p><a class="reference internal" href="#forward" id="id5">Forward</a></p></li>
+<li><p><a class="reference internal" href="#adjoint" id="id6">Adjoint</a></p></li>
+</ul>
+</li>
+<li><p><a class="reference internal" href="#allgather-rules" id="id7">AllGather rules</a></p>
+<ul>
+<li><p><a class="reference internal" href="#standard-allgathers" id="id8">Standard AllGathers</a></p></li>
+</ul>
+</li>
+<li><p><a class="reference internal" href="#examples" id="id9">Examples</a></p></li>
+<li><p><a class="reference internal" href="#api" id="id10">API</a></p></li>
+</ul>
+</nav>
+<section id="overview">
+<h2><a class="toc-backref" href="#id1" role="doc-backlink">Overview</a><a class="headerlink" href="#overview" title="Permalink to this heading">¶</a></h2>
+<p>The AllGather distributed data movement primitive gathers data along the partitioned
+dimension within a set of workers of a single Partition.</p>
+<p>In DistDL, all-gather collects data from (sub)tensors along slices of a
+partition.  The all-sum-reduce operation applies for partitions with and
+without a (Cartesian) topology.</p>
+<p>For the purposes of this documentation, we will assume that an arbitrary
+global input tensor <span class="math notranslate nohighlight">\({x}\)</span> is partitioned by <span class="math notranslate nohighlight">\(P_x\)</span>.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>The definition of a all-gather in DistDL goes beyond the classical parallel
+collective operation, for example, <code class="docutils literal notranslate"><span class="pre">MPI_Allgather()</span></code> in MPI.  Such primitives
+typically assume 1-dimensional arrays, scattered <em>within</em> a group of workers, and
+neither impose nor exploit topological structure on the set of workers.</p>
+</div>
+</section>
+<section id="motivation">
+<h2><a class="toc-backref" href="#id2" role="doc-backlink">Motivation</a><a class="headerlink" href="#motivation" title="Permalink to this heading">¶</a></h2>
+<p>In distributed deep learning, there are many applications of the all-gather
+primitive.  For example, for fully-sharded data parallelism (FSDP), weights
+are partitioned along the data-parallel workers to reduce the memory imprint
+per worker. During forward (or backward) pass, the full weight tensor is
+temporarily collected on each worker via the all-gather primitive. Another
+example of the all-gather primitive is for linear layers, in which the input
+data is partitioned and all-gather is called on the data prior to the subsequent
+matrix multiplication.</p>
+</section>
+<section id="implementation">
+<h2><a class="toc-backref" href="#id3" role="doc-backlink">Implementation</a><a class="headerlink" href="#implementation" title="Permalink to this heading">¶</a></h2>
+<p>A back-end functional implementation supporting DistDL
+<code class="xref py py-class docutils literal notranslate"><span class="pre">AllGather</span></code> allows users to specify which dimensions
+of the partition the gathering happens along.  No other options are
+required because the all-gather occurs within the input partition.</p>
+<section id="assumptions">
+<h3><a class="toc-backref" href="#id4" role="doc-backlink">Assumptions</a><a class="headerlink" href="#assumptions" title="Permalink to this heading">¶</a></h3>
+<ul class="simple">
+<li><p>The all-gather operation is <em>not</em> in-place.  Even if the operation is
+equivalent to an identity (no dimensions are used in the reduction), a
+Torch <code class="docutils literal notranslate"><span class="pre">.clone()</span></code> of the tensor is returned.</p></li>
+<li><p>The current implementation only supports all-gather along a <em>single</em>
+partitioned dimension.</p></li>
+</ul>
+</section>
+<section id="forward">
+<h3><a class="toc-backref" href="#id5" role="doc-backlink">Forward</a><a class="headerlink" href="#forward" title="Permalink to this heading">¶</a></h3>
+<p>The forward operation gathers subtensors within <span class="math notranslate nohighlight">\(P_x\)</span> along a specified
+dimension.</p>
+<ul class="simple">
+<li><p>A worker that is active in <span class="math notranslate nohighlight">\(P_x\)</span> will take a subtensor of <span class="math notranslate nohighlight">\(x\)</span>
+as input and return a copy of the global version of <span class="math notranslate nohighlight">\(x\)</span> as output.</p></li>
+<li><p>A worker that is not active in <span class="math notranslate nohighlight">\(P_x\)</span> will take a zero-volume tensor
+as input and return a clone of that tensor as output.</p></li>
+</ul>
+<p>This class provides only an interface to the back-end implementation of the
+forward algorithm.  This interface does not impose any mechanism for
+performing the reduction.  Performance details and optimizations are back-end
+dependent.</p>
+<p>The back-end forward operation is implemented through the <a class="reference external" href="https://pytorch.org/docs/stable/autograd.html">PyTorch autograd</a> functional interface and
+called through the AllGather <span class="math notranslate nohighlight">\(~distdl.nn.AllGather.forward\)</span> function.</p>
+</section>
+<section id="adjoint">
+<h3><a class="toc-backref" href="#id6" role="doc-backlink">Adjoint</a><a class="headerlink" href="#adjoint" title="Permalink to this heading">¶</a></h3>
+<p>The adjoint of the all-gather primitive is the reduce-scatter operation, which
+sums subtensors within <span class="math notranslate nohighlight">\(P_x\)</span> and then partitions it along the specified
+dimension.</p>
+<p>This class provides only an interface to the back-end implementation of the
+adjoint algorithm. This interface does not impose any mechanism for
+performing this reduce-scatter. Performance details and optimizations are
+back-end dependent.</p>
+<p>The adjoint operation (PyTorch grad function class) is generated automatically
+via autograd and calls the <code class="docutils literal notranslate"><span class="pre">backward()</span></code> function implemented by the back-end
+functional interface.</p>
+</section>
+</section>
+<section id="allgather-rules">
+<h2><a class="toc-backref" href="#id7" role="doc-backlink">AllGather rules</a><a class="headerlink" href="#allgather-rules" title="Permalink to this heading">¶</a></h2>
+<p>DistDL AllGather layers will gather data along the dimension of a cartesian partition that is
+specified during instantiation of the layer. In contrast, standard implementations of AllGather
+(e.g., in MPI, NCCL) view data as a 1D array and concatenate the data from each worker along the
+1D array. The following examples illustrate the cartesian AllGather operation in DistDL for
+different partition shapes.</p>
+<section id="standard-allgathers">
+<h3><a class="toc-backref" href="#id8" role="doc-backlink">Standard AllGathers</a><a class="headerlink" href="#standard-allgathers" title="Permalink to this heading">¶</a></h3>
+<section id="example-1">
+<h4>Example 1<a class="headerlink" href="#example-1" title="Permalink to this heading">¶</a></h4>
+<p>A 1D partition with shape <span class="math notranslate nohighlight">\(3\)</span> gathers sub-tensors from across the different
+workers. After the all-gather, each worker has a copy of the full tensor.</p>
+<figure class="align-default">
+<img alt="Image of 1D all-gather." src="../../_images/all_gather_example_1d.png" />
+</figure>
+</section>
+<section id="example-2">
+<h4>Example 2<a class="headerlink" href="#example-2" title="Permalink to this heading">¶</a></h4>
+<p>A 2D partition with shape <span class="math notranslate nohighlight">\(3 x 2\)</span> gathers sub-tensors from across the different
+workers along the first dimension. After the all-gather, each worker has a copy of the full 2D tensor.</p>
+<figure class="align-default">
+<img alt="Image of 2D all-gather." src="../../_images/all_gather_example_2d.png" />
+</figure>
+</section>
+<section id="example-3">
+<h4>Example 3<a class="headerlink" href="#example-3" title="Permalink to this heading">¶</a></h4>
+<p>A 3D partition with shape <span class="math notranslate nohighlight">\(3 \times 3 \times 3\)</span> gathers sub-tensors from across the different
+workers along the third dimension.</p>
+<figure class="align-default">
+<img alt="Image of 3D all-gather." src="../../_images/all_gather_example_3d.png" />
+</figure>
+</section>
+</section>
+</section>
+<section id="examples">
+<h2><a class="toc-backref" href="#id9" role="doc-backlink">Examples</a><a class="headerlink" href="#examples" title="Permalink to this heading">¶</a></h2>
+<p>To all-gather a 3-dimensional tensor that lives on a <code class="docutils literal notranslate"><span class="pre">2</span> <span class="pre">x</span> <span class="pre">2</span> <span class="pre">x</span> <span class="pre">3</span></code> partition
+along the last dimension:</p>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">P_x_base</span> <span class="o">=</span> <span class="n">P_world</span><span class="o">.</span><span class="n">create_partition_inclusive</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">12</span><span class="p">))</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">P_x</span> <span class="o">=</span> <span class="n">P_x_base</span><span class="o">.</span><span class="n">create_cartesian_topology_partition</span><span class="p">([</span><span class="mi">2</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">3</span><span class="p">])</span>
+<span class="gp">&gt;&gt;&gt;</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">x_local_shape</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="mi">3</span><span class="p">,</span> <span class="mi">7</span><span class="p">,</span> <span class="mi">4</span><span class="p">])</span>
+<span class="gp">&gt;&gt;&gt;</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">axes_all_gather</span> <span class="o">=</span> <span class="p">(</span><span class="mi">2</span><span class="p">,)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">layer</span> <span class="o">=</span> <span class="n">AllGather</span><span class="p">(</span><span class="n">P_x</span><span class="p">,</span> <span class="n">axes_all_gather</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt;</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">x</span> <span class="o">=</span> <span class="n">zero_volume_tensor</span><span class="p">()</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="k">if</span> <span class="n">P_x</span><span class="o">.</span><span class="n">active</span><span class="p">:</span>
+<span class="gp">&gt;&gt;&gt; </span>    <span class="n">x</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">rand</span><span class="p">(</span><span class="o">*</span><span class="n">x_local_shape</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt;</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">y</span> <span class="o">=</span> <span class="n">layer</span><span class="p">(</span><span class="n">x</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>The output tensor <span class="math notranslate nohighlight">\({y}\)</span> will have shape <code class="docutils literal notranslate"><span class="pre">[3,</span> <span class="pre">7,</span> <span class="pre">12]</span></code>.</p>
+</section>
+<section id="api">
+<h2><a class="toc-backref" href="#id10" role="doc-backlink">API</a><a class="headerlink" href="#api" title="Permalink to this heading">¶</a></h2>
+</section>
+</section>
+
+
+            <div class="clearer"></div>
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper">
+    <a id="sidebar-anchor"></a>
+    
+
+<div id="searchbox" style="display: none" role="search">
+  <h3 id="searchlabel">Quick search</h3>
+    <div class="searchformwrapper">
+    <form class="search" action="../../search.html" method="get">
+      <input type="text" name="q" aria-labelledby="searchlabel" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"/>
+      <input type="submit" value="Go" />
+    </form>
+    </div>
+</div>
+<script>document.getElementById('searchbox').style.display = "block"</script><h3><a href="../../index.html">Table Of Contents</a></h3>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="../../user_guide/index.html">Using DistDL</a></li>
+<li class="toctree-l1 current"><a class="reference internal" href="../index.html">Code Reference</a><ul class="current">
+<li class="toctree-l2 current"><a class="reference internal" href="../nn.html">distdl.nn</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../functional.html">distdl.functional</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../backends.html">distdl.backends</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../utilities.html">distdl.utilities</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="../../developer_guide/index.html">Contributor’s Guide</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../developer_guide/index.html#contributing">Contributing</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../release_history/index.html">Release History</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../acknowledgements.html">Citing &amp; Acknowledgements</a></li>
+</ul>
+
+  <div role="note" aria-label="source link">
+    <h3>This Page</h3>
+    <ul class="this-page-menu">
+      <li><a href="../../_sources/code_reference/nn/all_gather.rst.txt"
+            rel="nofollow">Show Source</a></li>
+    </ul>
+   </div>
+        </div>
+<div id="sidebarbutton" title="Collapse sidebar">
+<span>«</span>
+</div>
+
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="related">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../../genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="right" >
+          <a href="all_sum_reduce.html" title="AllSumReduce Layer"
+             accesskey="N">next</a> |</li>
+        <li class="right" >
+          <a href="../nn.html" title="distdl.nn"
+             accesskey="P">previous</a> |</li>
+      </ul>
+    </div>
+
+    <div class="footer" role="contentinfo">
+        &#169; Copyright 2023, Microsoft.
+      Last updated on May 02, 2023.
+      Created using <a href="https://www.sphinx-doc.org/">Sphinx</a> 6.2.1.
+    </div>
+  </body>
+</html>

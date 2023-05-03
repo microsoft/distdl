@@ -1,0 +1,508 @@
+<!DOCTYPE html>
+
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="generator" content="Docutils 0.19: https://docutils.sourceforge.io/" />
+
+    <title>Linear Layer &#8212; DistDL 0.5.0 documentation</title>
+    <link rel="stylesheet" type="text/css" href="../../_static/pygments.css" />
+    <link rel="stylesheet" type="text/css" href="../../_static/pydoctheme.css" />
+    <link rel="stylesheet" type="text/css" href="../../_static/graphviz.css" />
+    
+    <script data-url_root="../../" id="documentation_options" src="../../_static/documentation_options.js"></script>
+    <script src="../../_static/doctools.js"></script>
+    <script src="../../_static/sphinx_highlight.js"></script>
+    <script async="async" src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+    
+    <script src="../../_static/sidebar.js"></script>
+    
+    <link rel="index" title="Index" href="../../genindex.html" />
+    <link rel="search" title="Search" href="../../search.html" />
+    <link rel="next" title="Loss Functions" href="loss.html" />
+    <link rel="prev" title="Interpolation Layer" href="interpolate.html" />
+    <meta http-equiv="X-UA-Compatible" content="IE=Edge" />
+    <link rel="shortcut icon" type="image/png" href="../../_static/favicon.png" />
+    <meta name="viewport" content="width=device-width,initial-scale=0.8">
+    
+    
+
+  </head><body>
+    <div class="related">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="responsive-menu"><a href="#sidebar-anchor" title="Navigation">&#9776;</a></li>
+        <li><a href="../../index.html">DistDL-0.5.0</a> &#187;</li>
+          <li><a href="../index.html" >Code Reference</a> &#187;</li>
+          <li><a href="../nn.html" accesskey="U">distdl.nn</a> &#187;</li> 
+      </ul>
+    </div>
+    
+        <div class="badge">
+            <a href="https://github.com/microsoft/distdl/">Fork me on GitHub</a>
+            <img src="../../_static/right-red@2x.png">
+        </div>
+    
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <section id="linear-layer">
+<h1>Linear Layer<a class="headerlink" href="#linear-layer" title="Permalink to this heading">¶</a></h1>
+<nav class="contents local" id="contents">
+<ul class="simple">
+<li><p><a class="reference internal" href="#overview" id="id12">Overview</a></p></li>
+<li><p><a class="reference internal" href="#implementation" id="id13">Implementation</a></p>
+<ul>
+<li><p><a class="reference internal" href="#public-interfaces" id="id14">Public interfaces</a></p></li>
+<li><p><a class="reference internal" href="#linear-layer-with-all-gather" id="id15">Linear layer with all-gather</a></p></li>
+<li><p><a class="reference internal" href="#linear-layer-with-reduce-scatter" id="id16">Linear layer with reduce-scatter</a></p></li>
+<li><p><a class="reference internal" href="#general-linear-layer" id="id17">General linear layer</a></p></li>
+</ul>
+</li>
+<li><p><a class="reference internal" href="#api" id="id18">API</a></p></li>
+</ul>
+</nav>
+<section id="overview">
+<h2><a class="toc-backref" href="#id12" role="doc-backlink">Overview</a><a class="headerlink" href="#overview" title="Permalink to this heading">¶</a></h2>
+<p>The Distributed Linear (or affine) layer uses distributed primitive layers
+to build a distributed version of the PyTorch <code class="docutils literal notranslate"><span class="pre">Linear</span></code> layer.  That is,
+it implements</p>
+<div class="math notranslate nohighlight">
+\[y = Wx + b\]</div>
+<p>where the tensors <span class="math notranslate nohighlight">\(x\)</span>, <span class="math notranslate nohighlight">\(y\)</span>, <span class="math notranslate nohighlight">\(W\)</span>, and <span class="math notranslate nohighlight">\(b\)</span> are
+partitioned over a number of workers.</p>
+</section>
+<section id="implementation">
+<h2><a class="toc-backref" href="#id13" role="doc-backlink">Implementation</a><a class="headerlink" href="#implementation" title="Permalink to this heading">¶</a></h2>
+<p>DistDL provides different implementations of the distributed linear layer,
+that generally differ in the way the input/output and weight tensors are
+partitioned. The partitioning scheme in turn induces the choice of the
+primitive used for communication. The following versions are currently
+supported:</p>
+<ul class="simple">
+<li><p><em>Linear layer with all-gather</em>: Weights are partitioned along the output feature dimension. The layer performs an all-gather of the input along the model-parallel workers, followed by a local GEMM. A fully-sharded data parallel version of this layer is available as well.</p></li>
+<li><p><em>Linear layer with reduce-scatter</em>: Weights are partitioned along the input feature dimension. The layer performs a local GEMM first and then applies a reduce-scatter along the model-parallel workers. A fully-sharded data parallel version of this layer is supported.</p></li>
+<li><p><em>General linear layer</em>: Weights are partitioned along both the input and output feature dimensions. This version first performs a broadcast of the data, followed by a local GEMM and sum-reduction.</p></li>
+</ul>
+<section id="public-interfaces">
+<h3><a class="toc-backref" href="#id14" role="doc-backlink">Public interfaces</a><a class="headerlink" href="#public-interfaces" title="Permalink to this heading">¶</a></h3>
+<p>DistDL provides a public interface to the many distributed linear layer
+implementations that follows the same pattern as other public interfaces
+and keeps in line with the PyTorch interface.  The <code class="docutils literal notranslate"><span class="pre">distdl.nn</span></code> module provides the
+<code class="xref py py-class docutils literal notranslate"><span class="pre">distdl.nn.DistributedLinearAllGather</span></code>,
+<code class="xref py py-class docutils literal notranslate"><span class="pre">distdl.nn.DistributedLinearReduceScatter</span></code>,
+<code class="xref py py-class docutils literal notranslate"><span class="pre">distdl.nn.DistributedLinearAllGatherZero</span></code>,
+<code class="xref py py-class docutils literal notranslate"><span class="pre">distdl.nn.DistributedLinearReduceScatterZero</span></code>, and
+<code class="xref py py-class docutils literal notranslate"><span class="pre">distdl.nn.DistributedLinear</span></code> classes, based on the structure
+of <span class="math notranslate nohighlight">\(P_x\)</span>, <span class="math notranslate nohighlight">\(P_y\)</span>, and the choice of the underlying primitive.</p>
+</section>
+<section id="linear-layer-with-all-gather">
+<h3><a class="toc-backref" href="#id15" role="doc-backlink">Linear layer with all-gather</a><a class="headerlink" href="#linear-layer-with-all-gather" title="Permalink to this heading">¶</a></h3>
+<p>The all-gather version of the linear layer is based on the all-gather primitive, which is called on the input tensor prior to performing the matrix multiplication. This version of the linear layer is preferred over the reduce-scatter variant when the number of input features/channels is smaller than the number of output features/channels.</p>
+<p>Weights in the all-gather version are partitioned along the output feature dimension. The respective tensor partition <span class="math notranslate nohighlight">\(P_w\)</span> is created internally. Two options for partitioning the input data are available, whereas the output tensor is always partitioned along the first (batch) and last (feature/channel/embedding) dimension.</p>
+<section id="single-input-output-partition">
+<h4>Single input/output partition<a class="headerlink" href="#single-input-output-partition" title="Permalink to this heading">¶</a></h4>
+<figure class="align-default">
+<img alt="Example for linear layer with all-gather and single input/output partition." src="../../_images/linear_example_ag_p_x.png" />
+</figure>
+<p>Both the input and output tensors are partitioned on the same partition <span class="math notranslate nohighlight">\(P_x\)</span>, whose shape is <span class="math notranslate nohighlight">\(P_d \times 1 \times ... \times P_m\)</span>, where <span class="math notranslate nohighlight">\(P_d\)</span> is the number of data-parallel workers and <span class="math notranslate nohighlight">\(P_m\)</span> is the number of model-parallel workers. Weights are partitioned internally on <span class="math notranslate nohighlight">\(P_w\)</span> along the output channel/feature dimension. The bias (not shown in the figure) is created on one of the model-parallel partitions only. During the forward pass, the input tensor is all-gathered along the model-parallel dimension, followed by a local GEMM. The output tensor is then partitioned along the same dimension as the input tensor.</p>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">P_x_base</span> <span class="o">=</span> <span class="n">P_world</span><span class="o">.</span><span class="n">create_partition_inclusive</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">8</span><span class="p">))</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">P_x</span> <span class="o">=</span> <span class="n">P_x_base</span><span class="o">.</span><span class="n">create_cartesian_topology_partition</span><span class="p">([</span><span class="mi">2</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">4</span><span class="p">])</span>
+<span class="gp">&gt;&gt;&gt;</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">in_features</span> <span class="o">=</span> <span class="mi">16</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">out_features</span> <span class="o">=</span> <span class="mi">12</span>
+<span class="gp">&gt;&gt;&gt;</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">x_local_shape</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="mi">2</span><span class="p">,</span> <span class="mi">8</span><span class="p">,</span> <span class="mi">4</span><span class="p">])</span>
+<span class="gp">&gt;&gt;&gt;</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">layer</span> <span class="o">=</span> <span class="n">DistributedLinearAllGather</span><span class="p">(</span><span class="n">P_x</span><span class="p">,</span> <span class="n">in_features</span><span class="p">,</span> <span class="n">out_features</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt;</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">x</span> <span class="o">=</span> <span class="n">zero_volume_tensor</span><span class="p">()</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="k">if</span> <span class="n">P_x</span><span class="o">.</span><span class="n">active</span><span class="p">:</span>
+<span class="gp">&gt;&gt;&gt; </span>    <span class="n">x</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">rand</span><span class="p">(</span><span class="o">*</span><span class="n">x_local_shape</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt;</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">y</span> <span class="o">=</span> <span class="n">layer</span><span class="p">(</span><span class="n">x</span><span class="p">)</span>
+</pre></div>
+</div>
+</section>
+<section id="separate-input-output-partitions">
+<h4>Separate input/output partitions<a class="headerlink" href="#separate-input-output-partitions" title="Permalink to this heading">¶</a></h4>
+<figure class="align-default">
+<img alt="Example for linear layer with all-gather and separate input/output partitions." src="../../_images/linear_example_ag_p_x_p_y.png" />
+</figure>
+<p>The input and output tensor are partitioned on separate partitions. The input tensor is partitioned on <span class="math notranslate nohighlight">\(P_x\)</span>, whose shape is <span class="math notranslate nohighlight">\(P_d \times ... \times P_m \times 1\)</span>, where <span class="math notranslate nohighlight">\(P_d\)</span> is the number of data-parallel workers and <span class="math notranslate nohighlight">\(P_m\)</span> is the number of model-parallel workers. The output tensor is partitioned on <span class="math notranslate nohighlight">\(P_y\)</span>, whose shape is <span class="math notranslate nohighlight">\(P_d \times 1 \times ... \times P_m\)</span>. Weights are partitioned internally on <span class="math notranslate nohighlight">\(P_w\)</span> along the input channel/feature dimension. During the forward pass, the input tensor is all-gathered along the model-parallel dimension, followed by a local GEMM.</p>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">P_x_base</span> <span class="o">=</span> <span class="n">P_world</span><span class="o">.</span><span class="n">create_partition_inclusive</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">8</span><span class="p">))</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">P_x</span> <span class="o">=</span> <span class="n">P_x_base</span><span class="o">.</span><span class="n">create_cartesian_topology_partition</span><span class="p">([</span><span class="mi">2</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">4</span><span class="p">])</span>
+<span class="gp">&gt;&gt;&gt;</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">P_y</span> <span class="o">=</span> <span class="n">P_x_base</span><span class="o">.</span><span class="n">create_cartesian_topology_partition</span><span class="p">([</span><span class="mi">2</span><span class="p">,</span> <span class="mi">4</span><span class="p">,</span> <span class="mi">1</span><span class="p">])</span>
+<span class="gp">&gt;&gt;&gt;</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">in_features</span> <span class="o">=</span> <span class="mi">16</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">out_features</span> <span class="o">=</span> <span class="mi">12</span>
+<span class="gp">&gt;&gt;&gt;</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">x_local_shape</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="mi">2</span><span class="p">,</span> <span class="mi">8</span><span class="p">,</span> <span class="mi">4</span><span class="p">])</span>
+<span class="gp">&gt;&gt;&gt;</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">layer</span> <span class="o">=</span> <span class="n">DistributedLinearAllGather</span><span class="p">(</span><span class="n">P_y</span><span class="p">,</span> <span class="n">in_features</span><span class="p">,</span> <span class="n">out_features</span><span class="p">,</span> <span class="n">P_x</span><span class="o">=</span><span class="n">P_x</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt;</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">x</span> <span class="o">=</span> <span class="n">zero_volume_tensor</span><span class="p">()</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="k">if</span> <span class="n">P_y</span><span class="o">.</span><span class="n">active</span><span class="p">:</span>
+<span class="gp">&gt;&gt;&gt; </span>    <span class="n">x</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">rand</span><span class="p">(</span><span class="o">*</span><span class="n">x_local_shape</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt;</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">y</span> <span class="o">=</span> <span class="n">layer</span><span class="p">(</span><span class="n">x</span><span class="p">)</span>
+</pre></div>
+</div>
+</section>
+<section id="fully-sharded-data-parallelism">
+<h4>Fully-sharded data parallelism<a class="headerlink" href="#fully-sharded-data-parallelism" title="Permalink to this heading">¶</a></h4>
+<p>Both conventional data parallelism and fully-sharded data parallelism (FSDP or ZeRO-3) are supported. In standard data parallelism, weights are only initialized on one set of model-parallel parallel workers and they are broadcasted to their respective data-parallel counterparts during the forward pass (see figure below). During the backward pass, the broadcast induces a sum-reduce operation. Note that DistDL differs in this regard from other frameworks for data parallelism, in which each worker (or set of model-parallel workers) keep a copy of the weights and then perform an all-reduce operation along (data-parallel) workers during the backward pass.</p>
+<figure class="align-default">
+<img alt="Example for linear layer with all-gather and standard data parallelism." src="../../_images/linear_example_ag_dp.png" />
+</figure>
+<p>The FSDP version of the linear all-gather layer partitions weights along the data-parallel workers in addition to the model-parallel workers. During the forward pass, model-parallel workers collect their full local tensor through an all-gather along the data-parallel workers.</p>
+<figure class="align-default">
+<img alt="Example for linear layer with all-gather and fully-sharded data parallelism." src="../../_images/linear_example_ag_zero.png" />
+</figure>
+<p>Note that the linear all-gather layer with FSDP is implemented as a separate module, rather than being a wrapper that is called on the distributed all-gather version. The reason for this is that the FSDP layer directly initializes the fully-sharded weights on each worker, rather than partitioning the weights after the initialization.</p>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">P_x_base</span> <span class="o">=</span> <span class="n">P_world</span><span class="o">.</span><span class="n">create_partition_inclusive</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">8</span><span class="p">))</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">P_x</span> <span class="o">=</span> <span class="n">P_x_base</span><span class="o">.</span><span class="n">create_cartesian_topology_partition</span><span class="p">([</span><span class="mi">2</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">4</span><span class="p">])</span>
+<span class="gp">&gt;&gt;&gt;</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">P_y</span> <span class="o">=</span> <span class="n">P_x_base</span><span class="o">.</span><span class="n">create_cartesian_topology_partition</span><span class="p">([</span><span class="mi">2</span><span class="p">,</span> <span class="mi">4</span><span class="p">,</span> <span class="mi">1</span><span class="p">])</span>
+<span class="gp">&gt;&gt;&gt;</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">in_features</span> <span class="o">=</span> <span class="mi">16</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">out_features</span> <span class="o">=</span> <span class="mi">12</span>
+<span class="gp">&gt;&gt;&gt;</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">x_local_shape</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="mi">2</span><span class="p">,</span> <span class="mi">8</span><span class="p">,</span> <span class="mi">4</span><span class="p">])</span>
+<span class="gp">&gt;&gt;&gt;</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">layer</span> <span class="o">=</span> <span class="n">DistributedLinearAllGatherZero</span><span class="p">(</span><span class="n">P_y</span><span class="p">,</span> <span class="n">in_features</span><span class="p">,</span> <span class="n">out_features</span><span class="p">,</span> <span class="n">P_x</span><span class="o">=</span><span class="n">P_x</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt;</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">x</span> <span class="o">=</span> <span class="n">zero_volume_tensor</span><span class="p">()</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="k">if</span> <span class="n">P_y</span><span class="o">.</span><span class="n">active</span><span class="p">:</span>
+<span class="gp">&gt;&gt;&gt; </span>    <span class="n">x</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">rand</span><span class="p">(</span><span class="o">*</span><span class="n">x_local_shape</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt;</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">y</span> <span class="o">=</span> <span class="n">layer</span><span class="p">(</span><span class="n">x</span><span class="p">)</span>
+</pre></div>
+</div>
+</section>
+<section id="examples">
+<h4>Examples<a class="headerlink" href="#examples" title="Permalink to this heading">¶</a></h4>
+</section>
+</section>
+<section id="linear-layer-with-reduce-scatter">
+<h3><a class="toc-backref" href="#id16" role="doc-backlink">Linear layer with reduce-scatter</a><a class="headerlink" href="#linear-layer-with-reduce-scatter" title="Permalink to this heading">¶</a></h3>
+<p>The reduce-scatter version of the linear layer is based on the reduce-scatter primitive, which is called on the output tensor after performing the matrix multiplication. The reduce-scatter version of the linear layer is preferred over the all-gather version when the number of output features/channels is smaller than the number of input features/channels.</p>
+<p>Weights in the reduce-scatter version are partitioned along the input feature dimension. The respective tensor partition <span class="math notranslate nohighlight">\(P_w\)</span> is created internally. Two options for partitioning the output data are available, whereas the input tensor is always partitioned along the first (batch) and last (feature/channel/embedding) dimension.</p>
+<section id="id1">
+<h4>Single input/output partition<a class="headerlink" href="#id1" title="Permalink to this heading">¶</a></h4>
+<figure class="align-default">
+<img alt="Example for linear layer with reduce-scatter and single input/output partition." src="../../_images/linear_example_rs_p_x.png" />
+</figure>
+<p>Both the input and output tensors are partitioned on the same partition <span class="math notranslate nohighlight">\(P_x\)</span>, whose shape is <span class="math notranslate nohighlight">\(P_d \times 1 \times ... \times P_m\)</span>, where <span class="math notranslate nohighlight">\(P_d\)</span> is the number of data-parallel workers and <span class="math notranslate nohighlight">\(P_m\)</span> is the number of model-parallel workers. Weights are partitioned internally on <span class="math notranslate nohighlight">\(P_w\)</span> along the input channel/feature dimension. The bias (not shown in the figure) is partitioned along the model-parallel partitions as well. During the forward pass, the GEMM is carried out first, followed by a reduce-scatter to sum the output across the model-parallel workers and partition it along the last dimension.</p>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">P_x_base</span> <span class="o">=</span> <span class="n">P_world</span><span class="o">.</span><span class="n">create_partition_inclusive</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">8</span><span class="p">))</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">P_x</span> <span class="o">=</span> <span class="n">P_x_base</span><span class="o">.</span><span class="n">create_cartesian_topology_partition</span><span class="p">([</span><span class="mi">2</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">4</span><span class="p">])</span>
+<span class="gp">&gt;&gt;&gt;</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">in_features</span> <span class="o">=</span> <span class="mi">16</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">out_features</span> <span class="o">=</span> <span class="mi">12</span>
+<span class="gp">&gt;&gt;&gt;</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">x_local_shape</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="mi">2</span><span class="p">,</span> <span class="mi">8</span><span class="p">,</span> <span class="mi">4</span><span class="p">])</span>
+<span class="gp">&gt;&gt;&gt;</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">layer</span> <span class="o">=</span> <span class="n">DistributedLinearReduceScatter</span><span class="p">(</span><span class="n">P_x</span><span class="p">,</span> <span class="n">in_features</span><span class="p">,</span> <span class="n">out_features</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt;</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">x</span> <span class="o">=</span> <span class="n">zero_volume_tensor</span><span class="p">()</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="k">if</span> <span class="n">P_x</span><span class="o">.</span><span class="n">active</span><span class="p">:</span>
+<span class="gp">&gt;&gt;&gt; </span>    <span class="n">x</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">rand</span><span class="p">(</span><span class="o">*</span><span class="n">x_local_shape</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt;</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">y</span> <span class="o">=</span> <span class="n">layer</span><span class="p">(</span><span class="n">x</span><span class="p">)</span>
+</pre></div>
+</div>
+</section>
+<section id="id2">
+<h4>Separate input/output partitions<a class="headerlink" href="#id2" title="Permalink to this heading">¶</a></h4>
+<figure class="align-default">
+<img alt="Example for linear layer with reduce-scatter and single input/output partition." src="../../_images/linear_example_rs_p_x_p_y.png" />
+</figure>
+<p>The input and output tensor are partitioned on two distinct partitions. The input tensor is partitioned on <span class="math notranslate nohighlight">\(P_x\)</span>, whose shape is <span class="math notranslate nohighlight">\(P_d \times ... \times 1 \times P_m\)</span>, where <span class="math notranslate nohighlight">\(P_d\)</span> is the number of data-parallel workers and <span class="math notranslate nohighlight">\(P_m\)</span> is the number of model-parallel workers. The output tensor is partitioned on <span class="math notranslate nohighlight">\(P_y\)</span>, whose shape is <span class="math notranslate nohighlight">\(P_d \times ... \times P_m \times 1\)</span>. Weights are partitioned internally on <span class="math notranslate nohighlight">\(P_w\)</span> along the output channel/feature dimension. During the forward pass, the local GEMM is followed by a reduce-scatter operation, which sums the output across the model-parallel workers and partitions it along the 2nd last dimension.</p>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">P_x_base</span> <span class="o">=</span> <span class="n">P_world</span><span class="o">.</span><span class="n">create_partition_inclusive</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">8</span><span class="p">))</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">P_x</span> <span class="o">=</span> <span class="n">P_x_base</span><span class="o">.</span><span class="n">create_cartesian_topology_partition</span><span class="p">([</span><span class="mi">2</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">4</span><span class="p">])</span>
+<span class="gp">&gt;&gt;&gt;</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">P_y</span> <span class="o">=</span> <span class="n">P_x_base</span><span class="o">.</span><span class="n">create_cartesian_topology_partition</span><span class="p">([</span><span class="mi">2</span><span class="p">,</span> <span class="mi">4</span><span class="p">,</span> <span class="mi">1</span><span class="p">])</span>
+<span class="gp">&gt;&gt;&gt;</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">in_features</span> <span class="o">=</span> <span class="mi">16</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">out_features</span> <span class="o">=</span> <span class="mi">12</span>
+<span class="gp">&gt;&gt;&gt;</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">x_local_shape</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="mi">2</span><span class="p">,</span> <span class="mi">8</span><span class="p">,</span> <span class="mi">4</span><span class="p">])</span>
+<span class="gp">&gt;&gt;&gt;</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">layer</span> <span class="o">=</span> <span class="n">DistributedLinearReduceScatter</span><span class="p">(</span><span class="n">P_x</span><span class="p">,</span> <span class="n">in_features</span><span class="p">,</span> <span class="n">out_features</span><span class="p">,</span> <span class="n">P_y</span><span class="o">=</span><span class="n">P_y</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt;</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">x</span> <span class="o">=</span> <span class="n">zero_volume_tensor</span><span class="p">()</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="k">if</span> <span class="n">P_x</span><span class="o">.</span><span class="n">active</span><span class="p">:</span>
+<span class="gp">&gt;&gt;&gt; </span>    <span class="n">x</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">rand</span><span class="p">(</span><span class="o">*</span><span class="n">x_local_shape</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt;</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">y</span> <span class="o">=</span> <span class="n">layer</span><span class="p">(</span><span class="n">x</span><span class="p">)</span>
+</pre></div>
+</div>
+</section>
+<section id="id3">
+<h4>Fully-sharded data parallelism<a class="headerlink" href="#id3" title="Permalink to this heading">¶</a></h4>
+<p>The FSDP version of the linear reduce-scatter version operates similar to the all-gather version. Weights are partitioned along the model-parallel workers across the input feature dimension and along data-parallel workers across the output feature dimension.</p>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">P_x_base</span> <span class="o">=</span> <span class="n">P_world</span><span class="o">.</span><span class="n">create_partition_inclusive</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">8</span><span class="p">))</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">P_x</span> <span class="o">=</span> <span class="n">P_x_base</span><span class="o">.</span><span class="n">create_cartesian_topology_partition</span><span class="p">([</span><span class="mi">2</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">4</span><span class="p">])</span>
+<span class="gp">&gt;&gt;&gt;</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">P_y</span> <span class="o">=</span> <span class="n">P_x_base</span><span class="o">.</span><span class="n">create_cartesian_topology_partition</span><span class="p">([</span><span class="mi">2</span><span class="p">,</span> <span class="mi">4</span><span class="p">,</span> <span class="mi">1</span><span class="p">])</span>
+<span class="gp">&gt;&gt;&gt;</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">in_features</span> <span class="o">=</span> <span class="mi">16</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">out_features</span> <span class="o">=</span> <span class="mi">12</span>
+<span class="gp">&gt;&gt;&gt;</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">x_local_shape</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="mi">2</span><span class="p">,</span> <span class="mi">8</span><span class="p">,</span> <span class="mi">4</span><span class="p">])</span>
+<span class="gp">&gt;&gt;&gt;</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">layer</span> <span class="o">=</span> <span class="n">DistributedLinearReduceScatterZero</span><span class="p">(</span><span class="n">P_x</span><span class="p">,</span> <span class="n">in_features</span><span class="p">,</span> <span class="n">out_features</span><span class="p">,</span> <span class="n">P_y</span><span class="o">=</span><span class="n">P_y</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt;</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">x</span> <span class="o">=</span> <span class="n">zero_volume_tensor</span><span class="p">()</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="k">if</span> <span class="n">P_x</span><span class="o">.</span><span class="n">active</span><span class="p">:</span>
+<span class="gp">&gt;&gt;&gt; </span>    <span class="n">x</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">rand</span><span class="p">(</span><span class="o">*</span><span class="n">x_local_shape</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt;</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">y</span> <span class="o">=</span> <span class="n">layer</span><span class="p">(</span><span class="n">x</span><span class="p">)</span>
+</pre></div>
+</div>
+</section>
+</section>
+<section id="general-linear-layer">
+<h3><a class="toc-backref" href="#id17" role="doc-backlink">General linear layer</a><a class="headerlink" href="#general-linear-layer" title="Permalink to this heading">¶</a></h3>
+<section id="assumptions">
+<h4>Assumptions<a class="headerlink" href="#assumptions" title="Permalink to this heading">¶</a></h4>
+<ul class="simple">
+<li><p>The global input tensor <span class="math notranslate nohighlight">\(x\)</span> has shape <span class="math notranslate nohighlight">\(n_{\text{batch}} \times
+n_{\text{features in}}\)</span>.</p></li>
+<li><p>The input partition <span class="math notranslate nohighlight">\(P_x\)</span> has shape <span class="math notranslate nohighlight">\(1 \times P_{\text{f_in}}\)</span>,
+where <span class="math notranslate nohighlight">\(P_{\text{f_in}}\)</span> is the number of workers partitioning the
+feature dimension of <span class="math notranslate nohighlight">\(x\)</span>.</p></li>
+<li><p>The global output tensor <span class="math notranslate nohighlight">\(y\)</span> has shape <span class="math notranslate nohighlight">\(n_{\text{batch}} \times
+n_{\text{features out}}\)</span>.</p></li>
+<li><p>The output partition <span class="math notranslate nohighlight">\(P_y\)</span> has shape <span class="math notranslate nohighlight">\(1 \times P_{\text{f_out}}\)</span>,
+where <span class="math notranslate nohighlight">\(P_{\text{f_out}}\)</span> is the number of workers partitioning the
+feature dimension of <span class="math notranslate nohighlight">\(y\)</span>.</p></li>
+</ul>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>PyTorch admits input tensors of shape <span class="math notranslate nohighlight">\(n_{\text{batch}} \times \dots
+\times n_{\text{features in}}\)</span> and output tensors of shape
+<span class="math notranslate nohighlight">\(n_{\text{batch}} \times \dots \times n_{\text{features out}}\)</span>.
+DistDL does not explicitly support intermediate dimensions at this time.</p>
+</div>
+<ul class="simple">
+<li><p>The weight tensor <span class="math notranslate nohighlight">\(W\)</span> has shape <span class="math notranslate nohighlight">\(n_{\text{features_out}} \times
+n_{\text{features_in}}\)</span>.  This follows PyTorch.</p></li>
+<li><p>The weight partition <span class="math notranslate nohighlight">\(P_W\)</span> has shape <span class="math notranslate nohighlight">\(P_{\text{f_out}} \times
+P_{\text{f_in}}\)</span>.</p></li>
+</ul>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>The bias vectors are stored on the 0th <em>column</em> of <span class="math notranslate nohighlight">\(P_w\)</span>.  Hence, it
+is implicitly partitioned by a factor of <span class="math notranslate nohighlight">\(P_{\text{f_in}}\)</span>.
+Following PyTorch, if the bias is turned off, no subtensors have bias
+terms.</p>
+</div>
+<figure class="align-default" id="id5">
+<img alt="Example setup for distributed linear layer." src="../../_images/linear_example_01.png" />
+<figcaption>
+<p><span class="caption-text">An example setup for a distributed linear layer, where <span class="math notranslate nohighlight">\(P_x\)</span> has
+shape <span class="math notranslate nohighlight">\(1 \times 4\)</span>, <span class="math notranslate nohighlight">\(P_y\)</span> has shape <span class="math notranslate nohighlight">\(1 \times 3\)</span>, and
+<span class="math notranslate nohighlight">\(P_W\)</span> has shape <span class="math notranslate nohighlight">\(3 \times 4\)</span>.</span><a class="headerlink" href="#id5" title="Permalink to this image">¶</a></p>
+</figcaption>
+</figure>
+</section>
+<section id="forward">
+<h4>Forward<a class="headerlink" href="#forward" title="Permalink to this heading">¶</a></h4>
+<p>Under the above assumptions, the forward algorithm is:</p>
+<ol class="arabic simple">
+<li><p>Use a <a class="reference internal" href="broadcast.html#broadcast-layer"><span class="std std-ref">Broadcast Layer</span></a> to broadcast
+subtensors of <span class="math notranslate nohighlight">\(x\)</span> from <span class="math notranslate nohighlight">\(P_x\)</span> over the columns of <span class="math notranslate nohighlight">\(P_W\)</span>.</p></li>
+</ol>
+<figure class="align-default" id="id6">
+<img alt="Example forward broadcast in the distributed linear layer." src="../../_images/linear_example_02.png" />
+<figcaption>
+<p><span class="caption-text">Subtensors of <span class="math notranslate nohighlight">\(x\)</span> are broadcast down the four columns of
+<span class="math notranslate nohighlight">\(P_W\)</span>.</span><a class="headerlink" href="#id6" title="Permalink to this image">¶</a></p>
+</figcaption>
+</figure>
+<ol class="arabic simple" start="2">
+<li><p>Perform the local forward linear layer application using a PyTorch Linear
+layer.  Note that the bias is only added on the 0th column of <span class="math notranslate nohighlight">\(P_W\)</span>.
+Each worker now has a portion of the output vector <span class="math notranslate nohighlight">\(y\)</span>.  In the rows
+of <span class="math notranslate nohighlight">\(P_W\)</span> the results are partial contributions to the output feature
+degrees-of-freedom.</p></li>
+</ol>
+<figure class="align-default" id="id7">
+<img alt="Example forward linear application in the distributed linear layer." src="../../_images/linear_example_03.png" />
+<figcaption>
+<p><span class="caption-text">Local application of linear layer.  Bias is present only in 0th column.</span><a class="headerlink" href="#id7" title="Permalink to this image">¶</a></p>
+</figcaption>
+</figure>
+<ol class="arabic" start="3">
+<li><p>Use a <a class="reference internal" href="sum_reduce.html#sumreduce-layer"><span class="std std-ref">SumReduce Layer</span></a> to reduce
+the subtensors of <span class="math notranslate nohighlight">\(y\)</span> over the rows of <span class="math notranslate nohighlight">\(P_W\)</span> into <span class="math notranslate nohighlight">\(P_y\)</span>.
+Only one subtensor in each row of <span class="math notranslate nohighlight">\(P_W\)</span> contains the a subtensor of
+the bias, so the output tensor correctly assimilates the bias.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>This sum-reduction requires one of the partitions to be transposed.</p>
+</div>
+</li>
+</ol>
+<figure class="align-default" id="id8">
+<img alt="Example forward sum-reduction in the distributed linear layer." src="../../_images/linear_example_04.png" />
+<figcaption>
+<p><span class="caption-text">Subtensors of <span class="math notranslate nohighlight">\(y\)</span> are assembled via sum-reduction along the three
+rows of <span class="math notranslate nohighlight">\(P_W\)</span>.</span><a class="headerlink" href="#id8" title="Permalink to this image">¶</a></p>
+</figcaption>
+</figure>
+</section>
+<section id="adjoint">
+<h4>Adjoint<a class="headerlink" href="#adjoint" title="Permalink to this heading">¶</a></h4>
+<p>The adjoint algorithm is not explicitly implemented.  PyTorch’s <code class="docutils literal notranslate"><span class="pre">autograd</span></code>
+feature automatically builds the adjoint of the Jacobian of the distributed
+linear forward application.  Essentially, the algorithm is as follows:</p>
+<ol class="arabic simple">
+<li><p>Broadcast the subtensors of the gradient output, <span class="math notranslate nohighlight">\(\delta y\)</span> from
+<span class="math notranslate nohighlight">\(P_y\)</span> along the rows of <span class="math notranslate nohighlight">\(P_W\)</span>.</p></li>
+</ol>
+<figure class="align-default" id="id9">
+<img alt="Example adjoint sum-reduction in the distributed linear layer." src="../../_images/linear_example_05.png" />
+<figcaption>
+<p><span class="caption-text">Subtensors of <span class="math notranslate nohighlight">\(\delta y\)</span> are broadcast across the three rows of
+<span class="math notranslate nohighlight">\(P_W\)</span>.</span><a class="headerlink" href="#id9" title="Permalink to this image">¶</a></p>
+</figcaption>
+</figure>
+<ol class="arabic simple" start="2">
+<li><p>Each worker in <span class="math notranslate nohighlight">\(P_W\)</span> computes its local part of <span class="math notranslate nohighlight">\(\delta W\)</span> and
+<span class="math notranslate nohighlight">\(\delta x\)</span> using the PyTorch implementation of the adjoint of the
+Jacobian of the local sequential linear layer.  If the bias is required,
+the 0th column of <span class="math notranslate nohighlight">\(P_W\)</span> also computes <span class="math notranslate nohighlight">\(\delta b\)</span> similarly.</p></li>
+</ol>
+<figure class="align-default" id="id10">
+<img alt="Example adjoint linear application in the distributed linear layer." src="../../_images/linear_example_06.png" />
+<figcaption>
+<p><span class="caption-text">Local computation of subtensors of <span class="math notranslate nohighlight">\(\delta x\)</span>, <span class="math notranslate nohighlight">\(\delta W\)</span>, and
+<span class="math notranslate nohighlight">\(\delta b\)</span>.</span><a class="headerlink" href="#id10" title="Permalink to this image">¶</a></p>
+</figcaption>
+</figure>
+<ol class="arabic simple" start="3">
+<li><p>Sum-reduce the subtensors of the gradient input, <span class="math notranslate nohighlight">\(\delta x\)</span>, along
+the rows of <span class="math notranslate nohighlight">\(P_W\)</span> into <span class="math notranslate nohighlight">\(P_x\)</span>.</p></li>
+</ol>
+<figure class="align-default" id="id11">
+<img alt="Example adjoint broadcast in the distributed linear layer." src="../../_images/linear_example_07.png" />
+<figcaption>
+<p><span class="caption-text">Subtensors of <span class="math notranslate nohighlight">\(\delta x\)</span> are assembled via sum-reduction along the
+four columns of <span class="math notranslate nohighlight">\(P_W\)</span>.</span><a class="headerlink" href="#id11" title="Permalink to this image">¶</a></p>
+</figcaption>
+</figure>
+</section>
+<section id="id4">
+<h4>Examples<a class="headerlink" href="#id4" title="Permalink to this heading">¶</a></h4>
+<p>To apply a linear layer which maps a tensor on a <code class="docutils literal notranslate"><span class="pre">1</span> <span class="pre">x</span> <span class="pre">4</span></code> partition to a
+tensor on a <code class="docutils literal notranslate"><span class="pre">1</span> <span class="pre">x</span> <span class="pre">3</span></code> partition:</p>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">P_x_base</span> <span class="o">=</span> <span class="n">P_world</span><span class="o">.</span><span class="n">create_partition_inclusive</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">4</span><span class="p">))</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">P_x</span> <span class="o">=</span> <span class="n">P_x_base</span><span class="o">.</span><span class="n">create_cartesian_topology_partition</span><span class="p">([</span><span class="mi">1</span><span class="p">,</span> <span class="mi">4</span><span class="p">])</span>
+<span class="gp">&gt;&gt;&gt;</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">P_y_base</span> <span class="o">=</span> <span class="n">P_world</span><span class="o">.</span><span class="n">create_partition_inclusive</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="mi">4</span><span class="p">,</span> <span class="mi">7</span><span class="p">))</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">P_y</span> <span class="o">=</span> <span class="n">P_y_base</span><span class="o">.</span><span class="n">create_cartesian_topology_partition</span><span class="p">([</span><span class="mi">1</span><span class="p">,</span> <span class="mi">3</span><span class="p">])</span>
+<span class="gp">&gt;&gt;&gt;</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">P_W_base</span> <span class="o">=</span> <span class="n">P_world</span><span class="o">.</span><span class="n">create_partition_inclusive</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">12</span><span class="p">))</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">P_W</span> <span class="o">=</span> <span class="n">P_W_base</span><span class="o">.</span><span class="n">create_cartesian_topology_partition</span><span class="p">([</span><span class="mi">3</span><span class="p">,</span> <span class="mi">4</span><span class="p">])</span>
+<span class="gp">&gt;&gt;&gt;</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">in_features</span> <span class="o">=</span> <span class="mi">16</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">out_features</span> <span class="o">=</span> <span class="mi">12</span>
+<span class="gp">&gt;&gt;&gt;</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">x_local_shape</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="mi">1</span><span class="p">,</span> <span class="mi">4</span><span class="p">])</span>
+<span class="gp">&gt;&gt;&gt;</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">layer</span> <span class="o">=</span> <span class="n">DistributedLinear</span><span class="p">(</span><span class="n">P_x</span><span class="p">,</span> <span class="n">P_y</span><span class="p">,</span> <span class="n">P_W</span><span class="p">,</span> <span class="n">in_features</span><span class="p">,</span> <span class="n">out_features</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt;</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">x</span> <span class="o">=</span> <span class="n">zero_volume_tensor</span><span class="p">()</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="k">if</span> <span class="n">P_x</span><span class="o">.</span><span class="n">active</span><span class="p">:</span>
+<span class="gp">&gt;&gt;&gt; </span>    <span class="n">x</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">rand</span><span class="p">(</span><span class="o">*</span><span class="n">x_local_shape</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt;</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">y</span> <span class="o">=</span> <span class="n">layer</span><span class="p">(</span><span class="n">x</span><span class="p">)</span>
+</pre></div>
+</div>
+</section>
+</section>
+</section>
+<section id="api">
+<h2><a class="toc-backref" href="#id18" role="doc-backlink">API</a><a class="headerlink" href="#api" title="Permalink to this heading">¶</a></h2>
+</section>
+</section>
+
+
+            <div class="clearer"></div>
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper">
+    <a id="sidebar-anchor"></a>
+    
+
+<div id="searchbox" style="display: none" role="search">
+  <h3 id="searchlabel">Quick search</h3>
+    <div class="searchformwrapper">
+    <form class="search" action="../../search.html" method="get">
+      <input type="text" name="q" aria-labelledby="searchlabel" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"/>
+      <input type="submit" value="Go" />
+    </form>
+    </div>
+</div>
+<script>document.getElementById('searchbox').style.display = "block"</script><h3><a href="../../index.html">Table Of Contents</a></h3>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="../../user_guide/index.html">Using DistDL</a></li>
+<li class="toctree-l1 current"><a class="reference internal" href="../index.html">Code Reference</a><ul class="current">
+<li class="toctree-l2 current"><a class="reference internal" href="../nn.html">distdl.nn</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../functional.html">distdl.functional</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../backends.html">distdl.backends</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../utilities.html">distdl.utilities</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="../../developer_guide/index.html">Contributor’s Guide</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../developer_guide/index.html#contributing">Contributing</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../release_history/index.html">Release History</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../acknowledgements.html">Citing &amp; Acknowledgements</a></li>
+</ul>
+
+  <div role="note" aria-label="source link">
+    <h3>This Page</h3>
+    <ul class="this-page-menu">
+      <li><a href="../../_sources/code_reference/nn/linear.rst.txt"
+            rel="nofollow">Show Source</a></li>
+    </ul>
+   </div>
+        </div>
+<div id="sidebarbutton" title="Collapse sidebar">
+<span>«</span>
+</div>
+
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="related">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../../genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="right" >
+          <a href="loss.html" title="Loss Functions"
+             accesskey="N">next</a> |</li>
+        <li class="right" >
+          <a href="interpolate.html" title="Interpolation Layer"
+             accesskey="P">previous</a> |</li>
+      </ul>
+    </div>
+
+    <div class="footer" role="contentinfo">
+        &#169; Copyright 2023, Microsoft.
+      Last updated on May 02, 2023.
+      Created using <a href="https://www.sphinx-doc.org/">Sphinx</a> 6.2.1.
+    </div>
+  </body>
+</html>

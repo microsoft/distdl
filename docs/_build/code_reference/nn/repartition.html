@@ -1,0 +1,364 @@
+<!DOCTYPE html>
+
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="generator" content="Docutils 0.19: https://docutils.sourceforge.io/" />
+
+    <title>Repartition Layer &#8212; DistDL 0.5.0 documentation</title>
+    <link rel="stylesheet" type="text/css" href="../../_static/pygments.css" />
+    <link rel="stylesheet" type="text/css" href="../../_static/pydoctheme.css" />
+    <link rel="stylesheet" type="text/css" href="../../_static/graphviz.css" />
+    
+    <script data-url_root="../../" id="documentation_options" src="../../_static/documentation_options.js"></script>
+    <script src="../../_static/doctools.js"></script>
+    <script src="../../_static/sphinx_highlight.js"></script>
+    <script async="async" src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+    
+    <script src="../../_static/sidebar.js"></script>
+    
+    <link rel="index" title="Index" href="../../genindex.html" />
+    <link rel="search" title="Search" href="../../search.html" />
+    <link rel="next" title="SumReduce Layer" href="sum_reduce.html" />
+    <link rel="prev" title="ReduceScatter Layer" href="reduce_scatter.html" />
+    <meta http-equiv="X-UA-Compatible" content="IE=Edge" />
+    <link rel="shortcut icon" type="image/png" href="../../_static/favicon.png" />
+    <meta name="viewport" content="width=device-width,initial-scale=0.8">
+    
+    
+
+  </head><body>
+    <div class="related">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="responsive-menu"><a href="#sidebar-anchor" title="Navigation">&#9776;</a></li>
+        <li><a href="../../index.html">DistDL-0.5.0</a> &#187;</li>
+          <li><a href="../index.html" >Code Reference</a> &#187;</li>
+          <li><a href="../nn.html" accesskey="U">distdl.nn</a> &#187;</li> 
+      </ul>
+    </div>
+    
+        <div class="badge">
+            <a href="https://github.com/microsoft/distdl/">Fork me on GitHub</a>
+            <img src="../../_static/right-red@2x.png">
+        </div>
+    
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <section id="repartition-layer">
+<h1>Repartition Layer<a class="headerlink" href="#repartition-layer" title="Permalink to this heading">¶</a></h1>
+<nav class="contents local" id="contents">
+<ul class="simple">
+<li><p><a class="reference internal" href="#overview" id="id5">Overview</a></p></li>
+<li><p><a class="reference internal" href="#motivation" id="id6">Motivation</a></p></li>
+<li><p><a class="reference internal" href="#implementation" id="id7">Implementation</a></p>
+<ul>
+<li><p><a class="reference internal" href="#assumptions" id="id8">Assumptions</a></p></li>
+<li><p><a class="reference internal" href="#forward" id="id9">Forward</a></p></li>
+<li><p><a class="reference internal" href="#adjoint" id="id10">Adjoint</a></p></li>
+</ul>
+</li>
+<li><p><a class="reference internal" href="#examples" id="id11">Examples</a></p>
+<ul>
+<li><p><a class="reference internal" href="#use-cases" id="id12">Use Cases</a></p></li>
+<li><p><a class="reference internal" href="#example-1-remap-1d-partition" id="id13">Example 1: Remap 1D Partition</a></p></li>
+<li><p><a class="reference internal" href="#example-2-remap-2d-partition" id="id14">Example 2: Remap 2D Partition</a></p></li>
+<li><p><a class="reference internal" href="#example-3-remap-3d-partition" id="id15">Example 3: Remap 3D Partition</a></p></li>
+<li><p><a class="reference internal" href="#example-4-repartition-as-scatter" id="id16">Example 4: Repartition as Scatter</a></p></li>
+<li><p><a class="reference internal" href="#example-5-repartition-as-gather" id="id17">Example 5: Repartition as Gather</a></p></li>
+<li><p><a class="reference internal" href="#code-examples" id="id18">Code Examples</a></p></li>
+</ul>
+</li>
+<li><p><a class="reference internal" href="#api" id="id19">API</a></p></li>
+</ul>
+</nav>
+<section id="overview">
+<h2><a class="toc-backref" href="#id5" role="doc-backlink">Overview</a><a class="headerlink" href="#overview" title="Permalink to this heading">¶</a></h2>
+<p>The Repartition distributed data movement primitive performs a repartition,
+shuffle, or generalized all-to-all operation of a tensor from one partition to
+another.</p>
+<p>In DistDL, the Repartition allows you to change how tensor data is distributed
+across workers, which allows for more optimal communication patterns and load
+balancing.</p>
+<p>For the purposes of this documentation, we will assume that an arbitrary
+global input tensor <span class="math notranslate nohighlight">\({x}\)</span> is partitioned by <span class="math notranslate nohighlight">\(P_x\)</span> and that another
+partition <span class="math notranslate nohighlight">\(P_y\)</span> exists.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>The repartition operation in DistDL has similar flavor to the classical
+parallel all-to-all operation.  However, DistDL focuses on exploiting
+structure on the data, while the classical all-to-all usually assumes 1D
+(or quasi-1D) data (e.g., in the sense of <code class="docutils literal notranslate"><span class="pre">MPI_Alltoall()</span></code>).</p>
+</div>
+</section>
+<section id="motivation">
+<h2><a class="toc-backref" href="#id6" role="doc-backlink">Motivation</a><a class="headerlink" href="#motivation" title="Permalink to this heading">¶</a></h2>
+<p>In distributed deep learning, consecutive layers have potentially widely
+varying structure.  It is very common to see changes in the number of degrees
+of freedom in the feature dimensions, the number of channels, and even the
+number of dimensions in the tensors themselves.</p>
+<p>Parallel load balance is driven by data layout and kernel structure, so given
+this variability, the parallel data distribution of the output of one layer may
+not be the optimal distribution for the input of the next.</p>
+<p>The Repartition layer provides a mechanism to change the data distribution,
+that is to change the partition partition function on a tensor, as needed.</p>
+<p>This primitive draws its inspiration from the parallel all-to-all pattern,
+which has the appearance of transposing a matrix, from a certain perspective.</p>
+<p>For example, consider a 16-length array, distributed over 4 workers.</p>
+<figure class="align-default">
+<img alt="All-to-all motivation part 1." src="../../_images/repartition_alltoall_01.png" />
+</figure>
+<p>This array can be viewed as a <span class="math notranslate nohighlight">\(4 \times 4\)</span> matrix, partitioned in a row
+contiguous way.</p>
+<figure class="align-default">
+<img alt="All-to-all motivation part 2." src="../../_images/repartition_alltoall_02.png" />
+</figure>
+<p>The all-to-all pattern remaps the array as if the <span class="math notranslate nohighlight">\(4 \times 4\)</span> matrix
+has been repartitioned, so the column-contiguous view becomes row contiguous.</p>
+<figure class="align-default">
+<img alt="All-to-all motivation part 3." src="../../_images/repartition_alltoall_03.png" />
+</figure>
+<p>Thus, the new view distribution of the data is as follows.</p>
+<figure class="align-default">
+<img alt="All-to-all motivation part 4." src="../../_images/repartition_alltoall_04.png" />
+</figure>
+</section>
+<section id="implementation">
+<h2><a class="toc-backref" href="#id7" role="doc-backlink">Implementation</a><a class="headerlink" href="#implementation" title="Permalink to this heading">¶</a></h2>
+<p>A back-end functional implementation supporting DistDL
+<code class="xref py py-class docutils literal notranslate"><span class="pre">Repartition</span></code> must complete the repartition operation, as
+described below.</p>
+<p>Consider two partitions of the same tensor.  The Repartition operation performs
+the necessary data movements such that the tensor, stored on the first
+partition, can be remapped to the second partition.</p>
+<figure class="align-default" id="id1">
+<img alt="Sketch of repartition." src="../../_images/repartition_example_01.png" />
+<figcaption>
+<p><span class="caption-text">Example Repartition from <span class="math notranslate nohighlight">\(P_x\)</span>, a <span class="math notranslate nohighlight">\(3 \times 3\)</span> partition, to
+<span class="math notranslate nohighlight">\(P_y\)</span>, a <span class="math notranslate nohighlight">\(4 \times 4\)</span> partition.</span><a class="headerlink" href="#id1" title="Permalink to this image">¶</a></p>
+</figcaption>
+</figure>
+<p>The data movement in a Repartition operation is inherently dependent on the
+overlap between a subtensor in <span class="math notranslate nohighlight">\(P_x\)</span> and all subtensors in <span class="math notranslate nohighlight">\(P_y\)</span>.
+In sketching the behavior, we will examine the behavior of the middle
+subtensor/worker in <span class="math notranslate nohighlight">\(P_x\)</span> pt 1.</p>
+<figure class="align-default" id="id2">
+<img alt="Sketch of repartition pt 2." src="../../_images/repartition_example_02.png" />
+<figcaption>
+<p><span class="caption-text">Overlap of a <span class="math notranslate nohighlight">\(3 \times 3\)</span> partition (black) and a <span class="math notranslate nohighlight">\(4 \times 4\)</span>
+partition (grey).</span><a class="headerlink" href="#id2" title="Permalink to this image">¶</a></p>
+</figcaption>
+</figure>
+<section id="assumptions">
+<h3><a class="toc-backref" href="#id8" role="doc-backlink">Assumptions</a><a class="headerlink" href="#assumptions" title="Permalink to this heading">¶</a></h3>
+<ul class="simple">
+<li><p>The dimension of <span class="math notranslate nohighlight">\(P_x\)</span> matches the dimension of <span class="math notranslate nohighlight">\(x\)</span>.</p></li>
+<li><p>The dimension of <span class="math notranslate nohighlight">\(P_y\)</span> matches the dimension of <span class="math notranslate nohighlight">\(x\)</span>.</p></li>
+<li><p>Consequently, the dimension of both partitions needs to be the same.</p></li>
+</ul>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>These requirements may require a new partition to be created.  As long as
+the essential structure of the partition is preserved (total number of
+workers, mapping of tensor dimensions to workers, etc.) then new partitions
+can be created with arbitrary dimensions of length 1 can be created.  For
+example, a <span class="math notranslate nohighlight">\(3\)</span> partition can become <span class="math notranslate nohighlight">\(1 \times 1 \times 3\)</span>
+without a repartition, and the new partition can be used as an input to the
+repartition.</p>
+</div>
+<ul class="simple">
+<li><p>Input tensors do not have to be load-balanced.  Output tensors will always
+be load balanced.</p></li>
+</ul>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>Consequently, if an input tensor is unbalanced on a partition, a
+repartition to the same partition will rebalance it.</p>
+</div>
+<p>Intermediate data movement may be required by an implementation.  This may
+require intermediate buffers.  Buffer management should be a function of the
+back-end, as different communication back-ends may require different structure
+for buffers.</p>
+<div class="admonition warning">
+<p class="admonition-title">Warning</p>
+<p>The current implementation has buffer allocation directly in the primal
+interface class.  This will be resolved in the future.</p>
+</div>
+</section>
+<section id="forward">
+<h3><a class="toc-backref" href="#id9" role="doc-backlink">Forward</a><a class="headerlink" href="#forward" title="Permalink to this heading">¶</a></h3>
+<p>The forward implementation of repartition maps a tensor from one Cartesian
+partition to another, without changing the partition. From the perspective of
+one worker in <span class="math notranslate nohighlight">\(P_x\)</span>, this operation looks like a multi-dimensional
+scatter.</p>
+<figure class="align-default" id="id3">
+<img alt="Sketch of forward repartition." src="../../_images/repartition_example_03.png" />
+<figcaption>
+<p><span class="caption-text">Left: Data on current (middle) worker of <span class="math notranslate nohighlight">\(P_x\)</span>.  Middle: Overlapping
+partition boundaries.  Right: Data from current worker on 4 middle workers
+of <span class="math notranslate nohighlight">\(P_y\)</span>.</span><a class="headerlink" href="#id3" title="Permalink to this image">¶</a></p>
+</figcaption>
+</figure>
+<p>The setup is determined by the sequence of overlaps of the subtensor owned by
+the current worker and the subtensors owned by the workers in <span class="math notranslate nohighlight">\(P_y\)</span>. The
+amount of overlap is different from pair to pair, so the volume of data
+movement is also different.  Thus, from the perspective of one worker in
+<span class="math notranslate nohighlight">\(P_x\)</span>, this is like a multi-dimensional <code class="docutils literal notranslate"><span class="pre">MPI_Scatterv</span></code>.</p>
+</section>
+<section id="adjoint">
+<h3><a class="toc-backref" href="#id10" role="doc-backlink">Adjoint</a><a class="headerlink" href="#adjoint" title="Permalink to this heading">¶</a></h3>
+<p>The adjoint implementation of repartition also maps a tensor from one Cartesian
+partition to another, without changing the partition.  From the perspective of
+one worker in <span class="math notranslate nohighlight">\(P_x\)</span>, this operation looks like a multi-dimensional
+gather.</p>
+<figure class="align-default" id="id4">
+<img alt="Sketch of adjoint repartition." src="../../_images/repartition_example_04.png" />
+<figcaption>
+<p><span class="caption-text">Left: Data on 4 middle workers of <span class="math notranslate nohighlight">\(P_y\)</span> partition.  Middle:
+Overlapping partition boundaries.  Right: Data from 4 middle workers of
+<span class="math notranslate nohighlight">\(P_y\)</span> copied back to current (middle) worker of <span class="math notranslate nohighlight">\(P_x\)</span>.</span><a class="headerlink" href="#id4" title="Permalink to this image">¶</a></p>
+</figcaption>
+</figure>
+<p>The setup is determined by the same sequence of overlaps as the forward
+operation.  Thus, from the perspective of one worker in <span class="math notranslate nohighlight">\(P_x\)</span>, this is
+like a multi-dimensional <code class="docutils literal notranslate"><span class="pre">MPI_Gatherv</span></code>.</p>
+</section>
+</section>
+<section id="examples">
+<h2><a class="toc-backref" href="#id11" role="doc-backlink">Examples</a><a class="headerlink" href="#examples" title="Permalink to this heading">¶</a></h2>
+<section id="use-cases">
+<h3><a class="toc-backref" href="#id12" role="doc-backlink">Use Cases</a><a class="headerlink" href="#use-cases" title="Permalink to this heading">¶</a></h3>
+</section>
+<section id="example-1-remap-1d-partition">
+<h3><a class="toc-backref" href="#id13" role="doc-backlink">Example 1: Remap 1D Partition</a><a class="headerlink" href="#example-1-remap-1d-partition" title="Permalink to this heading">¶</a></h3>
+<p>If <span class="math notranslate nohighlight">\(x\)</span> is a 1D tensor, a partition with shape <span class="math notranslate nohighlight">\(5\)</span>, can be
+repartitioned to a partition with shape <span class="math notranslate nohighlight">\(3\)</span>.</p>
+<figure class="align-default">
+<img alt="Repartition of a 5 partition to 3." src="../../_images/repartition_5_to_3.png" />
+</figure>
+</section>
+<section id="example-2-remap-2d-partition">
+<h3><a class="toc-backref" href="#id14" role="doc-backlink">Example 2: Remap 2D Partition</a><a class="headerlink" href="#example-2-remap-2d-partition" title="Permalink to this heading">¶</a></h3>
+<p>If <span class="math notranslate nohighlight">\(x\)</span> is a 2D tensor, a partition with shape <span class="math notranslate nohighlight">\(3 \times 4\)</span>, can be
+repartitioned to a partition with shape <span class="math notranslate nohighlight">\(4 \times 2\)</span>.</p>
+<figure class="align-default">
+<img alt="Repartition of a 3x4 partition to 4x2." src="../../_images/repartition_3x4_to_4x2.png" />
+</figure>
+</section>
+<section id="example-3-remap-3d-partition">
+<h3><a class="toc-backref" href="#id15" role="doc-backlink">Example 3: Remap 3D Partition</a><a class="headerlink" href="#example-3-remap-3d-partition" title="Permalink to this heading">¶</a></h3>
+<p>If <span class="math notranslate nohighlight">\(x\)</span> is a 3D tensor, a partition with shape <span class="math notranslate nohighlight">\(3 \times 2 \times
+2\)</span>, can be repartitioned to a partition with shape <span class="math notranslate nohighlight">\(1 \times 2 \times 3\)</span>.</p>
+<figure class="align-default">
+<img alt="Repartition of a 3x2x2 partition to 1x2x3." src="../../_images/repartition_3x3x2_to_1x2x3.png" />
+</figure>
+</section>
+<section id="example-4-repartition-as-scatter">
+<h3><a class="toc-backref" href="#id16" role="doc-backlink">Example 4: Repartition as Scatter</a><a class="headerlink" href="#example-4-repartition-as-scatter" title="Permalink to this heading">¶</a></h3>
+<p>Repartition can be used to scatter tensors.  For example, if one worker reads
+data from disk, repartition can be used to scatter it to a number of workers. If
+there is a partition of dimension 1 containing a tensor <span class="math notranslate nohighlight">\(x\)</span> of dimension
+3, by extending the input partition to <span class="math notranslate nohighlight">\(1 \times 1 \times 1\)</span> it can be
+repartitioned to a partition of dimension <span class="math notranslate nohighlight">\(1 \times 3 \times 2\)</span>.</p>
+<figure class="align-default">
+<img alt="Repartition of a 1 partition to 1x2x3." src="../../_images/repartition_1_to_1x2x3.png" />
+</figure>
+</section>
+<section id="example-5-repartition-as-gather">
+<h3><a class="toc-backref" href="#id17" role="doc-backlink">Example 5: Repartition as Gather</a><a class="headerlink" href="#example-5-repartition-as-gather" title="Permalink to this heading">¶</a></h3>
+<p>Repartition can be used to gather tensors.  For example, if one worker outputs
+data to disk, repartition can be used to gather it from a number of workers. If
+there is a partition of dimension <span class="math notranslate nohighlight">\(1 \times 3 \times 2\)</span> containing a
+tensor <span class="math notranslate nohighlight">\(x\)</span> of dimension 3, it can be mapped to a partition of dimension
+<span class="math notranslate nohighlight">\(1\)</span> by extending the output partition to <span class="math notranslate nohighlight">\(1
+\times 1 \times 1\)</span> and applying a repartition.</p>
+<figure class="align-default">
+<img alt="Repartition of a 1x2x3 partition to 1." src="../../_images/repartition_1x2x3_to_1.png" />
+</figure>
+</section>
+<section id="code-examples">
+<h3><a class="toc-backref" href="#id18" role="doc-backlink">Code Examples</a><a class="headerlink" href="#code-examples" title="Permalink to this heading">¶</a></h3>
+</section>
+</section>
+<section id="api">
+<h2><a class="toc-backref" href="#id19" role="doc-backlink">API</a><a class="headerlink" href="#api" title="Permalink to this heading">¶</a></h2>
+</section>
+</section>
+
+
+            <div class="clearer"></div>
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper">
+    <a id="sidebar-anchor"></a>
+    
+
+<div id="searchbox" style="display: none" role="search">
+  <h3 id="searchlabel">Quick search</h3>
+    <div class="searchformwrapper">
+    <form class="search" action="../../search.html" method="get">
+      <input type="text" name="q" aria-labelledby="searchlabel" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"/>
+      <input type="submit" value="Go" />
+    </form>
+    </div>
+</div>
+<script>document.getElementById('searchbox').style.display = "block"</script><h3><a href="../../index.html">Table Of Contents</a></h3>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="../../user_guide/index.html">Using DistDL</a></li>
+<li class="toctree-l1 current"><a class="reference internal" href="../index.html">Code Reference</a><ul class="current">
+<li class="toctree-l2 current"><a class="reference internal" href="../nn.html">distdl.nn</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../functional.html">distdl.functional</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../backends.html">distdl.backends</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../utilities.html">distdl.utilities</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="../../developer_guide/index.html">Contributor’s Guide</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../developer_guide/index.html#contributing">Contributing</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../release_history/index.html">Release History</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../acknowledgements.html">Citing &amp; Acknowledgements</a></li>
+</ul>
+
+  <div role="note" aria-label="source link">
+    <h3>This Page</h3>
+    <ul class="this-page-menu">
+      <li><a href="../../_sources/code_reference/nn/repartition.rst.txt"
+            rel="nofollow">Show Source</a></li>
+    </ul>
+   </div>
+        </div>
+<div id="sidebarbutton" title="Collapse sidebar">
+<span>«</span>
+</div>
+
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="related">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../../genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="right" >
+          <a href="sum_reduce.html" title="SumReduce Layer"
+             accesskey="N">next</a> |</li>
+        <li class="right" >
+          <a href="reduce_scatter.html" title="ReduceScatter Layer"
+             accesskey="P">previous</a> |</li>
+      </ul>
+    </div>
+
+    <div class="footer" role="contentinfo">
+        &#169; Copyright 2023, Microsoft.
+      Last updated on May 02, 2023.
+      Created using <a href="https://www.sphinx-doc.org/">Sphinx</a> 6.2.1.
+    </div>
+  </body>
+</html>

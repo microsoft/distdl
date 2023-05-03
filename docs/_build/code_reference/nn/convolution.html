@@ -1,0 +1,603 @@
+<!DOCTYPE html>
+
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="generator" content="Docutils 0.19: https://docutils.sourceforge.io/" />
+
+    <title>Convolution Layers &#8212; DistDL 0.5.0 documentation</title>
+    <link rel="stylesheet" type="text/css" href="../../_static/pygments.css" />
+    <link rel="stylesheet" type="text/css" href="../../_static/pydoctheme.css" />
+    <link rel="stylesheet" type="text/css" href="../../_static/graphviz.css" />
+    
+    <script data-url_root="../../" id="documentation_options" src="../../_static/documentation_options.js"></script>
+    <script src="../../_static/doctools.js"></script>
+    <script src="../../_static/sphinx_highlight.js"></script>
+    <script async="async" src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+    
+    <script src="../../_static/sidebar.js"></script>
+    
+    <link rel="index" title="Index" href="../../genindex.html" />
+    <link rel="search" title="Search" href="../../search.html" />
+    <link rel="next" title="Embedding Layer" href="embedding.html" />
+    <link rel="prev" title="Broadcast Layer" href="broadcast.html" />
+    <meta http-equiv="X-UA-Compatible" content="IE=Edge" />
+    <link rel="shortcut icon" type="image/png" href="../../_static/favicon.png" />
+    <meta name="viewport" content="width=device-width,initial-scale=0.8">
+    
+    
+
+  </head><body>
+    <div class="related">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="responsive-menu"><a href="#sidebar-anchor" title="Navigation">&#9776;</a></li>
+        <li><a href="../../index.html">DistDL-0.5.0</a> &#187;</li>
+          <li><a href="../index.html" >Code Reference</a> &#187;</li>
+          <li><a href="../nn.html" accesskey="U">distdl.nn</a> &#187;</li> 
+      </ul>
+    </div>
+    
+        <div class="badge">
+            <a href="https://github.com/microsoft/distdl/">Fork me on GitHub</a>
+            <img src="../../_static/right-red@2x.png">
+        </div>
+    
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <section id="convolution-layers">
+<h1>Convolution Layers<a class="headerlink" href="#convolution-layers" title="Permalink to this heading">¶</a></h1>
+<nav class="contents local" id="contents">
+<ul class="simple">
+<li><p><a class="reference internal" href="#overview" id="id18">Overview</a></p></li>
+<li><p><a class="reference internal" href="#implementation" id="id19">Implementation</a></p>
+<ul>
+<li><p><a class="reference internal" href="#public-interface" id="id20">Public Interface</a></p></li>
+<li><p><a class="reference internal" href="#feature-distributed-convolution" id="id21">Feature-distributed Convolution</a></p></li>
+<li><p><a class="reference internal" href="#channel-distributed-convolution" id="id22">Channel-distributed Convolution</a></p></li>
+<li><p><a class="reference internal" href="#generalized-distributed-convolution" id="id23">Generalized Distributed Convolution</a></p></li>
+<li><p><a class="reference internal" href="#convolution-mixin" id="id24">Convolution Mixin</a></p></li>
+</ul>
+</li>
+<li><p><a class="reference internal" href="#examples" id="id25">Examples</a></p></li>
+<li><p><a class="reference internal" href="#api" id="id26">API</a></p>
+<ul>
+<li><p><a class="reference internal" href="#distdl-nn-conv" id="id27"><code class="docutils literal notranslate"><span class="pre">distdl.nn.conv</span></code></a></p></li>
+<li><p><a class="reference internal" href="#distdl-nn-conv-feature" id="id28"><code class="docutils literal notranslate"><span class="pre">distdl.nn.conv_feature</span></code></a></p></li>
+<li><p><a class="reference internal" href="#distdl-nn-conv-channel" id="id29"><code class="docutils literal notranslate"><span class="pre">distdl.nn.conv_channel</span></code></a></p></li>
+<li><p><a class="reference internal" href="#distdl-nn-conv-general" id="id30"><code class="docutils literal notranslate"><span class="pre">distdl.nn.conv_general</span></code></a></p></li>
+</ul>
+</li>
+</ul>
+</nav>
+<section id="overview">
+<h2><a class="toc-backref" href="#id18" role="doc-backlink">Overview</a><a class="headerlink" href="#overview" title="Permalink to this heading">¶</a></h2>
+<p>DistDL’s The Distributed Convolutional layers use the distributed primitive
+layers to build various distributed versions of PyTorch <code class="docutils literal notranslate"><span class="pre">ConvXd</span></code> layers.
+That is, it implements</p>
+<div class="math notranslate nohighlight">
+\[y = w*x + b\]</div>
+<p>where <span class="math notranslate nohighlight">\(*\)</span> is the convolution operator and the tensors <span class="math notranslate nohighlight">\(x\)</span>,
+<span class="math notranslate nohighlight">\(y\)</span>, <span class="math notranslate nohighlight">\(w\)</span>, and <span class="math notranslate nohighlight">\(b\)</span> are partitioned over a number of workers.</p>
+<p>For the purposes of this documentation, we will assume that an arbitrary
+global input tensor <span class="math notranslate nohighlight">\({x}\)</span> is partitioned by <span class="math notranslate nohighlight">\(P_x\)</span>.  Another
+partition <span class="math notranslate nohighlight">\(P_y\)</span>, may exist depending on implementation.  similarly, the
+weight tensor <span class="math notranslate nohighlight">\(w\)</span> may also have its own partition is partitioned by
+<span class="math notranslate nohighlight">\(P_w\)</span>.  The bias <span class="math notranslate nohighlight">\(b\)</span> is implicitly partitioned depending on the
+nature of <span class="math notranslate nohighlight">\(P_w\)</span>.</p>
+</section>
+<section id="implementation">
+<h2><a class="toc-backref" href="#id19" role="doc-backlink">Implementation</a><a class="headerlink" href="#implementation" title="Permalink to this heading">¶</a></h2>
+<p>The partitioning of the input and output tensors strongly impacts the
+necessary operations to perform a distributed convolution.  Consequently,
+DistDL has multiple implementations to satisfy some special cases and the
+general case.</p>
+<section id="public-interface">
+<h3><a class="toc-backref" href="#id20" role="doc-backlink">Public Interface</a><a class="headerlink" href="#public-interface" title="Permalink to this heading">¶</a></h3>
+<p>DistDL provides a public interface to the many distributed convolution
+implementations that follows the same pattern as other public interfaces, such
+as the <a class="reference internal" href="linear.html#linear-layer"><span class="std std-ref">Linear Layer</span></a> and keeping in line with
+the PyTorch interface.  The <code class="docutils literal notranslate"><span class="pre">distdl.nn.conv</span></code> module provides the
+<code class="xref py py-class docutils literal notranslate"><span class="pre">distdl.nn.conv.DistributedConv1d</span></code>,
+<code class="xref py py-class docutils literal notranslate"><span class="pre">distdl.nn.conv.DistributedConv2d</span></code>, and
+<code class="xref py py-class docutils literal notranslate"><span class="pre">distdl.nn.conv.DistributedConv3d</span></code> types, which through use the class
+<code class="xref py py-class docutils literal notranslate"><span class="pre">distdl.nn.conv.DistributedConvSelector</span></code> to dispatch an appropriate
+implementation, based on the structure of <span class="math notranslate nohighlight">\(P_x\)</span>, <span class="math notranslate nohighlight">\(P_y\)</span>, and
+<span class="math notranslate nohighlight">\(P_W\)</span>.</p>
+<p>Current implementations include those for:</p>
+<ol class="arabic simple">
+<li><p><a class="reference internal" href="#feature-distributed-convolution"><span class="std std-ref">Feature-distributed Convolution</span></a></p></li>
+<li><p><a class="reference internal" href="#channel-distributed-convolution"><span class="std std-ref">Channel-distributed Convolution</span></a></p></li>
+<li><p><a class="reference internal" href="#generalized-distributed-convolution"><span class="std std-ref">Generalized Distributed Convolution</span></a></p></li>
+</ol>
+</section>
+<section id="feature-distributed-convolution">
+<h3><a class="toc-backref" href="#id21" role="doc-backlink">Feature-distributed Convolution</a><a class="headerlink" href="#feature-distributed-convolution" title="Permalink to this heading">¶</a></h3>
+<p>The simplest distributed convolution implementation, and the one that
+generally requires the least workers, has input (and outout) tensors that are
+distributed in feature-space only.  This is also, likely, the most common
+use-case.</p>
+<p>Construction of this layer is driven by the partitioning of the input tensor
+<span class="math notranslate nohighlight">\(x\)</span>, only.  Thus, the partition <span class="math notranslate nohighlight">\(P_x\)</span> drives the algorithm design.
+With a pure feature-space partition, the output partition will have the same
+structure, so there is no need to specify it.  Also, with no partition in the
+channel dimension, the learnable weight tensor is assumed to be small enough
+that it can trivially be stored by one worker.</p>
+<section id="assumptions">
+<h4>Assumptions<a class="headerlink" href="#assumptions" title="Permalink to this heading">¶</a></h4>
+<ul class="simple">
+<li><p>The global input tensor <span class="math notranslate nohighlight">\(x\)</span> has shape <span class="math notranslate nohighlight">\(n_{\text{b}} \times
+n_{c_{\text{in}}} \times n_{D-1} \times \cdots \times n_0\)</span>.</p></li>
+<li><p>The input partition <span class="math notranslate nohighlight">\(P_x\)</span> has shape <span class="math notranslate nohighlight">\(1 \times 1 \times P_{D-1}
+\times \cdots \times P_0\)</span>, where <span class="math notranslate nohighlight">\(P_{d}\)</span> is the number of workers
+partitioning the <span class="math notranslate nohighlight">\(d^{\text{th}}\)</span> feature dimension of <span class="math notranslate nohighlight">\(x\)</span>.</p></li>
+<li><p>The global output tensor <span class="math notranslate nohighlight">\(y\)</span> will have shape <span class="math notranslate nohighlight">\(n_{\text{b}}
+\times n_{c_{\text{out}}} \times m_{D-1} \times \cdots \times m_0\)</span>.
+The precise values of <span class="math notranslate nohighlight">\(m_{D-1} \times \cdots \times m_0\)</span> are
+dependent on the input shape and the kernel parameters.</p></li>
+<li><p>The output partition <span class="math notranslate nohighlight">\(P_y\)</span> implicitly has the same shape as
+<span class="math notranslate nohighlight">\(P_x\)</span>.</p></li>
+<li><p>The weight tensor <span class="math notranslate nohighlight">\(w\)</span> will have shape <span class="math notranslate nohighlight">\(n_{c_{\text{out}}}
+\times n_{c_{\text{in}}} \times k_{D-1} \times \cdots \times k_0\)</span>.</p></li>
+<li><p>The weight partition does not necessarily explicitly exist, but implicitly
+has shape <span class="math notranslate nohighlight">\(1 \times 1 \times 1 \times \cdots \times 1\)</span>.</p></li>
+<li><p>Any learnable bias is stored on the same worker as the learnable weights.</p></li>
+</ul>
+<figure class="align-default" id="id8">
+<img alt="Example setup for feature-distributed convolutional layer." src="../../_images/conv_feature_example_01.png" />
+<figcaption>
+<p><span class="caption-text">An example setup for a 1D distributed convolutional layer, where <span class="math notranslate nohighlight">\(P_x\)</span> has
+shape <span class="math notranslate nohighlight">\(1 \times 1 \times 4\)</span>, <span class="math notranslate nohighlight">\(P_y\)</span> has the same shape, and
+<span class="math notranslate nohighlight">\(P_W\)</span> has shape <span class="math notranslate nohighlight">\(1 \times 1 \times 1\)</span>.</span><a class="headerlink" href="#id8" title="Permalink to this image">¶</a></p>
+</figcaption>
+</figure>
+</section>
+<section id="forward">
+<h4>Forward<a class="headerlink" href="#forward" title="Permalink to this heading">¶</a></h4>
+<p>Under the above assumptions, the forward algorithm is:</p>
+<ol class="arabic">
+<li><p>Use a <a class="reference internal" href="broadcast.html#broadcast-layer"><span class="std std-ref">Broadcast Layer</span></a> to broadcast
+the learnable <span class="math notranslate nohighlight">\(w\)</span> from a single worker in <span class="math notranslate nohighlight">\(P_x\)</span> to all of
+<span class="math notranslate nohighlight">\(P_x\)</span>.  If necessary, a different broadcast layer, also from a
+single worker in <span class="math notranslate nohighlight">\(P_x\)</span> to all of <span class="math notranslate nohighlight">\(P_x\)</span> broadcasts the
+learnable bias <span class="math notranslate nohighlight">\(b\)</span>.</p>
+<p>The weight and bias tensors, post broadcast, are used by the local
+convolution.</p>
+</li>
+</ol>
+<figure class="align-default" id="id9">
+<img alt="Example forward broadcast in the feature-distributed convolutional layer." src="../../_images/conv_feature_example_02.png" />
+<figcaption>
+<p><span class="caption-text"><span class="math notranslate nohighlight">\(w\)</span> and <span class="math notranslate nohighlight">\(b\)</span> are broadcast to all workers in <span class="math notranslate nohighlight">\(P_x\)</span>.</span><a class="headerlink" href="#id9" title="Permalink to this image">¶</a></p>
+</figcaption>
+</figure>
+<ol class="arabic simple" start="2">
+<li><p>Perform the halo exchange on the subtensors of <span class="math notranslate nohighlight">\(x\)</span>.  Here, <span class="math notranslate nohighlight">\(x_j\)</span>
+must be padded to accept local halo regions (in a potentially unbalanced
+way) before the halos are exchanged.  The output of this operation is
+<span class="math notranslate nohighlight">\(\hat x_j\)</span>.</p></li>
+</ol>
+<figure class="align-default" id="id10">
+<img alt="Example forward padding of subtensors of x in feature-distributed convolutional layer." src="../../_images/conv_feature_example_03.png" />
+<figcaption>
+<p><span class="caption-text">Subtensors of <span class="math notranslate nohighlight">\(x\)</span>, <span class="math notranslate nohighlight">\(x_j\)</span> must be padded to accept the halo
+data.</span><a class="headerlink" href="#id10" title="Permalink to this image">¶</a></p>
+</figcaption>
+</figure>
+<figure class="align-default" id="id11">
+<img alt="Example forward halo exchange on subtensors of x in feature-distributed convolutional layer." src="../../_images/conv_feature_example_04.png" />
+<figcaption>
+<p><span class="caption-text">Forward halos are exchanged on <span class="math notranslate nohighlight">\(P_x\)</span>, creating <span class="math notranslate nohighlight">\(\hat x_j\)</span>.</span><a class="headerlink" href="#id11" title="Permalink to this image">¶</a></p>
+</figcaption>
+</figure>
+<ol class="arabic simple" start="3">
+<li><p>Perform the local forward convolution application using a PyTorch
+<code class="docutils literal notranslate"><span class="pre">ConvXd</span></code> layer.  The bias is added everywhere, as each workers output
+will be part of the output tensor.</p></li>
+</ol>
+<figure class="align-default" id="id12">
+<img alt="Example forward convolution in the feature-distributed convolutional layer." src="../../_images/conv_feature_example_05.png" />
+<figcaption>
+<p><span class="caption-text">The <span class="math notranslate nohighlight">\(y_i\)</span> subtensors are computed using native PyTorch layers.</span><a class="headerlink" href="#id12" title="Permalink to this image">¶</a></p>
+</figcaption>
+</figure>
+<ol class="arabic simple" start="4">
+<li><p>The subtensors in the inputs and outputs of DistDL layers should always be
+able to be reconstructed into precisely the same tensor a sequential
+application will produce.  Because padding is explicitly added to the input
+tensor to account for the padding specified for the convolution, the output
+of the local convolution, <span class="math notranslate nohighlight">\(y_i\)</span>, should exactly match that of the
+sequential layer.</p></li>
+</ol>
+<figure class="align-default">
+<img alt="Example forward result of the feature-distributed convolutional layer." src="../../_images/conv_feature_example_06.png" />
+</figure>
+</section>
+<section id="adjoint">
+<h4>Adjoint<a class="headerlink" href="#adjoint" title="Permalink to this heading">¶</a></h4>
+<p>The adjoint algorithm is not explicitly implemented.  PyTorch’s <code class="docutils literal notranslate"><span class="pre">autograd</span></code>
+feature automatically builds the adjoint of the Jacobian of the
+feature-distributed convolution forward application.  Essentially, the
+algorithm is as follows:</p>
+<ol class="arabic simple">
+<li><p>The gradient output <span class="math notranslate nohighlight">\(\delta y_i\)</span> is already distributed across its partition,
+so the adjoint of the Jacobian of the local convolutional layer can be applied to it.</p></li>
+</ol>
+<figure class="align-default">
+<img alt="Example adjoint starting case in the feature-distributed convolutional layer." src="../../_images/conv_feature_example_07.png" />
+</figure>
+<ol class="arabic simple" start="2">
+<li><p>Each worker computes its local contribution to <span class="math notranslate nohighlight">\(\delta w\)</span> and <span class="math notranslate nohighlight">\(\delta x\)</span>,
+given by <span class="math notranslate nohighlight">\(\delta w_j\)</span> and <span class="math notranslate nohighlight">\(\delta x_j\)</span>, using PyTorch’s native implementation of
+the adjoint of the Jacobian of the local sequential convolutional layer.
+If the bias is required, each worker computes its local contribution to
+<span class="math notranslate nohighlight">\(\delta b_j\)</span>, <span class="math notranslate nohighlight">\(\delta \hat b\)</span> similarly.</p></li>
+</ol>
+<figure class="align-default" id="id13">
+<img alt="Example adjoint convolution in the feature-distributed convolutional layer." src="../../_images/conv_feature_example_08.png" />
+<figcaption>
+<p><span class="caption-text">Subtensors of <span class="math notranslate nohighlight">\(\delta w_j\)</span>, <span class="math notranslate nohighlight">\(\delta \hat x_j\)</span>, and <span class="math notranslate nohighlight">\(\delta
+b_j\)</span> are computed using native PyTorch layers.</span><a class="headerlink" href="#id13" title="Permalink to this image">¶</a></p>
+</figcaption>
+</figure>
+<ol class="arabic simple" start="3">
+<li><p>The adjoint of the halo exchange is applied to <span class="math notranslate nohighlight">\(\delta \hat x\)</span>,
+which is then unpadded, producing the gradient input <span class="math notranslate nohighlight">\(\delta x\)</span>.</p></li>
+</ol>
+<figure class="align-default" id="id14">
+<img alt="Example adjoint halo exchange on subtensors of dx in feature-distributed convolutional layer." src="../../_images/conv_feature_example_09.png" />
+<figcaption>
+<p><span class="caption-text">Adjoint halos of <span class="math notranslate nohighlight">\(\delta \hat x\)</span> are exchanged on the <span class="math notranslate nohighlight">\(P_x\)</span>.</span><a class="headerlink" href="#id14" title="Permalink to this image">¶</a></p>
+</figcaption>
+</figure>
+<figure class="align-default" id="id15">
+<img alt="Example adjoint padding (unpadding) of subtensors of delta x in feature-distributed convolutional layer." src="../../_images/conv_feature_example_10.png" />
+<figcaption>
+<p><span class="caption-text">Subtensors <span class="math notranslate nohighlight">\(\delta \hat x_j\)</span> must be unpadded to after the halo
+regions are cleared :to create, creating <span class="math notranslate nohighlight">\(\delta x\)</span>.</span><a class="headerlink" href="#id15" title="Permalink to this image">¶</a></p>
+</figcaption>
+</figure>
+<ol class="arabic" start="4">
+<li><p>Sum-reduce the partial weight gradients, <span class="math notranslate nohighlight">\(\delta w_j\)</span>, to produce
+the total gradient <span class="math notranslate nohighlight">\(\delta w\)</span> on the relevant worker in <span class="math notranslate nohighlight">\(P_x\)</span>.</p>
+<p>If required, do the same thing to produce <span class="math notranslate nohighlight">\(\delta b\)</span> from each
+worker’s <span class="math notranslate nohighlight">\(\delta b_j\)</span>.</p>
+</li>
+</ol>
+<figure class="align-default" id="id16">
+<img alt="Example adjoint broadcast in the feature-distributed convolutional layer." src="../../_images/conv_feature_example_11.png" />
+<figcaption>
+<p><span class="caption-text"><span class="math notranslate nohighlight">\(\delta w\)</span> and <span class="math notranslate nohighlight">\(\delta b\)</span> are constructed from a sum-reduction
+on all workers in <span class="math notranslate nohighlight">\(P_x\)</span>.</span><a class="headerlink" href="#id16" title="Permalink to this image">¶</a></p>
+</figcaption>
+</figure>
+</section>
+</section>
+<section id="channel-distributed-convolution">
+<h3><a class="toc-backref" href="#id22" role="doc-backlink">Channel-distributed Convolution</a><a class="headerlink" href="#channel-distributed-convolution" title="Permalink to this heading">¶</a></h3>
+<p>DistDL provides a distributed convolution layer that supports partitions in
+the channel-dimension only.  This pattern may be useful when layers are narrow
+in feature space.</p>
+<p>For the construction of this layer, we assume that the fundamental unit of
+work is driven by dense channels in <span class="math notranslate nohighlight">\(w\)</span>.  Thus, the structure of the
+partition <span class="math notranslate nohighlight">\(P_w\)</span> drives the design.  This layer admits differences
+between <span class="math notranslate nohighlight">\(P_x\)</span> and <span class="math notranslate nohighlight">\(P_y\)</span>, so all three partitions, including
+<span class="math notranslate nohighlight">\(P_w\)</span>, must be specified.  It is assumed that there is no partitioning
+in the feature-space for the input and output tensors.</p>
+<section id="id1">
+<h4>Assumptions<a class="headerlink" href="#id1" title="Permalink to this heading">¶</a></h4>
+<ul class="simple">
+<li><p>The global input tensor <span class="math notranslate nohighlight">\(x\)</span> has shape <span class="math notranslate nohighlight">\(n_{\text{b}} \times
+n_{c_{\text{in}}} \times n_{D-1} \times \cdots \times n_0\)</span>.</p></li>
+<li><p>The input partition <span class="math notranslate nohighlight">\(P_x\)</span> has shape <span class="math notranslate nohighlight">\(1 \times P_{c_{\text{in}}} \times 1
+\times \cdots \times 1\)</span>, where <span class="math notranslate nohighlight">\(P_{c_{\text{in}}}\)</span> is the number of workers
+partitioning the channel dimension of <span class="math notranslate nohighlight">\(x\)</span>.</p></li>
+<li><p>The global output tensor <span class="math notranslate nohighlight">\(y\)</span> will have shape <span class="math notranslate nohighlight">\(n_{\text{b}}
+\times n_{c_{\text{out}}} \times m_{D-1} \times \cdots \times m_0\)</span>.
+The precise values of <span class="math notranslate nohighlight">\(m_{D-1} \times \cdots \times m_0\)</span> are
+dependent on the input shape and the kernel parameters.</p></li>
+<li><p>The output partition <span class="math notranslate nohighlight">\(P_y\)</span> has shape <span class="math notranslate nohighlight">\(1 \times P_{c_{\text{out}}} \times 1
+\times \cdots \times 1\)</span>, where <span class="math notranslate nohighlight">\(P_{c_{\text{out}}}\)</span> is the number of workers
+partitioning the channel dimension of <span class="math notranslate nohighlight">\(y\)</span>.</p></li>
+<li><p>The global weight tensor <span class="math notranslate nohighlight">\(w\)</span> will have shape <span class="math notranslate nohighlight">\(n_{c_{\text{out}}}
+\times n_{c_{\text{in}}} \times k_{D-1} \times \cdots \times k_0\)</span>.</p></li>
+<li><p>The weight partition, which partitions the entire weight tensor, <span class="math notranslate nohighlight">\(P_w\)</span>
+has shape <span class="math notranslate nohighlight">\(P_{c_{\text{out}}} \times P_{c_{\text{in}}} \times 1 \times
+\cdots \times 1\)</span>.</p></li>
+<li><p>The learnable bias, if required, is stored on a <span class="math notranslate nohighlight">\(P_{c_{\text{out}}} \times 1
+\times 1 \times \cdots \times 1\)</span> subset of the weight partition.</p></li>
+</ul>
+<figure class="align-default" id="id17">
+<img alt="Example setup for channel-distributed convolutional layer." src="../../_images/conv_channel_example_01.png" />
+<figcaption>
+<p><span class="caption-text">An example setup for a 1, channel distributed convolutional layer, where
+<span class="math notranslate nohighlight">\(P_x\)</span> has shape <span class="math notranslate nohighlight">\(1 \times 4 \times 1\)</span>, <span class="math notranslate nohighlight">\(P_y\)</span> has the
+shape <span class="math notranslate nohighlight">\(1 \times 3 \times 1\)</span>, and <span class="math notranslate nohighlight">\(P_w\)</span> has shape <span class="math notranslate nohighlight">\(3
+\times 4 \times 1\)</span>.</span><a class="headerlink" href="#id17" title="Permalink to this image">¶</a></p>
+</figcaption>
+</figure>
+</section>
+<section id="id2">
+<h4>Forward<a class="headerlink" href="#id2" title="Permalink to this heading">¶</a></h4>
+<p>Under the above assumptions, the forward algorithm is:</p>
+<ol class="arabic simple">
+<li><p>Use a <a class="reference internal" href="broadcast.html#broadcast-layer"><span class="std std-ref">Broadcast Layer</span></a> to broadcast
+subtensors of <span class="math notranslate nohighlight">\(x\)</span> from <span class="math notranslate nohighlight">\(P_x\)</span> along the <span class="math notranslate nohighlight">\(P_{c_{\text{out}}}\)</span>
+dimension of <span class="math notranslate nohighlight">\(P_w\)</span>, creating local copies of <span class="math notranslate nohighlight">\(x_j\)</span>.</p></li>
+</ol>
+<ol class="arabic simple" start="2">
+<li><p>Perform the local forward convolutional layer application using a PyTorch ConvXd
+layer.  Note that the bias is only added on the specified subset of <span class="math notranslate nohighlight">\(P_w\)</span>.
+Each worker now has a portion of a subtensor, denoted <span class="math notranslate nohighlight">\(y_i\)</span>, of
+the global output vector.</p></li>
+</ol>
+<ol class="arabic simple" start="3">
+<li><p>Use a <a class="reference internal" href="sum_reduce.html#sumreduce-layer"><span class="std std-ref">SumReduce Layer</span></a> to reduce
+the partial subtensors of <span class="math notranslate nohighlight">\(y\)</span> along the <span class="math notranslate nohighlight">\(P_{c_{\text{in}}}\)</span>
+dimension of <span class="math notranslate nohighlight">\(P_w\)</span> into <span class="math notranslate nohighlight">\(P_y\)</span>. Only one subtensor in each row
+of <span class="math notranslate nohighlight">\(P_w\)</span> contains the a subtensor of the bias, so the output tensor
+correctly assimilates the bias.</p></li>
+</ol>
+</section>
+<section id="id3">
+<h4>Adjoint<a class="headerlink" href="#id3" title="Permalink to this heading">¶</a></h4>
+<p>The adjoint algorithm is not explicitly implemented.  PyTorch’s <code class="docutils literal notranslate"><span class="pre">autograd</span></code>
+feature automatically builds the adjoint of the Jacobian of the
+channel-distributed convolution forward application.  Essentially, the
+algorithm is as follows:</p>
+<ol class="arabic simple">
+<li><p>Broadcast the subtensors of the gradient output, <span class="math notranslate nohighlight">\(\delta y\)</span> from
+<span class="math notranslate nohighlight">\(P_y\)</span> along the <span class="math notranslate nohighlight">\(P_{c_{\text{in}}}\)</span> dimension of <span class="math notranslate nohighlight">\(P_w\)</span>,
+creating copies <span class="math notranslate nohighlight">\(y_i\)</span>.</p></li>
+</ol>
+<ol class="arabic simple" start="2">
+<li><p>Each worker in <span class="math notranslate nohighlight">\(P_w\)</span> computes its local subtensor of <span class="math notranslate nohighlight">\(\delta w\)</span> and
+its contribution to the subtensors of
+<span class="math notranslate nohighlight">\(\delta x\)</span> using the PyTorch implementation of the adjoint of the
+Jacobian of the local sequential convolutional layer.  If the bias is required,
+relevant workers compute the local subtensors of <span class="math notranslate nohighlight">\(\delta b\)</span> similarly.</p></li>
+</ol>
+<ol class="arabic simple" start="3">
+<li><p>Sum-reduce the partial subtensors of the gradient input, <span class="math notranslate nohighlight">\(\delta x_j\)</span>, along
+the <span class="math notranslate nohighlight">\(P_{c_{\text{out}}}\)</span> dimension of <span class="math notranslate nohighlight">\(P_w\)</span> into <span class="math notranslate nohighlight">\(P_x\)</span>.</p></li>
+</ol>
+</section>
+</section>
+<section id="generalized-distributed-convolution">
+<h3><a class="toc-backref" href="#id23" role="doc-backlink">Generalized Distributed Convolution</a><a class="headerlink" href="#generalized-distributed-convolution" title="Permalink to this heading">¶</a></h3>
+<p>DistDL provides a distributed convolution layer that supports partitioning in
+both channel- and feature-dimensions.  This pattern is expensive.  Each of the
+previous two algorithms can be derived from this algorithm.</p>
+<p>For the construction of this layer, we assume that the fundamental unit of
+work is driven by dense channels in <span class="math notranslate nohighlight">\(w\)</span>.  Thus, the structure of the
+partition <span class="math notranslate nohighlight">\(P_w\)</span> drives the design.  This layer admits differences
+between <span class="math notranslate nohighlight">\(P_x\)</span> and <span class="math notranslate nohighlight">\(P_y\)</span>, so all three partitions, including
+<span class="math notranslate nohighlight">\(P_w\)</span>, must be specified.  Any non-batch dimension is allowed to be
+partitioned.</p>
+<section id="id4">
+<h4>Assumptions<a class="headerlink" href="#id4" title="Permalink to this heading">¶</a></h4>
+<ul class="simple">
+<li><p>The global input tensor <span class="math notranslate nohighlight">\(x\)</span> has shape <span class="math notranslate nohighlight">\(n_{\text{b}} \times
+n_{c_{\text{in}}} \times n_{D-1} \times \cdots \times n_0\)</span>.</p></li>
+<li><p>The input partition <span class="math notranslate nohighlight">\(P_x\)</span> has shape <span class="math notranslate nohighlight">\(1 \times P_{c_{\text{in}}} \times P_{D-1}
+\times \cdots \times P_0\)</span>, where <span class="math notranslate nohighlight">\(P_{c_{\text{in}}}\)</span> is the number of workers
+partitioning the channel dimension of <span class="math notranslate nohighlight">\(x\)</span> and <span class="math notranslate nohighlight">\(P_{d}\)</span> is the number of workers
+partitioning the <span class="math notranslate nohighlight">\(d^{\text{th}}\)</span> feature dimension of <span class="math notranslate nohighlight">\(x\)</span>.</p></li>
+<li><p>The global output tensor <span class="math notranslate nohighlight">\(y\)</span> will have shape <span class="math notranslate nohighlight">\(n_{\text{b}}
+\times n_{c_{\text{out}}} \times m_{D-1} \times \cdots \times m_0\)</span>.
+The precise values of <span class="math notranslate nohighlight">\(m_{D-1} \times \cdots \times m_0\)</span> are
+dependent on the input shape and the kernel parameters.</p></li>
+<li><p>The output partition <span class="math notranslate nohighlight">\(P_y\)</span> has shape <span class="math notranslate nohighlight">\(1 \times P_{c_{\text{out}}}
+\times P_{D-1} \times \cdots \times P_0\)</span>, where <span class="math notranslate nohighlight">\(P_{c_{\text{out}}}\)</span> is
+the number of workers partitioning the channel dimension of <span class="math notranslate nohighlight">\(y\)</span> and the
+feature partition is the same as <span class="math notranslate nohighlight">\(P_x\)</span>.</p></li>
+<li><p>The weight tensor <span class="math notranslate nohighlight">\(w\)</span> will have shape <span class="math notranslate nohighlight">\(n_{c_{\text{out}}}
+\times n_{c_{\text{in}}} \times k_{D-1} \times \cdots \times k_0\)</span>.</p></li>
+<li><p>The weight partition <span class="math notranslate nohighlight">\(P_w\)</span> has shape <span class="math notranslate nohighlight">\(P_{c_{\text{out}}} \times P_{c_{\text{in}}}
+\times P_{D-1} \times \cdots \times P_0\)</span>.</p></li>
+<li><p>The learneable weights are stored on a <span class="math notranslate nohighlight">\(P_{c_{\text{out}}} \times P_{c_{\text{in}}}
+\times 1 \times \cdots \times 1\)</span> subset of the weight partition.</p></li>
+<li><p>Any learnable bias is stored on a <span class="math notranslate nohighlight">\(P_{c_{\text{out}}} \times 1
+\times 1 \times \cdots \times 1\)</span> subset of the weight partition.</p></li>
+</ul>
+</section>
+<section id="id5">
+<h4>Forward<a class="headerlink" href="#id5" title="Permalink to this heading">¶</a></h4>
+<p>Under the above assumptions, the forward algorithm is:</p>
+<ol class="arabic simple">
+<li><p>Perform the halo exchange on the subtensors of <span class="math notranslate nohighlight">\(x\)</span>.  Here, <span class="math notranslate nohighlight">\(x_j\)</span>
+must be padded to accept local halo regions (in a potentially unbalanced
+way) before the halos are exchanged.  The output of this combined
+operations is <span class="math notranslate nohighlight">\(\hat x_j\)</span>.</p></li>
+</ol>
+<ol class="arabic simple" start="2">
+<li><p>Use a <a class="reference internal" href="broadcast.html#broadcast-layer"><span class="std std-ref">Broadcast Layer</span></a> to broadcast
+the local learnable subtensors of <span class="math notranslate nohighlight">\(w\)</span> along the first two
+(<span class="math notranslate nohighlight">\(P_{c_{\text{out}}} \times P_{c_{\text{in}}}\)</span>) dimensions of
+<span class="math notranslate nohighlight">\(P_w\)</span> to all of <span class="math notranslate nohighlight">\(P_w\)</span> (creating copies of <span class="math notranslate nohighlight">\(w_{ij}\)</span>).  If
+necessary, a different broadcast layer broadcasts the local learnable
+subtensors of <span class="math notranslate nohighlight">\(b\)</span> also from the first dimension
+(<span class="math notranslate nohighlight">\(P_{c_{\text{out}}}\)</span>) of <span class="math notranslate nohighlight">\(P_w\)</span> to the subset of <span class="math notranslate nohighlight">\(P_w\)</span>
+which requires it (creating local copies of <span class="math notranslate nohighlight">\(b_i\)</span>).</p></li>
+</ol>
+<ol class="arabic simple" start="3">
+<li><p>Use a <a class="reference internal" href="broadcast.html#broadcast-layer"><span class="std std-ref">Broadcast Layer</span></a> to broadcast
+<span class="math notranslate nohighlight">\(\hat x\)</span> along the matching dimensions of <span class="math notranslate nohighlight">\(P_w\)</span>.</p></li>
+</ol>
+<ol class="arabic simple" start="4">
+<li><p>Perform the local forward convolution application using a PyTorch
+<code class="docutils literal notranslate"><span class="pre">ConvXd</span></code> layer.  The bias is added only in the subset of , as each workers output
+will be part of the output tensor.</p></li>
+</ol>
+<ol class="arabic simple" start="5">
+<li><p>Use a <a class="reference internal" href="sum_reduce.html#sumreduce-layer"><span class="std std-ref">SumReduce Layer</span></a> to reduce
+the subtensors of <span class="math notranslate nohighlight">\(\hat y\)</span> along the matching dimensions of
+<span class="math notranslate nohighlight">\(P_w\)</span>. Only one subtensor in each reduction dimension contains the a
+subtensor of the bias, so the output tensor correctly assimilates the bias.</p></li>
+</ol>
+<ol class="arabic simple" start="6">
+<li><p>The subtensors in the inputs and outputs of DistDL layers should always be
+able to be reconstructed into precisely the same tensor a sequential
+application will produce.  Because padding is explicitly added to the input
+tensor to account for the padding specified for the convolution, the output
+of the local convolution, <span class="math notranslate nohighlight">\(y_i\)</span>, should exactly match that of the
+sequential layer..</p></li>
+</ol>
+</section>
+<section id="id6">
+<h4>Adjoint<a class="headerlink" href="#id6" title="Permalink to this heading">¶</a></h4>
+<p>The adjoint algorithm is not explicitly implemented.  PyTorch’s <code class="docutils literal notranslate"><span class="pre">autograd</span></code>
+feature automatically builds the adjoint of the Jacobian of the
+channel-distributed convolution forward application.  Essentially, the
+algorithm is as follows:</p>
+<ol class="arabic simple">
+<li><p>The gradient output <span class="math notranslate nohighlight">\(\delta y_i\)</span> is already distributed across its partition,
+so the adjoint of the Jacobian of the local convolutional layer can be applied to it.</p></li>
+</ol>
+<ol class="arabic simple" start="2">
+<li><p>Broadcast the subtensors of the gradient output, <span class="math notranslate nohighlight">\(\delta y_i\)</span> from
+<span class="math notranslate nohighlight">\(P_y\)</span> along the matching dimensions of <span class="math notranslate nohighlight">\(P_w\)</span>.</p></li>
+</ol>
+<ol class="arabic simple" start="3">
+<li><p>Each worker in <span class="math notranslate nohighlight">\(P_w\)</span> computes its local part of <span class="math notranslate nohighlight">\(\delta w_{ij}\)</span> and
+<span class="math notranslate nohighlight">\(\delta x_j\)</span> using the PyTorch implementation of the adjoint of the
+Jacobian of the local sequential convolutional layer.  If the bias is
+required, the relevant workers in <span class="math notranslate nohighlight">\(P_w\)</span> also compute their portion of
+<span class="math notranslate nohighlight">\(\delta b_i\)</span> similarly.</p></li>
+</ol>
+<ol class="arabic simple" start="4">
+<li><p>Sum-reduce the local contributions of <span class="math notranslate nohighlight">\(\delta x_j\)</span> along the matching
+dimensions of <span class="math notranslate nohighlight">\(P_w\)</span> to <span class="math notranslate nohighlight">\(P_x\)</span>.</p></li>
+</ol>
+<ol class="arabic" start="5">
+<li><p>Sum-reduce the local partial weight gradients along the first two
+(<span class="math notranslate nohighlight">\(P_{c_{\text{out}}} \times P_{c_{\text{in}}}\)</span>) dimensions of
+<span class="math notranslate nohighlight">\(P_w\)</span>, to produce total subtensors of <span class="math notranslate nohighlight">\(\delta w\)</span>.</p>
+<p>If required, do the same thing to produce local subtensors of <span class="math notranslate nohighlight">\(\delta
+b\)</span> from each relevant worker’s local subtensor of <span class="math notranslate nohighlight">\(\delta b\)</span>.</p>
+</li>
+</ol>
+<ol class="arabic simple" start="6">
+<li><p>The adjoint of the halo exchange is applied to <span class="math notranslate nohighlight">\(\delta \hat x_j\)</span>,
+which is then unpadded, producing the gradient input <span class="math notranslate nohighlight">\(\delta x_j\)</span>.</p></li>
+</ol>
+</section>
+</section>
+<section id="convolution-mixin">
+<h3><a class="toc-backref" href="#id24" role="doc-backlink">Convolution Mixin</a><a class="headerlink" href="#convolution-mixin" title="Permalink to this heading">¶</a></h3>
+<p>Some distributed convolution layers require more than their local subtensor to
+compute the correct local output.  This is governed by the “left” and “right”
+extent of the convolution kernel.  As these calculations are the same for all
+convolutions, they are mixed in to every convolution layer requiring a halo
+exchange.</p>
+<section id="id7">
+<h4>Assumptions<a class="headerlink" href="#id7" title="Permalink to this heading">¶</a></h4>
+<ul class="simple">
+<li><p>Convolution kernels are centered.</p></li>
+<li><p>When a kernel has even size, the left side of the kernel is the shorter side.</p></li>
+</ul>
+<div class="admonition warning">
+<p class="admonition-title">Warning</p>
+<p>Current calculations of the subtensor index ranges required do not correctly
+take stride and dilation into account.</p>
+</div>
+</section>
+</section>
+</section>
+<section id="examples">
+<h2><a class="toc-backref" href="#id25" role="doc-backlink">Examples</a><a class="headerlink" href="#examples" title="Permalink to this heading">¶</a></h2>
+</section>
+<section id="api">
+<h2><a class="toc-backref" href="#id26" role="doc-backlink">API</a><a class="headerlink" href="#api" title="Permalink to this heading">¶</a></h2>
+<section id="distdl-nn-conv">
+<h3><a class="toc-backref" href="#id27" role="doc-backlink"><code class="docutils literal notranslate"><span class="pre">distdl.nn.conv</span></code></a><a class="headerlink" href="#distdl-nn-conv" title="Permalink to this heading">¶</a></h3>
+</section>
+<section id="distdl-nn-conv-feature">
+<h3><a class="toc-backref" href="#id28" role="doc-backlink"><code class="docutils literal notranslate"><span class="pre">distdl.nn.conv_feature</span></code></a><a class="headerlink" href="#distdl-nn-conv-feature" title="Permalink to this heading">¶</a></h3>
+</section>
+<section id="distdl-nn-conv-channel">
+<h3><a class="toc-backref" href="#id29" role="doc-backlink"><code class="docutils literal notranslate"><span class="pre">distdl.nn.conv_channel</span></code></a><a class="headerlink" href="#distdl-nn-conv-channel" title="Permalink to this heading">¶</a></h3>
+</section>
+<section id="distdl-nn-conv-general">
+<h3><a class="toc-backref" href="#id30" role="doc-backlink"><code class="docutils literal notranslate"><span class="pre">distdl.nn.conv_general</span></code></a><a class="headerlink" href="#distdl-nn-conv-general" title="Permalink to this heading">¶</a></h3>
+</section>
+</section>
+</section>
+
+
+            <div class="clearer"></div>
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper">
+    <a id="sidebar-anchor"></a>
+    
+
+<div id="searchbox" style="display: none" role="search">
+  <h3 id="searchlabel">Quick search</h3>
+    <div class="searchformwrapper">
+    <form class="search" action="../../search.html" method="get">
+      <input type="text" name="q" aria-labelledby="searchlabel" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"/>
+      <input type="submit" value="Go" />
+    </form>
+    </div>
+</div>
+<script>document.getElementById('searchbox').style.display = "block"</script><h3><a href="../../index.html">Table Of Contents</a></h3>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="../../user_guide/index.html">Using DistDL</a></li>
+<li class="toctree-l1 current"><a class="reference internal" href="../index.html">Code Reference</a><ul class="current">
+<li class="toctree-l2 current"><a class="reference internal" href="../nn.html">distdl.nn</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../functional.html">distdl.functional</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../backends.html">distdl.backends</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../utilities.html">distdl.utilities</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="../../developer_guide/index.html">Contributor’s Guide</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../developer_guide/index.html#contributing">Contributing</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../release_history/index.html">Release History</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../acknowledgements.html">Citing &amp; Acknowledgements</a></li>
+</ul>
+
+  <div role="note" aria-label="source link">
+    <h3>This Page</h3>
+    <ul class="this-page-menu">
+      <li><a href="../../_sources/code_reference/nn/convolution.rst.txt"
+            rel="nofollow">Show Source</a></li>
+    </ul>
+   </div>
+        </div>
+<div id="sidebarbutton" title="Collapse sidebar">
+<span>«</span>
+</div>
+
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="related">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../../genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="right" >
+          <a href="embedding.html" title="Embedding Layer"
+             accesskey="N">next</a> |</li>
+        <li class="right" >
+          <a href="broadcast.html" title="Broadcast Layer"
+             accesskey="P">previous</a> |</li>
+      </ul>
+    </div>
+
+    <div class="footer" role="contentinfo">
+        &#169; Copyright 2023, Microsoft.
+      Last updated on May 02, 2023.
+      Created using <a href="https://www.sphinx-doc.org/">Sphinx</a> 6.2.1.
+    </div>
+  </body>
+</html>

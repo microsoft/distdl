@@ -1,0 +1,854 @@
+<!DOCTYPE html>
+
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="generator" content="Docutils 0.19: https://docutils.sourceforge.io/" />
+
+    <title>distdl.backends &#8212; DistDL 0.5.0 documentation</title>
+    <link rel="stylesheet" type="text/css" href="../_static/pygments.css" />
+    <link rel="stylesheet" type="text/css" href="../_static/pydoctheme.css" />
+    <link rel="stylesheet" type="text/css" href="../_static/graphviz.css" />
+    
+    <script data-url_root="../" id="documentation_options" src="../_static/documentation_options.js"></script>
+    <script src="../_static/doctools.js"></script>
+    <script src="../_static/sphinx_highlight.js"></script>
+    <script async="async" src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+    
+    <script src="../_static/sidebar.js"></script>
+    
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="MPI Backend" href="backends/mpi.html" />
+    <link rel="prev" title="Zero Volume Corrector" href="functional/zero_volume_corrector.html" />
+    <meta http-equiv="X-UA-Compatible" content="IE=Edge" />
+    <link rel="shortcut icon" type="image/png" href="../_static/favicon.png" />
+    <meta name="viewport" content="width=device-width,initial-scale=0.8">
+    
+    
+
+  </head><body>
+    <div class="related">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="responsive-menu"><a href="#sidebar-anchor" title="Navigation">&#9776;</a></li>
+        <li><a href="../index.html">DistDL-0.5.0</a> &#187;</li>
+          <li><a href="index.html" accesskey="U">Code Reference</a> &#187;</li> 
+      </ul>
+    </div>
+    
+        <div class="badge">
+            <a href="https://github.com/microsoft/distdl/">Fork me on GitHub</a>
+            <img src="../_static/right-red@2x.png">
+        </div>
+    
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <section id="distdl-backends">
+<h1>distdl.backends<a class="headerlink" href="#distdl-backends" title="Permalink to this heading">¶</a></h1>
+<div class="toctree-wrapper compound">
+</div>
+<nav class="contents local" id="contents">
+<ul class="simple">
+<li><p><a class="reference internal" href="#overview" id="id10">Overview</a></p></li>
+<li><p><a class="reference internal" href="#data-movement-backend-interface" id="id11">Data Movement Backend Interface</a></p>
+<ul>
+<li><p><a class="reference internal" href="#partitions" id="id12">Partitions</a></p>
+<ul>
+<li><p><a class="reference internal" href="#partitions-with-no-topology" id="id13">Partitions with No Topology</a></p></li>
+<li><p><a class="reference internal" href="#partitions-with-cartesian-topology" id="id14">Partitions with Cartesian Topology</a></p></li>
+</ul>
+</li>
+<li><p><a class="reference internal" href="#functional-primitives" id="id15">Functional Primitives</a></p>
+<ul>
+<li><p><a class="reference internal" href="#all-sum-reduce" id="id16">All Sum-Reduce</a></p></li>
+<li><p><a class="reference internal" href="#broadcast" id="id17">Broadcast</a></p></li>
+<li><p><a class="reference internal" href="#halo-exchange" id="id18">Halo Exchange</a></p></li>
+<li><p><a class="reference internal" href="#sum-reduce" id="id19">Sum-Reduce</a></p></li>
+<li><p><a class="reference internal" href="#transpose" id="id20">Transpose</a></p></li>
+</ul>
+</li>
+</ul>
+</li>
+<li><p><a class="reference internal" href="#backends" id="id21">Backends</a></p></li>
+</ul>
+</nav>
+<section id="overview">
+<h2><a class="toc-backref" href="#id10" role="doc-backlink">Overview</a><a class="headerlink" href="#overview" title="Permalink to this heading">¶</a></h2>
+</section>
+<section id="data-movement-backend-interface">
+<h2><a class="toc-backref" href="#id11" role="doc-backlink">Data Movement Backend Interface</a><a class="headerlink" href="#data-movement-backend-interface" title="Permalink to this heading">¶</a></h2>
+<p>Each back-end will is responsible for providing the concrete definitions of
+partition classes and the functional interfaces for primitive data movement
+layers.</p>
+<section id="partitions">
+<h3><a class="toc-backref" href="#id12" role="doc-backlink">Partitions</a><a class="headerlink" href="#partitions" title="Permalink to this heading">¶</a></h3>
+<p>Currently, two partition classes must be provided for a fully compatible
+back-end: <code class="docutils literal notranslate"><span class="pre">Partition</span></code> for partitions with no topology and
+<code class="docutils literal notranslate"><span class="pre">CartesianPartition</span></code> for partitions with a Cartesian topology.</p>
+<p>The partition classes serve as wrappers around the back-end data movement
+tool’s interface.  Implementations are free to make use of any back-end
+specific API, but in general that API should not be explicitly exposed to
+DistDL users.</p>
+<p>The interfaces defined in these classes inherit a number of concepts from
+the MPI back-end.  As DistDL evolves, it is anticipated that these interfaces
+can become more generalized.</p>
+<p>Partition interfaces are explicitly for distributed communication and data
+movement, and as such they provide some interfaces for general parallel
+communication concepts (e.g., broadcasts and all-gathers) for use other than
+tensor data movement.  While much of the interface is inspired by MPI’s API,
+MPI-specific terminology is avoided, e.g., we use <code class="docutils literal notranslate"><span class="pre">broadcast_data</span></code>, not
+<code class="docutils literal notranslate"><span class="pre">bcast_data</span></code>.</p>
+<section id="partitions-with-no-topology">
+<h4><a class="toc-backref" href="#id13" role="doc-backlink">Partitions with No Topology</a><a class="headerlink" href="#partitions-with-no-topology" title="Permalink to this heading">¶</a></h4>
+<table class="docutils align-left" style="width: 100%">
+<thead>
+<tr class="row-odd"><th class="head"><p>Back-end</p></th>
+<th class="head"><p>Module</p></th>
+<th class="head"><p>Class Definition</p></th>
+<th class="head"><p>Public Alias</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><a class="reference internal" href="backends/mpi.html#mpi-backend"><span class="std std-ref">MPI</span></a></p></td>
+<td><p><code class="xref any docutils literal notranslate"><span class="pre">backends.mpi.partition</span></code></p></td>
+<td><p><code class="xref any docutils literal notranslate"><span class="pre">MPIPartition</span></code></p></td>
+<td><p><code class="xref any docutils literal notranslate"><span class="pre">Partition</span></code></p></td>
+</tr>
+</tbody>
+</table>
+<p>The partition with no topology, exposed from each back-end as <code class="docutils literal notranslate"><span class="pre">Partition</span></code>,
+is the general container for an unstructured team of workers.  It must provide
+interfaces for creating teams of workers, creating sub-teams of workers,
+creating unions of teams of workers, etc.</p>
+<p>Regardless of back-end, a number of core partition concepts are to be exposed
+by a basic unstructured partition:</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">size</span></code>: The number of workers in the partition.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">rank</span></code>: The lexicographic identifier of the current worker.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">active</span></code>: The status of a worker in a partition.  An active member of a
+partition has the ability to communicate with other workers.
+An inactive member has no knowledge of the other workers and
+is entirely disconnected from the set of active workers.</p></li>
+</ul>
+<p>For convenience, we also allow topology-free partitions to be treated as if
+they are endowed with a 1-dimensional Cartesian topology.  Consequently,
+they also have two further exposed concepts:</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">shape</span></code>: Always a 1-iterable with containing <cite>size</cite> as the value.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">index</span></code>: Always the <cite>rank</cite>.</p></li>
+</ul>
+<p>A partition must also provide the following API for creating new partitions:</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">__init__()</span></code>: A partition is initialized using whatever back-end specific
+information is required to determine the above properties.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">create_partition_inclusive()</span></code>: Creates a subpartition of the current
+partition inclusive of a specified subset of workers.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">create_partition_union()</span></code>: Creates a new partition containing the union
+of the workers in two different partitions.  Workers calling instance are
+to be ordered before workers in the <cite>other</cite> instance and workers cannot
+be repeated.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">create_cartesian_topology_partition()</span></code>: Using the workers in the team
+for the unstructured partition, create a partition endowed with a
+Cartesian topology.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">create_allreduction_partition()</span></code>: Create the partition required to
+support the <a class="reference internal" href="nn/all_sum_reduce.html#allsumreduce-layer"><span class="std std-ref">All-sum-reduce</span></a> operation.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">create_broadcast_partition_to()</span></code>: Following the DistDL
+<a class="reference internal" href="nn/broadcast.html#broadcast-rules"><span class="std std-ref">Broadcast Rules</span></a>, create the sending and
+receiving partitions required to support the <a class="reference internal" href="nn/broadcast.html#broadcast-layer"><span class="std std-ref">Broadcast</span></a> operation between two
+partitions.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">create_reduction_partition_to()</span></code>: Following the DistDL
+<a class="reference internal" href="nn/broadcast.html#broadcast-rules"><span class="std std-ref">Broadcast Rules</span></a>, create the sending and
+receiving partitions required to support the <a class="reference internal" href="nn/sum_reduce.html#sumreduce-layer"><span class="std std-ref">Sum-reduce</span></a> operation between two
+partitions.</p></li>
+</ul>
+<p>A partition must provide the following API for comparing partitions:</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">__eq__()</span></code>: Comparison for strict equality.  This means the same team,
+ordered the same way.  If two partitions have similar structure, meaning the
+same size and shape but have different team members or organization, the are
+not equal.</p></li>
+</ul>
+<p>A partition must provide the following API for communicating within partitions:</p>
+<ul>
+<li><p><code class="docutils literal notranslate"><span class="pre">broadcast_data()</span></code>: For sharing data from one worker to all workers in the
+partition.  This is distinct from the tensor broadcast operation.  This
+function does not require the receiving workers to have any knowledge of the
+structure of the data they are to receive.  Any information required to store
+this data (e.g., <code class="docutils literal notranslate"><span class="pre">dtype</span></code> or <code class="docutils literal notranslate"><span class="pre">shape</span></code> of an array) must be communicated in
+the function.</p>
+<p>This function supports two modes.  The first acts as a standard broadcast
+within a partition. The second allows data from one worker in a partition
+that is a <em>subpartition</em> of the calling partition to broadcast the data to
+the calling partition.  This is useful when the structure of the data is
+known only by workers on the subpartition but the data is needed on the
+superpartition.</p>
+</li>
+<li><p><code class="docutils literal notranslate"><span class="pre">allgather_data()</span></code>: For sharing information on all workers in the partition
+with all other workers in the partition.</p></li>
+</ul>
+</section>
+<section id="partitions-with-cartesian-topology">
+<h4><a class="toc-backref" href="#id14" role="doc-backlink">Partitions with Cartesian Topology</a><a class="headerlink" href="#partitions-with-cartesian-topology" title="Permalink to this heading">¶</a></h4>
+<table class="docutils align-left" style="width: 100%">
+<thead>
+<tr class="row-odd"><th class="head"><p>Back-end</p></th>
+<th class="head"><p>Module</p></th>
+<th class="head"><p>Class</p></th>
+<th class="head"><p>Alias</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><a class="reference internal" href="backends/mpi.html#mpi-backend"><span class="std std-ref">MPI</span></a></p></td>
+<td><p><code class="xref any docutils literal notranslate"><span class="pre">backends.mpi.partition</span></code></p></td>
+<td><p><code class="xref any docutils literal notranslate"><span class="pre">MPICartesianPartition</span></code></p></td>
+<td><p><code class="xref any docutils literal notranslate"><span class="pre">CartesianPartition</span></code></p></td>
+</tr>
+</tbody>
+</table>
+<p>Partitions endowed with a Cartesian topology are themselves partitions, with
+additional ordering information that is useful, for example, when partitioning
+a tensor.</p>
+<p>In addition to the members required for
+<a class="reference internal" href="#partitions-with-no-topology"><span class="std std-ref">Partitions with No Topology</span></a>, Cartesian
+partitions also specify:</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">shape</span></code>: An iterable giving the number of workers in each dimension.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">index</span></code>: An iterable with the lexicographic identifier of the worker in
+each dimension.</p></li>
+</ul>
+<p>In addition to the API required for <a class="reference internal" href="#partitions-with-no-topology"><span class="std std-ref">Partitions with No Topology</span></a>, Cartesian partitions must also specify:</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">cartesian_index()</span></code>: A routine for obtaining the index of any worker
+in the partition, from its <cite>rank</cite>.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">neighbor_ranks()</span></code>: A routine for obtaining the ranks of neighboring
+workers in all dimensions of the partition.</p></li>
+</ul>
+<p>In addition to the API required for <a class="reference internal" href="#partitions-with-no-topology"><span class="std std-ref">Partitions with No Topology</span></a>, Cartesian partitions may also specify:</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">create_cartesian_subtopology_partition()</span></code>: A routine for creating a
+subtopology, following the MPI subtopology specification.</p></li>
+</ul>
+</section>
+</section>
+<section id="functional-primitives">
+<h3><a class="toc-backref" href="#id15" role="doc-backlink">Functional Primitives</a><a class="headerlink" href="#functional-primitives" title="Permalink to this heading">¶</a></h3>
+<section id="all-sum-reduce">
+<h4><a class="toc-backref" href="#id16" role="doc-backlink">All Sum-Reduce</a><a class="headerlink" href="#all-sum-reduce" title="Permalink to this heading">¶</a></h4>
+<table class="docutils align-left" style="width: 100%">
+<thead>
+<tr class="row-odd"><th class="head"><p>Back-end</p></th>
+<th class="head"><p>Module</p></th>
+<th class="head"><p>Class</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><a class="reference internal" href="backends/mpi.html#mpi-backend"><span class="std std-ref">MPI</span></a></p></td>
+<td><p><code class="xref any docutils literal notranslate"><span class="pre">backends.mpi.functional.all_sum_reduce</span></code></p></td>
+<td><p><code class="xref any docutils literal notranslate"><span class="pre">AllSumReduceFunction</span></code></p></td>
+</tr>
+</tbody>
+</table>
+<p>The functional primitive for the AllSumReduce data movement operation does not
+use the original tensor partitions <span class="math notranslate nohighlight">\(P_x\)</span> (input and output) directly.
+Instead, the calling class must create new sub-partitions of <span class="math notranslate nohighlight">\(P_x\)</span>,
+along specified dimensions, to enable actual data movement.</p>
+<p>For the AllSumReduce operation, these are back-end specific implementations of
+<a class="reference internal" href="#partitions-with-no-topology"><span class="std std-ref">Partitions with No Topology</span></a> and the data
+movement occurs <em>within</em> these partitions.</p>
+<p>The forward AllSumReduce is equivalent to a standard SumReduce followed by
+a standard Broadcast, though the actual implementation will rarely use
+these routines directly.</p>
+<p>The sub-partitions are created using the <code class="docutils literal notranslate"><span class="pre">create_allreduce_partition()</span></code>
+method of the <code class="docutils literal notranslate"><span class="pre">Partition</span></code> class for the selected back-end, which
+creates a number of partitions equal to the product the dimensions
+of <span class="math notranslate nohighlight">\(P_x\)</span> which are <em>not</em> reduced in the reduction.</p>
+<p>Each worker in <span class="math notranslate nohighlight">\(P_x\)</span> is a member of exactly one of these sub-partitions.</p>
+<p>We illustrate some examples of the construction of these partitions in the
+following example.  Consider a <span class="math notranslate nohighlight">\(2 \times 3 \times 2\)</span> input
+partition <span class="math notranslate nohighlight">\(P_x\)</span>, as illustrated below, where workers are identified a
+<em>global</em> lexicographic ordering.  For example, in an MPI-based environment,
+this would mean the identifiers are the ranks in a group of size 12 that is
+a parent group to both partitions.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>Implementations should not impose anything on the ordering of the workers.
+Back-end specific (private) routines may be used to map indices to workers.</p>
+</div>
+<figure class="align-default" id="id4">
+<img alt="Image of 2x3x2 partition with labeled workers." src="../_images/all_sum_reduce_example_A01.png" />
+<figcaption>
+<p><span class="caption-text">Caption here.</span><a class="headerlink" href="#id4" title="Permalink to this image">¶</a></p>
+</figcaption>
+</figure>
+<p>If the reduction is specified over the 0th and 2nd dimensions, then this
+broadcast creates 3 partitions as described above, illustrated below, which
+we label <span class="math notranslate nohighlight">\(P_0\)</span>, <span class="math notranslate nohighlight">\(P_1\)</span>, and <span class="math notranslate nohighlight">\(P_2\)</span> for convenience.</p>
+<figure class="align-default">
+<img alt="Image of partitions induced by 2x3x2 all-sum-reduce over the first and last dimensions, with labeled workers." src="../_images/all_sum_reduce_example_A02.png" />
+</figure>
+<p>The following table gives the global lexicographic identifiers of each worker
+in the partition.</p>
+<table class="docutils align-center">
+<thead>
+<tr class="row-odd"><th class="head"><p>Partition</p></th>
+<th class="head"><p>Workers</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><span class="math notranslate nohighlight">\(P_0\)</span></p></td>
+<td><p>0, 1, 6, 7</p></td>
+</tr>
+<tr class="row-odd"><td><p><span class="math notranslate nohighlight">\(P_1\)</span></p></td>
+<td><p>2, 3, 8, 9</p></td>
+</tr>
+<tr class="row-even"><td><p><span class="math notranslate nohighlight">\(P_2\)</span></p></td>
+<td><p>4, 5, 10, 11</p></td>
+</tr>
+</tbody>
+</table>
+<p>After the forward application of the all-sum-reduction, all workers active in the
+<code class="docutils literal notranslate"><span class="pre">P_x</span></code> partition have as output the sum reduction of the correct subtensors of the
+original tensor.</p>
+<figure class="align-default" id="id5">
+<img alt="Image of 1x3x1 to 2x3x2 all-sum-reductin along dimensions 0 and 2." src="../_images/all_sum_reduce_example_A03.png" />
+<figcaption>
+<p><span class="caption-text">Completed all-sum-reduction.</span><a class="headerlink" href="#id5" title="Permalink to this image">¶</a></p>
+</figcaption>
+</figure>
+<p>AllSumReduce may apply over any combination of the dimensions, including all
+and none of them.  If all dimensions of the partition are included, the output
+is the sum over all input tensors in the partition.  If the set of input
+dimensions is empty, then the layer is functionally the identity.</p>
+<p>The adjoint phase works the same way, as this operation is self-adjoint, as
+described in the <a class="reference external" href="https://arxiv.org/abs/2006.03108">motivating paper</a>.</p>
+</section>
+<section id="broadcast">
+<h4><a class="toc-backref" href="#id17" role="doc-backlink">Broadcast</a><a class="headerlink" href="#broadcast" title="Permalink to this heading">¶</a></h4>
+<table class="docutils align-left" style="width: 100%">
+<thead>
+<tr class="row-odd"><th class="head"><p>Back-end</p></th>
+<th class="head"><p>Module</p></th>
+<th class="head"><p>Class</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><a class="reference internal" href="backends/mpi.html#mpi-backend"><span class="std std-ref">MPI</span></a></p></td>
+<td><p><code class="xref any docutils literal notranslate"><span class="pre">backends.mpi.functional.broadcast</span></code></p></td>
+<td><p><code class="xref any docutils literal notranslate"><span class="pre">BroadcastFunction</span></code></p></td>
+</tr>
+</tbody>
+</table>
+<p>The functional primitive for the Broadcast data movement operation does not
+use the original tensor partitions <span class="math notranslate nohighlight">\(P_x\)</span> (input) and <span class="math notranslate nohighlight">\(P_y\)</span>
+(output) directly.  Instead, the calling class must create two new partitions
+to enable actual data movement.</p>
+<p>For the Broadcast operation, these are back-end specific implementations of
+<a class="reference internal" href="#partitions-with-no-topology"><span class="std std-ref">Partitions with No Topology</span></a> and the data
+movement occurs <em>within</em> these partitions.</p>
+<p>The partitions are created using the <code class="docutils literal notranslate"><span class="pre">create_broadcast_partition_to()</span></code>
+method of the <code class="docutils literal notranslate"><span class="pre">Partition</span></code> class for the selected back-end, which creates a
+number of partitions equal to the product of the shape of <span class="math notranslate nohighlight">\(P_x\)</span>.</p>
+<p>Each of these partitions has, as its root, the worker that is the source of
+the data to be copied in the broadcast and all other workers in the partition
+are to receive those copies.  The root is specified in a back-end specific
+manner, e.g., the first worker in the partition is the 0th rank in the
+associated group of processors in the MPI back-end implementation.</p>
+<p>Each worker in <span class="math notranslate nohighlight">\(P_x\)</span> or <span class="math notranslate nohighlight">\(P_y\)</span> has access to up to two of these
+partitions.  If the worker is active in <span class="math notranslate nohighlight">\(P_x\)</span> it will have a non-null
+<code class="docutils literal notranslate"><span class="pre">P_send</span></code> partition, which it is the root worker of.  If it is active in
+<span class="math notranslate nohighlight">\(P_y\)</span>, it will have a non-null <code class="docutils literal notranslate"><span class="pre">P_recv</span></code> partition.  Usually, the
+worker will be a non-root worker in <code class="docutils literal notranslate"><span class="pre">P_recv</span></code>, indicating that it is going to
+receive a copy from the root.  However, it is possible that the worker <em>may be
+the root of</em> <code class="docutils literal notranslate"><span class="pre">P_recv</span></code>.  This occurs if <code class="docutils literal notranslate"><span class="pre">P_send</span></code> and <code class="docutils literal notranslate"><span class="pre">P_recv</span></code> are the
+same and thus the worker is required to copy its own data to itself as part of
+the broadcast.</p>
+<p>We illustrate some examples of the construction of these partitions in the
+following example.  Consider a broadcast of a tensor partitioned by a <span class="math notranslate nohighlight">\(1
+\times 3 \times 1\)</span> partition <span class="math notranslate nohighlight">\(P_x\)</span> to <span class="math notranslate nohighlight">\(2 \times 3 \times 2\)</span>
+partition <span class="math notranslate nohighlight">\(P_y\)</span>, as illustrated below, where workers are identified a
+<em>global</em> lexicographic ordering.  For example, in an MPI-based environment,
+this would mean the identifiers are the ranks in a group of size 12 that is a
+parent group to both partitions.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>Implementations should not impose anything on the ordering of the workers
+in <span class="math notranslate nohighlight">\(P_x\)</span> and <span class="math notranslate nohighlight">\(P_y\)</span>.  The sets of workers in these partitions
+may be disjoint, partially overlapping, or completely overlapping.</p>
+</div>
+<figure class="align-default" id="id6">
+<img alt="Image of 1x3x1 to 2x3x1 broadcast with labeled workers." src="../_images/broadcast_example_A01.png" />
+<figcaption>
+<p><span class="caption-text">Blue, yellow, and red subtensors on <span class="math notranslate nohighlight">\(P_x\)</span> are to be broadcast to
+<span class="math notranslate nohighlight">\(P_y\)</span>.  Labels on subtensors are global lexicographic identifiers
+for the workers.</span><a class="headerlink" href="#id6" title="Permalink to this image">¶</a></p>
+</figcaption>
+</figure>
+<p>This broadcast creates 3 partitions as described above, illustrated below, which we
+label <span class="math notranslate nohighlight">\(P_0\)</span>, <span class="math notranslate nohighlight">\(P_1\)</span>, and <span class="math notranslate nohighlight">\(P_2\)</span> for convenience.</p>
+<figure class="align-default">
+<img alt="Image of partitions induced by 1x3x1 to 2x3x1 broadcast, with labeled workers." src="../_images/broadcast_example_A02.png" />
+</figure>
+<p>The following table gives the global lexicographic identifiers of each worker
+in the partition, with the root worker listed first in bold.</p>
+<table class="docutils align-center">
+<thead>
+<tr class="row-odd"><th class="head"><p>Partition</p></th>
+<th class="head"><p>Workers</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><span class="math notranslate nohighlight">\(P_0\)</span></p></td>
+<td><p><strong>1</strong>, 0, 6, 7</p></td>
+</tr>
+<tr class="row-odd"><td><p><span class="math notranslate nohighlight">\(P_1\)</span></p></td>
+<td><p><strong>2</strong>, 3, 8, 9</p></td>
+</tr>
+<tr class="row-even"><td><p><span class="math notranslate nohighlight">\(P_2\)</span></p></td>
+<td><p><strong>3</strong>, 4, 5, 10, 11</p></td>
+</tr>
+</tbody>
+</table>
+<p>The following table gives the partition label for the partition that each
+worker associates with <code class="docutils literal notranslate"><span class="pre">P_send</span></code> and <code class="docutils literal notranslate"><span class="pre">P_recv</span></code>.</p>
+<table class="docutils align-center" style="width: 95%">
+<colgroup>
+<col style="width: 10.9%" />
+<col style="width: 10.9%" />
+<col style="width: 10.9%" />
+<col style="width: 1.1%" />
+<col style="width: 10.9%" />
+<col style="width: 10.9%" />
+<col style="width: 10.9%" />
+<col style="width: 1.1%" />
+<col style="width: 10.9%" />
+<col style="width: 10.9%" />
+<col style="width: 10.9%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p>Worker</p></th>
+<th class="head"><p><code class="docutils literal notranslate"><span class="pre">P_send</span></code></p></th>
+<th class="head"><p><code class="docutils literal notranslate"><span class="pre">P_recv</span></code></p></th>
+<th class="head"></th>
+<th class="head"><p>Worker</p></th>
+<th class="head"><p><code class="docutils literal notranslate"><span class="pre">P_send</span></code></p></th>
+<th class="head"><p><code class="docutils literal notranslate"><span class="pre">P_recv</span></code></p></th>
+<th class="head"></th>
+<th class="head"><p>Worker</p></th>
+<th class="head"><p><code class="docutils literal notranslate"><span class="pre">P_send</span></code></p></th>
+<th class="head"><p><code class="docutils literal notranslate"><span class="pre">P_recv</span></code></p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>0</p></td>
+<td><p>n/a</p></td>
+<td><p><span class="math notranslate nohighlight">\(P_0\)</span></p></td>
+<td></td>
+<td><p>4</p></td>
+<td><p>n/a</p></td>
+<td><p><span class="math notranslate nohighlight">\(P_2\)</span></p></td>
+<td></td>
+<td><p>8</p></td>
+<td><p>n/a</p></td>
+<td><p><span class="math notranslate nohighlight">\(P_1\)</span></p></td>
+</tr>
+<tr class="row-odd"><td><p>1</p></td>
+<td><p><span class="math notranslate nohighlight">\(P_0\)</span></p></td>
+<td><p><span class="math notranslate nohighlight">\(P_0\)</span></p></td>
+<td></td>
+<td><p>5</p></td>
+<td><p>n/a</p></td>
+<td><p><span class="math notranslate nohighlight">\(P_2\)</span></p></td>
+<td></td>
+<td><p>9</p></td>
+<td><p>n/a</p></td>
+<td><p><span class="math notranslate nohighlight">\(P_1\)</span></p></td>
+</tr>
+<tr class="row-even"><td><p>2</p></td>
+<td><p><span class="math notranslate nohighlight">\(P_1\)</span></p></td>
+<td><p><span class="math notranslate nohighlight">\(P_1\)</span></p></td>
+<td></td>
+<td><p>6</p></td>
+<td><p>n/a</p></td>
+<td><p><span class="math notranslate nohighlight">\(P_0\)</span></p></td>
+<td></td>
+<td><p>10</p></td>
+<td><p>n/a</p></td>
+<td><p><span class="math notranslate nohighlight">\(P_2\)</span></p></td>
+</tr>
+<tr class="row-odd"><td><p>3</p></td>
+<td><p><span class="math notranslate nohighlight">\(P_2\)</span></p></td>
+<td><p><span class="math notranslate nohighlight">\(P_1\)</span></p></td>
+<td></td>
+<td><p>7</p></td>
+<td><p>n/a</p></td>
+<td><p><span class="math notranslate nohighlight">\(P_0\)</span></p></td>
+<td></td>
+<td><p>11</p></td>
+<td><p>n/a</p></td>
+<td><p><span class="math notranslate nohighlight">\(P_2\)</span></p></td>
+</tr>
+</tbody>
+</table>
+<p>This example illustrates the case where a worker needs to broadcast to itself
+as root (workers 1 and 2), the case where a worker broadcasts from itself as
+root and receives data in another partition (worker 3), and the case where a
+worker simply receives copies of the data from the roots (workers 0 and 4-11).
+It also illustrates that the root worker is the one that has the data, not the
+lowest globally ranked worker (e.g., in <span class="math notranslate nohighlight">\(P_0\)</span>).</p>
+<p>After the forward application of the broadcast, all workers active in a
+<code class="docutils literal notranslate"><span class="pre">P_recv</span></code> partition have as output a copy of the correct subtensor of the
+original tensor.</p>
+<figure class="align-default" id="id7">
+<img alt="Image of 1x3x1 to 2x3x1 broadcast with labeled workers." src="../_images/broadcast_example_A03.png" />
+<figcaption>
+<p><span class="caption-text">Completed broadcast.</span><a class="headerlink" href="#id7" title="Permalink to this image">¶</a></p>
+</figcaption>
+</figure>
+<p>The adjoint phase works the same way, but in reverse.  However, as
+demonstrated in the <a class="reference external" href="https://arxiv.org/abs/2006.03108">motivating paper</a>,
+the subtensors on <span class="math notranslate nohighlight">\(P_y\)</span> are sum-reduced back to <span class="math notranslate nohighlight">\(P_x\)</span>, rather than
+copied.</p>
+</section>
+<section id="halo-exchange">
+<h4><a class="toc-backref" href="#id18" role="doc-backlink">Halo Exchange</a><a class="headerlink" href="#halo-exchange" title="Permalink to this heading">¶</a></h4>
+</section>
+<section id="sum-reduce">
+<h4><a class="toc-backref" href="#id19" role="doc-backlink">Sum-Reduce</a><a class="headerlink" href="#sum-reduce" title="Permalink to this heading">¶</a></h4>
+<table class="docutils align-left" style="width: 100%">
+<thead>
+<tr class="row-odd"><th class="head"><p>Back-end</p></th>
+<th class="head"><p>Module</p></th>
+<th class="head"><p>Class</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><a class="reference internal" href="backends/mpi.html#mpi-backend"><span class="std std-ref">MPI</span></a></p></td>
+<td><p><code class="xref any docutils literal notranslate"><span class="pre">backends.mpi.functional.sum_reduce</span></code></p></td>
+<td><p><code class="xref any docutils literal notranslate"><span class="pre">SumReduceFunction</span></code></p></td>
+</tr>
+</tbody>
+</table>
+<p>The functional primitive for the SumReduce data movement operation does not
+use the original tensor partitions <span class="math notranslate nohighlight">\(P_x\)</span> (input) and <span class="math notranslate nohighlight">\(P_y\)</span>
+(output) directly.  Instead, the calling class must create two new partitions
+to enable actual data movement.</p>
+<p>For the sum-reduce operation, these are back-end specific implementations of
+<a class="reference internal" href="#partitions-with-no-topology"><span class="std std-ref">Partitions with No Topology</span></a> and the data
+movement occurs <em>within</em> these partitions.</p>
+<p>The partitions are created using the <code class="docutils literal notranslate"><span class="pre">create_reduction_partition_to()</span></code>
+method of the <code class="docutils literal notranslate"><span class="pre">Partition</span></code> class for the selected back-end, which creates a
+number of partitions equal to the product of the shape of <span class="math notranslate nohighlight">\(P_y\)</span>.</p>
+<p>Each of these partitions has, as its root, the worker that is the destination of
+the data to be reduced in the sum-reduction and all other workers in the partition
+are the sources of that data.  The root is specified in a back-end specific
+manner, e.g., the first worker in the partition is the 0th rank in the
+associated group of processors in the MPI back-end implementation.</p>
+<p>Each worker in <span class="math notranslate nohighlight">\(P_x\)</span> or <span class="math notranslate nohighlight">\(P_y\)</span> has access to up to two of these
+partitions.  If the worker is active in <span class="math notranslate nohighlight">\(P_x\)</span> it will have a non-null
+<code class="docutils literal notranslate"><span class="pre">P_send</span></code> partition.  If it is active in <span class="math notranslate nohighlight">\(P_y\)</span>, it will have a non-null
+<code class="docutils literal notranslate"><span class="pre">P_recv</span></code> partition, which it is the root worker of.  Usually, the worker
+will be a non-root worker in <code class="docutils literal notranslate"><span class="pre">P_send</span></code>, indicating that it is going to send
+partial sums to the root.  However, it is possible that the worker <em>may be the
+root of</em> <code class="docutils literal notranslate"><span class="pre">P_recv</span></code>.  This occurs if <code class="docutils literal notranslate"><span class="pre">P_send</span></code> and <code class="docutils literal notranslate"><span class="pre">P_recv</span></code> are the same
+and thus the worker also contributes its own data to its reduction.</p>
+<p>We illustrate some examples of the construction of these partitions in the
+following example.  Consider a sum-reduction of a tensor partitioned by a
+<span class="math notranslate nohighlight">\(2 \times 3 \times 2\)</span> partition <span class="math notranslate nohighlight">\(P_x\)</span> to <span class="math notranslate nohighlight">\(1 \times 3 \times
+1\)</span> partition <span class="math notranslate nohighlight">\(P_y\)</span>, as illustrated below, where workers are identified a
+<em>global</em> lexicographic ordering.  For example, in an MPI-based environment,
+this would mean the identifiers are the ranks in a group of size 12 that is a
+parent group to both partitions.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>Implementations should not impose anything on the ordering of the workers
+in <span class="math notranslate nohighlight">\(P_x\)</span> and <span class="math notranslate nohighlight">\(P_y\)</span>.  The sets of workers in these partitions
+may be disjoint, partially overlapping, or completely overlapping.</p>
+</div>
+<figure class="align-default" id="id8">
+<img alt="Image of 2x3x1 to 1x3x1 sum-reduction with labeled workers." src="../_images/sum_reduce_example_A01.png" />
+<figcaption>
+<p><span class="caption-text">Colored subtensors on <span class="math notranslate nohighlight">\(P_x\)</span> to be sum-reduced to  <span class="math notranslate nohighlight">\(P_x\)</span>.
+Labels on subtensors are global lexicographic identifiers for the workers.</span><a class="headerlink" href="#id8" title="Permalink to this image">¶</a></p>
+</figcaption>
+</figure>
+<p>This broadcast creates 3 partitions as described above, illustrated below,
+which we label <span class="math notranslate nohighlight">\(P_0\)</span>, <span class="math notranslate nohighlight">\(P_1\)</span>, and <span class="math notranslate nohighlight">\(P_2\)</span> for convenience.</p>
+<figure class="align-default">
+<img alt="Image of partitions induced by 2x3x1 to 1x3x1 sum-reduction, with labeled workers." src="../_images/sum_reduce_example_A02.png" />
+</figure>
+<p>The following table gives the global lexicographic identifiers of each worker
+in the partition, with the root worker listed first in bold.</p>
+<table class="docutils align-center">
+<thead>
+<tr class="row-odd"><th class="head"><p>Partition</p></th>
+<th class="head"><p>Workers</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><span class="math notranslate nohighlight">\(P_0\)</span></p></td>
+<td><p><strong>1</strong>, 0, 6, 7</p></td>
+</tr>
+<tr class="row-odd"><td><p><span class="math notranslate nohighlight">\(P_1\)</span></p></td>
+<td><p><strong>2</strong>, 3, 8, 9</p></td>
+</tr>
+<tr class="row-even"><td><p><span class="math notranslate nohighlight">\(P_2\)</span></p></td>
+<td><p><strong>3</strong>, 4, 5, 10, 11</p></td>
+</tr>
+</tbody>
+</table>
+<p>The following table gives the partition label for the partition that each
+worker associates with <code class="docutils literal notranslate"><span class="pre">P_send</span></code> and <code class="docutils literal notranslate"><span class="pre">P_recv</span></code>.</p>
+<table class="docutils align-center" style="width: 95%">
+<colgroup>
+<col style="width: 10.9%" />
+<col style="width: 10.9%" />
+<col style="width: 10.9%" />
+<col style="width: 1.1%" />
+<col style="width: 10.9%" />
+<col style="width: 10.9%" />
+<col style="width: 10.9%" />
+<col style="width: 1.1%" />
+<col style="width: 10.9%" />
+<col style="width: 10.9%" />
+<col style="width: 10.9%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p>Worker</p></th>
+<th class="head"><p><code class="docutils literal notranslate"><span class="pre">P_send</span></code></p></th>
+<th class="head"><p><code class="docutils literal notranslate"><span class="pre">P_recv</span></code></p></th>
+<th class="head"></th>
+<th class="head"><p>Worker</p></th>
+<th class="head"><p><code class="docutils literal notranslate"><span class="pre">P_send</span></code></p></th>
+<th class="head"><p><code class="docutils literal notranslate"><span class="pre">P_recv</span></code></p></th>
+<th class="head"></th>
+<th class="head"><p>Worker</p></th>
+<th class="head"><p><code class="docutils literal notranslate"><span class="pre">P_send</span></code></p></th>
+<th class="head"><p><code class="docutils literal notranslate"><span class="pre">P_recv</span></code></p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>0</p></td>
+<td><p><span class="math notranslate nohighlight">\(P_0\)</span></p></td>
+<td><p>n/a</p></td>
+<td></td>
+<td><p>4</p></td>
+<td><p><span class="math notranslate nohighlight">\(P_2\)</span></p></td>
+<td><p>n/a</p></td>
+<td></td>
+<td><p>8</p></td>
+<td><p><span class="math notranslate nohighlight">\(P_1\)</span></p></td>
+<td><p>n/a</p></td>
+</tr>
+<tr class="row-odd"><td><p>1</p></td>
+<td><p><span class="math notranslate nohighlight">\(P_0\)</span></p></td>
+<td><p><span class="math notranslate nohighlight">\(P_0\)</span></p></td>
+<td></td>
+<td><p>5</p></td>
+<td><p><span class="math notranslate nohighlight">\(P_2\)</span></p></td>
+<td><p>n/a</p></td>
+<td></td>
+<td><p>9</p></td>
+<td><p><span class="math notranslate nohighlight">\(P_1\)</span></p></td>
+<td><p>n/a</p></td>
+</tr>
+<tr class="row-even"><td><p>2</p></td>
+<td><p><span class="math notranslate nohighlight">\(P_1\)</span></p></td>
+<td><p><span class="math notranslate nohighlight">\(P_1\)</span></p></td>
+<td></td>
+<td><p>6</p></td>
+<td><p><span class="math notranslate nohighlight">\(P_0\)</span></p></td>
+<td><p>n/a</p></td>
+<td></td>
+<td><p>10</p></td>
+<td><p><span class="math notranslate nohighlight">\(P_2\)</span></p></td>
+<td><p>n/a</p></td>
+</tr>
+<tr class="row-odd"><td><p>3</p></td>
+<td><p><span class="math notranslate nohighlight">\(P_1\)</span></p></td>
+<td><p><span class="math notranslate nohighlight">\(P_2\)</span></p></td>
+<td></td>
+<td><p>7</p></td>
+<td><p><span class="math notranslate nohighlight">\(P_0\)</span></p></td>
+<td><p>n/a</p></td>
+<td></td>
+<td><p>11</p></td>
+<td><p><span class="math notranslate nohighlight">\(P_2\)</span></p></td>
+<td><p>n/a</p></td>
+</tr>
+</tbody>
+</table>
+<p>This example illustrates the case where a worker needs to sum-reduce to itself
+as root (workers 1 and 2), the case where a worker sum-reduces from itself as
+root and receives data in another partition (worker 3), and the case where a
+worker simply contributes data to the reduction (workers 0 and 4-11).
+It also illustrates that the root worker is the one that has the data, not the
+lowest globally ranked worker (e.g., in <span class="math notranslate nohighlight">\(P_0\)</span>).</p>
+<p>After the forward application of the sum-reduction, all workers active in a
+<code class="docutils literal notranslate"><span class="pre">P_recv</span></code> partition  have as output the sum-reduction of the appropriate
+subtensors of the original tensor.</p>
+<figure class="align-default" id="id9">
+<img alt="Image of 2x3x1 to 1x3x1 sum-reduction with labeled workers." src="../_images/sum_reduce_example_A03.png" />
+<figcaption>
+<p><span class="caption-text">Completed sum-reduction.  CMY channels of <span class="math notranslate nohighlight">\(P_x\)</span> subtensors add up
+to red, yellow, and blue subtensors of <span class="math notranslate nohighlight">\(P_y\)</span>.</span><a class="headerlink" href="#id9" title="Permalink to this image">¶</a></p>
+</figcaption>
+</figure>
+<p>The adjoint phase works the same way, but in reverse.  However, as
+demonstrated in the <a class="reference external" href="https://arxiv.org/abs/2006.03108">motivating paper</a>,
+the subtensors on <span class="math notranslate nohighlight">\(P_y\)</span> are broadcast back to <span class="math notranslate nohighlight">\(P_x\)</span>, rather than
+sum-reduced.</p>
+</section>
+<section id="transpose">
+<h4><a class="toc-backref" href="#id20" role="doc-backlink">Transpose</a><a class="headerlink" href="#transpose" title="Permalink to this heading">¶</a></h4>
+<table class="docutils align-left" style="width: 100%">
+<thead>
+<tr class="row-odd"><th class="head"><p>Back-end</p></th>
+<th class="head"><p>Module</p></th>
+<th class="head"><p>Class</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><a class="reference internal" href="backends/mpi.html#mpi-backend"><span class="std std-ref">MPI</span></a></p></td>
+<td><p><code class="xref any docutils literal notranslate"><span class="pre">backends.mpi.functional.repartition</span></code></p></td>
+<td><p><code class="xref any docutils literal notranslate"><span class="pre">BroadcastFunction</span></code></p></td>
+</tr>
+</tbody>
+</table>
+<p>The functional primitive for the Transpose data movement operation does not
+use the original tensor partitions <span class="math notranslate nohighlight">\(P_x\)</span> (input) and <span class="math notranslate nohighlight">\(P_y\)</span>
+(output) directly.  Instead, the calling class creates a new union partition,
+within which data is moved.</p>
+<p>Within this union, workers either share data with other workers, receive
+shared data from other workers, or keep subsets of their own data.  All
+sharing of data occurs through intermediate buffers.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>These buffers are allocated by the calling class, using a helper function
+that must be specified by the back-end.</p>
+</div>
+<p>The calling class provides two sets of meta information and buffers, one for
+any sending and one for any receiving a worker has to do.  The meta
+information is a triplet, <code class="docutils literal notranslate"><span class="pre">(slice,</span> <span class="pre">size,</span> <span class="pre">partner)</span></code>.  When the worker must
+send data, <code class="docutils literal notranslate"><span class="pre">slice</span></code> is a Python <code class="docutils literal notranslate"><span class="pre">Slice</span></code> object describing the indices of
+the input tensor that it must copy to worker <code class="docutils literal notranslate"><span class="pre">partner</span></code>.  <code class="docutils literal notranslate"><span class="pre">size</span></code> is the
+volume of <code class="docutils literal notranslate"><span class="pre">slice</span></code> and <code class="docutils literal notranslate"><span class="pre">partner</span></code> is the lexicographic identifier (or rank)
+of the partner worker.  The associated send buffer will be of size <code class="docutils literal notranslate"><span class="pre">size</span></code>,
+specified in records, not bytes.  Meta information for the receive is
+essentially the same, except <code class="docutils literal notranslate"><span class="pre">slice</span></code> describes the slice of the output
+tensor the data will go to and <code class="docutils literal notranslate"><span class="pre">partner</span></code> is the source the data.</p>
+<p>While most operations can be completed using information about the local
+subtensor only, this operation requires the global input tensor size.  This is
+because we do not require the global tensor size to be specified when the
+layer is instantiated.  Instead, the layer determines that size when it is
+called.  Consequently, the shape of the local output subtensor tensor cannot
+be known until then, either.</p>
+<p>A worker may be part of either <span class="math notranslate nohighlight">\(P_x\)</span>, <span class="math notranslate nohighlight">\(P_y\)</span>, or both. If it is
+part of <span class="math notranslate nohighlight">\(P_x\)</span>, then it will only need to share parts of its local input
+subtensor with other workers.  If it is not part of <span class="math notranslate nohighlight">\(P_x\)</span>, it will take
+a zero-volume tensor as input.  If it is part of <span class="math notranslate nohighlight">\(P_y\)</span>, its output
+subtensor will be formed by receiving copies of parts of other workers’ local
+input subtensors.  If it is not part of <span class="math notranslate nohighlight">\(P_y\)</span>, then its output will be a
+zero-volume tensor. If a worker is part of both, its output may be a direct
+copy of part of its own input.</p>
+<p>The adjoint phase works the same way, but in reverse.  However, as
+demonstrated in the <a class="reference external" href="https://arxiv.org/abs/2006.03108">motivating paper</a>,
+the subtensors on <span class="math notranslate nohighlight">\(P_y\)</span> are summed back to <span class="math notranslate nohighlight">\(P_x\)</span>, rather than
+copied.  However, because there are no overlaps in the local scatters, this
+sum can safely be replaced with a copy.</p>
+</section>
+</section>
+</section>
+<section id="backends">
+<h2><a class="toc-backref" href="#id21" role="doc-backlink">Backends</a><a class="headerlink" href="#backends" title="Permalink to this heading">¶</a></h2>
+<table class="docutils align-left" style="width: 100%">
+<colgroup>
+<col style="width: 35.0%" />
+<col style="width: 65.0%" />
+</colgroup>
+<tbody>
+<tr class="row-odd"><td><p><a class="reference internal" href="backends/mpi.html#mpi-backend"><span class="std std-ref">MPI Backend</span></a></p></td>
+<td><p>The MPI data movement backend.</p></td>
+</tr>
+</tbody>
+</table>
+</section>
+</section>
+
+
+            <div class="clearer"></div>
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper">
+    <a id="sidebar-anchor"></a>
+    
+
+<div id="searchbox" style="display: none" role="search">
+  <h3 id="searchlabel">Quick search</h3>
+    <div class="searchformwrapper">
+    <form class="search" action="../search.html" method="get">
+      <input type="text" name="q" aria-labelledby="searchlabel" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"/>
+      <input type="submit" value="Go" />
+    </form>
+    </div>
+</div>
+<script>document.getElementById('searchbox').style.display = "block"</script><h3><a href="../index.html">Table Of Contents</a></h3>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="../user_guide/index.html">Using DistDL</a></li>
+<li class="toctree-l1 current"><a class="reference internal" href="index.html">Code Reference</a><ul class="current">
+<li class="toctree-l2"><a class="reference internal" href="nn.html">distdl.nn</a></li>
+<li class="toctree-l2"><a class="reference internal" href="functional.html">distdl.functional</a></li>
+<li class="toctree-l2 current"><a class="current reference internal" href="#">distdl.backends</a></li>
+<li class="toctree-l2"><a class="reference internal" href="utilities.html">distdl.utilities</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="../developer_guide/index.html">Contributor’s Guide</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../developer_guide/index.html#contributing">Contributing</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../release_history/index.html">Release History</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../acknowledgements.html">Citing &amp; Acknowledgements</a></li>
+</ul>
+
+  <div role="note" aria-label="source link">
+    <h3>This Page</h3>
+    <ul class="this-page-menu">
+      <li><a href="../_sources/code_reference/backends.rst.txt"
+            rel="nofollow">Show Source</a></li>
+    </ul>
+   </div>
+        </div>
+<div id="sidebarbutton" title="Collapse sidebar">
+<span>«</span>
+</div>
+
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="related">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="right" >
+          <a href="backends/mpi.html" title="MPI Backend"
+             accesskey="N">next</a> |</li>
+        <li class="right" >
+          <a href="functional/zero_volume_corrector.html" title="Zero Volume Corrector"
+             accesskey="P">previous</a> |</li>
+      </ul>
+    </div>
+
+    <div class="footer" role="contentinfo">
+        &#169; Copyright 2023, Microsoft.
+      Last updated on May 02, 2023.
+      Created using <a href="https://www.sphinx-doc.org/">Sphinx</a> 6.2.1.
+    </div>
+  </body>
+</html>

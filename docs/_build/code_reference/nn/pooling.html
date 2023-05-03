@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="generator" content="Docutils 0.19: https://docutils.sourceforge.io/" />
+
+    <title>Pooling Layers &#8212; DistDL 0.5.0 documentation</title>
+    <link rel="stylesheet" type="text/css" href="../../_static/pygments.css" />
+    <link rel="stylesheet" type="text/css" href="../../_static/pydoctheme.css" />
+    <link rel="stylesheet" type="text/css" href="../../_static/graphviz.css" />
+    
+    <script data-url_root="../../" id="documentation_options" src="../../_static/documentation_options.js"></script>
+    <script src="../../_static/doctools.js"></script>
+    <script src="../../_static/sphinx_highlight.js"></script>
+    <script async="async" src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+    
+    <script src="../../_static/sidebar.js"></script>
+    
+    <link rel="index" title="Index" href="../../genindex.html" />
+    <link rel="search" title="Search" href="../../search.html" />
+    <link rel="next" title="ReduceScatter Layer" href="reduce_scatter.html" />
+    <link rel="prev" title="Normalization Layers" href="norm.html" />
+    <meta http-equiv="X-UA-Compatible" content="IE=Edge" />
+    <link rel="shortcut icon" type="image/png" href="../../_static/favicon.png" />
+    <meta name="viewport" content="width=device-width,initial-scale=0.8">
+    
+    
+
+  </head><body>
+    <div class="related">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="responsive-menu"><a href="#sidebar-anchor" title="Navigation">&#9776;</a></li>
+        <li><a href="../../index.html">DistDL-0.5.0</a> &#187;</li>
+          <li><a href="../index.html" >Code Reference</a> &#187;</li>
+          <li><a href="../nn.html" accesskey="U">distdl.nn</a> &#187;</li> 
+      </ul>
+    </div>
+    
+        <div class="badge">
+            <a href="https://github.com/microsoft/distdl/">Fork me on GitHub</a>
+            <img src="../../_static/right-red@2x.png">
+        </div>
+    
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <section id="pooling-layers">
+<h1>Pooling Layers<a class="headerlink" href="#pooling-layers" title="Permalink to this heading">¶</a></h1>
+<nav class="contents local" id="contents">
+<ul class="simple">
+<li><p><a class="reference internal" href="#overview" id="id2">Overview</a></p></li>
+<li><p><a class="reference internal" href="#implementation" id="id3">Implementation</a></p>
+<ul>
+<li><p><a class="reference internal" href="#assumptions" id="id4">Assumptions</a></p></li>
+<li><p><a class="reference internal" href="#pooling-mixin" id="id5">Pooling Mixin</a></p></li>
+</ul>
+</li>
+<li><p><a class="reference internal" href="#examples" id="id6">Examples</a></p></li>
+<li><p><a class="reference internal" href="#api" id="id7">API</a></p>
+<ul>
+<li><p><a class="reference internal" href="#distdl-nn-pooling" id="id8"><code class="docutils literal notranslate"><span class="pre">distdl.nn.pooling</span></code></a></p></li>
+</ul>
+</li>
+</ul>
+</nav>
+<section id="overview">
+<h2><a class="toc-backref" href="#id2" role="doc-backlink">Overview</a><a class="headerlink" href="#overview" title="Permalink to this heading">¶</a></h2>
+<p>DistDL’s The Distributed Pooling layers use the distributed primitive
+layers to build various distributed versions of PyTorch Pooling layers.</p>
+<p>For the purposes of this documentation, we will assume that an arbitrary
+global input tensor <span class="math notranslate nohighlight">\({x}\)</span> is partitioned by <span class="math notranslate nohighlight">\(P_x\)</span>.</p>
+</section>
+<section id="implementation">
+<h2><a class="toc-backref" href="#id3" role="doc-backlink">Implementation</a><a class="headerlink" href="#implementation" title="Permalink to this heading">¶</a></h2>
+<p>Currently, all pooling operations follow the same pattern.  Therefore,
+a single base class implements the core distributed work and the
+actual pooling operation is deferred to the underlying PyTorch layer.</p>
+<p>As there are no learnable parameters in these layers, the parallelism is
+induced by partitions of the inout (and therefore output) tensors. Here, input
+(and outout) tensors that are distributed in feature-space only.</p>
+<p>Construction of this layer is driven by the partitioning of the input tensor
+<span class="math notranslate nohighlight">\(x\)</span>, only.  Thus, the partition <span class="math notranslate nohighlight">\(P_x\)</span> drives the algorithm design.
+With a pure feature-space partition, the output partition will have the same
+structure, so there is no need to specify it.</p>
+<p>In general, due to the non-centered nature of pooling kernels, halos will
+be one-sided.  See the <a class="reference external" href="https://arxiv.org/abs/2006.03108">motivating paper</a>
+for more details.</p>
+<section id="assumptions">
+<h3><a class="toc-backref" href="#id4" role="doc-backlink">Assumptions</a><a class="headerlink" href="#assumptions" title="Permalink to this heading">¶</a></h3>
+<ul class="simple">
+<li><p>The global input tensor <span class="math notranslate nohighlight">\(x\)</span> has shape <span class="math notranslate nohighlight">\(n_{\text{b}} \times
+n_{c_{\text{in}}} \times n_{D-1} \times \cdots \times n_0\)</span>.</p></li>
+<li><p>The input partition <span class="math notranslate nohighlight">\(P_x\)</span> has shape <span class="math notranslate nohighlight">\(1 \times 1 \times P_{D-1}
+\times \cdots \times P_0\)</span>, where <span class="math notranslate nohighlight">\(P_{d}\)</span> is the number of workers
+partitioning the <span class="math notranslate nohighlight">\(d^{\text{th}}\)</span> feature dimension of <span class="math notranslate nohighlight">\(x\)</span>.</p></li>
+<li><p>The global output tensor <span class="math notranslate nohighlight">\(y\)</span> will have shape <span class="math notranslate nohighlight">\(n_{\text{b}}
+\times n_{c_{\text{out}}} \times m_{D-1} \times \cdots \times m_0\)</span>.
+The precise values of <span class="math notranslate nohighlight">\(m_{D-1} \times \cdots \times m_0\)</span> are
+dependent on the input shape and the kernel parameters.</p></li>
+<li><p>The output partition <span class="math notranslate nohighlight">\(P_y\)</span> implicitly has the same shape as
+<span class="math notranslate nohighlight">\(P_x\)</span>.</p></li>
+</ul>
+<section id="forward">
+<h4>Forward<a class="headerlink" href="#forward" title="Permalink to this heading">¶</a></h4>
+<p>Under the above assumptions, the forward algorithm is:</p>
+<ol class="arabic simple">
+<li><p>Perform the halo exchange on the subtensors of <span class="math notranslate nohighlight">\(x\)</span>.  Here, <span class="math notranslate nohighlight">\(x_j\)</span>
+must be padded to accept local halo regions (in a potentially unbalanced
+way) before the halos are exchanged.  The output of this operation is
+<span class="math notranslate nohighlight">\(\hat x_j\)</span>.</p></li>
+<li><p>Perform the local forward pooling application using a PyTorch
+pooling layer.  The bias is added everywhere, as each workers output
+will be part of the output tensor.</p></li>
+</ol>
+</section>
+<section id="adjoint">
+<h4>Adjoint<a class="headerlink" href="#adjoint" title="Permalink to this heading">¶</a></h4>
+<p>The adjoint algorithm is not explicitly implemented.  PyTorch’s <code class="docutils literal notranslate"><span class="pre">autograd</span></code>
+feature automatically builds the adjoint of the Jacobian of the
+feature-distributed convolution forward application.  Essentially, the
+algorithm is as follows:</p>
+<ol class="arabic simple">
+<li><p>Each worker computes its local contribution to <span class="math notranslate nohighlight">\(\delta x\)</span>,
+given by <span class="math notranslate nohighlight">\(\delta x_j\)</span>, using PyTorch’s native implementation of
+the adjoint of the Jacobian of the local sequential pooling layer.</p></li>
+<li><p>The adjoint of the halo exchange is applied to <span class="math notranslate nohighlight">\(\delta \hat x\)</span>,
+which is then unpadded, producing the gradient input <span class="math notranslate nohighlight">\(\delta x\)</span>.</p></li>
+</ol>
+</section>
+</section>
+<section id="pooling-mixin">
+<h3><a class="toc-backref" href="#id5" role="doc-backlink">Pooling Mixin</a><a class="headerlink" href="#pooling-mixin" title="Permalink to this heading">¶</a></h3>
+<p>Some distributed pooling layers require more than their local subtensor to
+compute the correct local output.  This is governed by the “left” and “right”
+extent of the pooling window.  As these calculations are the same for all
+pooling operations, they are mixed in to every pooling layer requiring a halo
+exchange.</p>
+<section id="id1">
+<h4>Assumptions<a class="headerlink" href="#id1" title="Permalink to this heading">¶</a></h4>
+<ul class="simple">
+<li><p>Pooling kernels are not centered, the origin of the window is the “upper left”
+entry.</p></li>
+<li><p>When a kernel has even size, the left side of the kernel is the shorter side.</p></li>
+</ul>
+<div class="admonition warning">
+<p class="admonition-title">Warning</p>
+<p>Current calculations of the subtensor index ranges required do not correctly
+take padding and dilation into account.</p>
+</div>
+</section>
+</section>
+</section>
+<section id="examples">
+<h2><a class="toc-backref" href="#id6" role="doc-backlink">Examples</a><a class="headerlink" href="#examples" title="Permalink to this heading">¶</a></h2>
+</section>
+<section id="api">
+<h2><a class="toc-backref" href="#id7" role="doc-backlink">API</a><a class="headerlink" href="#api" title="Permalink to this heading">¶</a></h2>
+<section id="distdl-nn-pooling">
+<h3><a class="toc-backref" href="#id8" role="doc-backlink"><code class="docutils literal notranslate"><span class="pre">distdl.nn.pooling</span></code></a><a class="headerlink" href="#distdl-nn-pooling" title="Permalink to this heading">¶</a></h3>
+</section>
+</section>
+</section>
+
+
+            <div class="clearer"></div>
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper">
+    <a id="sidebar-anchor"></a>
+    
+
+<div id="searchbox" style="display: none" role="search">
+  <h3 id="searchlabel">Quick search</h3>
+    <div class="searchformwrapper">
+    <form class="search" action="../../search.html" method="get">
+      <input type="text" name="q" aria-labelledby="searchlabel" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"/>
+      <input type="submit" value="Go" />
+    </form>
+    </div>
+</div>
+<script>document.getElementById('searchbox').style.display = "block"</script><h3><a href="../../index.html">Table Of Contents</a></h3>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="../../user_guide/index.html">Using DistDL</a></li>
+<li class="toctree-l1 current"><a class="reference internal" href="../index.html">Code Reference</a><ul class="current">
+<li class="toctree-l2 current"><a class="reference internal" href="../nn.html">distdl.nn</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../functional.html">distdl.functional</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../backends.html">distdl.backends</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../utilities.html">distdl.utilities</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="../../developer_guide/index.html">Contributor’s Guide</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../developer_guide/index.html#contributing">Contributing</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../release_history/index.html">Release History</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../acknowledgements.html">Citing &amp; Acknowledgements</a></li>
+</ul>
+
+  <div role="note" aria-label="source link">
+    <h3>This Page</h3>
+    <ul class="this-page-menu">
+      <li><a href="../../_sources/code_reference/nn/pooling.rst.txt"
+            rel="nofollow">Show Source</a></li>
+    </ul>
+   </div>
+        </div>
+<div id="sidebarbutton" title="Collapse sidebar">
+<span>«</span>
+</div>
+
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="related">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../../genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="right" >
+          <a href="reduce_scatter.html" title="ReduceScatter Layer"
+             accesskey="N">next</a> |</li>
+        <li class="right" >
+          <a href="norm.html" title="Normalization Layers"
+             accesskey="P">previous</a> |</li>
+      </ul>
+    </div>
+
+    <div class="footer" role="contentinfo">
+        &#169; Copyright 2023, Microsoft.
+      Last updated on May 02, 2023.
+      Created using <a href="https://www.sphinx-doc.org/">Sphinx</a> 6.2.1.
+    </div>
+  </body>
+</html>

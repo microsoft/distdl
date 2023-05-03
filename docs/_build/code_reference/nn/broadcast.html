@@ -1,0 +1,405 @@
+<!DOCTYPE html>
+
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="generator" content="Docutils 0.19: https://docutils.sourceforge.io/" />
+
+    <title>Broadcast Layer &#8212; DistDL 0.5.0 documentation</title>
+    <link rel="stylesheet" type="text/css" href="../../_static/pygments.css" />
+    <link rel="stylesheet" type="text/css" href="../../_static/pydoctheme.css" />
+    <link rel="stylesheet" type="text/css" href="../../_static/graphviz.css" />
+    
+    <script data-url_root="../../" id="documentation_options" src="../../_static/documentation_options.js"></script>
+    <script src="../../_static/doctools.js"></script>
+    <script src="../../_static/sphinx_highlight.js"></script>
+    <script async="async" src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+    
+    <script src="../../_static/sidebar.js"></script>
+    
+    <link rel="index" title="Index" href="../../genindex.html" />
+    <link rel="search" title="Search" href="../../search.html" />
+    <link rel="next" title="Convolution Layers" href="convolution.html" />
+    <link rel="prev" title="AllSumReduce Layer" href="all_sum_reduce.html" />
+    <meta http-equiv="X-UA-Compatible" content="IE=Edge" />
+    <link rel="shortcut icon" type="image/png" href="../../_static/favicon.png" />
+    <meta name="viewport" content="width=device-width,initial-scale=0.8">
+    
+    
+
+  </head><body>
+    <div class="related">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="responsive-menu"><a href="#sidebar-anchor" title="Navigation">&#9776;</a></li>
+        <li><a href="../../index.html">DistDL-0.5.0</a> &#187;</li>
+          <li><a href="../index.html" >Code Reference</a> &#187;</li>
+          <li><a href="../nn.html" accesskey="U">distdl.nn</a> &#187;</li> 
+      </ul>
+    </div>
+    
+        <div class="badge">
+            <a href="https://github.com/microsoft/distdl/">Fork me on GitHub</a>
+            <img src="../../_static/right-red@2x.png">
+        </div>
+    
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <section id="broadcast-layer">
+<h1>Broadcast Layer<a class="headerlink" href="#broadcast-layer" title="Permalink to this heading">¶</a></h1>
+<nav class="contents local" id="contents">
+<ul class="simple">
+<li><p><a class="reference internal" href="#overview" id="id1">Overview</a></p></li>
+<li><p><a class="reference internal" href="#motivation" id="id2">Motivation</a></p></li>
+<li><p><a class="reference internal" href="#implementation" id="id3">Implementation</a></p>
+<ul>
+<li><p><a class="reference internal" href="#assumptions" id="id4">Assumptions</a></p></li>
+<li><p><a class="reference internal" href="#forward" id="id5">Forward</a></p></li>
+<li><p><a class="reference internal" href="#adjoint" id="id6">Adjoint</a></p></li>
+</ul>
+</li>
+<li><p><a class="reference internal" href="#broadcast-rules" id="id7">Broadcast Rules</a></p>
+<ul>
+<li><p><a class="reference internal" href="#standard-broadcasts" id="id8">Standard Broadcasts</a></p></li>
+<li><p><a class="reference internal" href="#broadcasts-with-transpose-src-true" id="id9">Broadcasts with <code class="docutils literal notranslate"><span class="pre">transpose_src</span> <span class="pre">=</span> <span class="pre">True</span></code></a></p></li>
+<li><p><a class="reference internal" href="#broadcasts-with-transpose-dest-true" id="id10">Broadcasts with <code class="docutils literal notranslate"><span class="pre">transpose_dest</span> <span class="pre">=</span> <span class="pre">True</span></code></a></p></li>
+</ul>
+</li>
+<li><p><a class="reference internal" href="#examples" id="id11">Examples</a></p></li>
+<li><p><a class="reference internal" href="#api" id="id12">API</a></p></li>
+</ul>
+</nav>
+<section id="overview">
+<h2><a class="toc-backref" href="#id1" role="doc-backlink">Overview</a><a class="headerlink" href="#overview" title="Permalink to this heading">¶</a></h2>
+<p>The Broadcast distributed data movement primitive copies data from one worker
+(or set of workers) to another.</p>
+<p>In DistDL, broadcasts map data from tensors on one partition to copies of
+those tensors on another partition.  The broadcast operation applies for
+partitions with and without a (Cartesian) topology.  Topologies may be mixed
+if the requirements supporting the <a class="reference internal" href="#broadcast-rules"><span class="std std-ref">Broadcast Rules</span></a> are satisfied.</p>
+<p>For the purposes of this documentation, we will assume that an arbitrary
+global input tensor <span class="math notranslate nohighlight">\({x}\)</span> is partitioned by <span class="math notranslate nohighlight">\(P_x\)</span> and that another
+partition <span class="math notranslate nohighlight">\(P_y\)</span> exists.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>The definition of a broadcast in DistDL goes beyond the classical parallel
+broadcast operation, for example, <code class="docutils literal notranslate"><span class="pre">MPI_Bcast()</span></code> in MPI.  Such broadcasts
+typically assume 1-dimensional arrays, broadcast <em>within</em> a group of workers,
+and neither impose nor exploit topological structure on the set of workers.</p>
+</div>
+</section>
+<section id="motivation">
+<h2><a class="toc-backref" href="#id2" role="doc-backlink">Motivation</a><a class="headerlink" href="#motivation" title="Permalink to this heading">¶</a></h2>
+<p>In distributed deep learning, there are many applications of the broadcast
+primitive.  Depending on computation distribution, and thus partition
+structure, any tensor in a distributed layer may need to be broadcast.  For
+example, in distributed <a class="reference internal" href="convolution.html#convolution-layers"><span class="std std-ref">Convolution Layers</span></a>, a simple partition of the input tensor in feature space only requires
+that (small) weight and bias tensors need to be broadcast to all workers.  In
+distributed <a class="reference internal" href="linear.html#linear-layer"><span class="std std-ref">Linear Layers</span></a>, the
+weight tensor is partitioned and the input tensor needs to be broadcast along
+the flattened feature dimension.</p>
+</section>
+<section id="implementation">
+<h2><a class="toc-backref" href="#id3" role="doc-backlink">Implementation</a><a class="headerlink" href="#implementation" title="Permalink to this heading">¶</a></h2>
+<p>A back-end functional implementation supporting DistDL
+<code class="xref py py-class docutils literal notranslate"><span class="pre">Broadcast</span></code> must follow the
+<a class="reference internal" href="#broadcast-rules"><span class="std std-ref">Broadcast Rules</span></a> and must also support the
+following options:</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">transpose_src</span></code>, a boolean which tells the broadcast algorithm to
+transpose <span class="math notranslate nohighlight">\(P_x\)</span> by implicitly reversing its shape. (Default <code class="docutils literal notranslate"><span class="pre">False</span></code>)</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">transpose_dest</span></code>, a boolean which tells the broadcast algorithm to
+transpose <span class="math notranslate nohighlight">\(P_y\)</span> by implicitly reversing its shape. (Default <code class="docutils literal notranslate"><span class="pre">False</span></code>)</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">preserve_batch</span></code>, a boolean which tells the broadcast algorithm to ensure
+that any zero-volume outputs retain the batch size, or first dimension shape,
+of the input tensor.  (Default <code class="docutils literal notranslate"><span class="pre">True</span></code>)</p></li>
+</ul>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>While it may appear that <code class="docutils literal notranslate"><span class="pre">transpose_src</span></code> and <code class="docutils literal notranslate"><span class="pre">transpose_dest</span></code> will have
+equivalent impact, this is not true because we allow <span class="math notranslate nohighlight">\(\text{dim}(P_x)
+&lt; \text{dim}(P_y)\)</span>.  Moreover, when it is true that they are equivalent,
+there can be semantic information conveyed by the choice of which partition
+to transpose.</p>
+</div>
+<p>To support some slightly different broadcast patterns, users can implicitly
+transpose the input or output partitions.  In either transposition, the
+shape of the partition is implicitly reversed but the structure of the input
+or output tensor is not changed.</p>
+<section id="assumptions">
+<h3><a class="toc-backref" href="#id4" role="doc-backlink">Assumptions</a><a class="headerlink" href="#assumptions" title="Permalink to this heading">¶</a></h3>
+<ul class="simple">
+<li><p>The broadcast operation is <em>not</em> in-place.  Even if a worker is both a data
+source and a data destination and even if that data is the same (i.e., the
+operation is locally an identity), a Torch <code class="docutils literal notranslate"><span class="pre">.clone()</span></code> of the tensor is
+returned.</p></li>
+<li><p>A worker may be active in the input partition, output partition, both
+partitions, or neither partition.</p></li>
+<li><p>If a worker is active in both partitions, it may return different data than
+it takes as input.</p></li>
+</ul>
+</section>
+<section id="forward">
+<h3><a class="toc-backref" href="#id5" role="doc-backlink">Forward</a><a class="headerlink" href="#forward" title="Permalink to this heading">¶</a></h3>
+<p>The forward operation copies tensors from <span class="math notranslate nohighlight">\(P_x\)</span> to <span class="math notranslate nohighlight">\(P_y\)</span>, along
+the broadcastable dimensions of the input partition.</p>
+<ul class="simple">
+<li><p>A worker that is active in <span class="math notranslate nohighlight">\(P_x\)</span> and <span class="math notranslate nohighlight">\(P_y\)</span> will take a subtensor
+of <span class="math notranslate nohighlight">\(x\)</span> as input and return a (potentially different) subtensor of
+<span class="math notranslate nohighlight">\(x\)</span> as output.</p></li>
+<li><p>A worker that is active only in <span class="math notranslate nohighlight">\(P_x\)</span> will take a subtensor of
+<span class="math notranslate nohighlight">\(x\)</span> as input and return a zero-volume tensor, optionally with the same
+first dimension (batch size) as the input.</p></li>
+<li><p>A worker that is active only in <span class="math notranslate nohighlight">\(P_y\)</span> will take a zero-volume tensor
+as input and return a subtensor of <span class="math notranslate nohighlight">\(x\)</span> as output.</p></li>
+<li><p>A worker that is active in neither partition will take a zero-volume tensor
+as input and return a clone of that tensor as output.</p></li>
+</ul>
+<p>This class provides only an interface to the back-end implementation of the
+forward algorithm.  This interface does not impose any mechanism for
+performing this copy.  Performance details and optimizations are back-end
+dependent.</p>
+<p>The back-end forward operation is implemented through the <a class="reference external" href="https://pytorch.org/docs/stable/autograd.html">PyTorch autograd</a> functional interface and
+called through the Broadcast <code class="xref py py-meth docutils literal notranslate"><span class="pre">forward()</span></code> function.</p>
+</section>
+<section id="adjoint">
+<h3><a class="toc-backref" href="#id6" role="doc-backlink">Adjoint</a><a class="headerlink" href="#adjoint" title="Permalink to this heading">¶</a></h3>
+<p>The adjoint (backward) operation sum-reduces tensors from <span class="math notranslate nohighlight">\(P_y\)</span> back to
+<span class="math notranslate nohighlight">\(P_x\)</span>, along the broadcastable dimensions of the input partition.</p>
+<ul class="simple">
+<li><p>A worker that is active in <span class="math notranslate nohighlight">\(P_x\)</span> and <span class="math notranslate nohighlight">\(P_y\)</span> will take a subtensor
+of <span class="math notranslate nohighlight">\(\partial x\)</span> as input and return a (potentially different)
+subtensor of <span class="math notranslate nohighlight">\(\partial x\)</span> as output.</p></li>
+<li><p>A worker that is active only in <span class="math notranslate nohighlight">\(P_x\)</span> will take a zero-volume tensor
+as input and return a subtensor of <span class="math notranslate nohighlight">\(\partial x\)</span> as output.</p></li>
+<li><p>A worker that is active only in <span class="math notranslate nohighlight">\(P_y\)</span> will take a subtensor of
+<span class="math notranslate nohighlight">\(\partial x\)</span> as input and return a zero-volume tensor, optionally with
+the same first dimension (batch size) as the original tensor <span class="math notranslate nohighlight">\(x\)</span>.</p></li>
+<li><p>A worker that is active in neither partition will take a zero-volume tensor
+as input and return a clone of that tensor as output.</p></li>
+</ul>
+<p>This class provides only an interface to the back-end implementation of the
+adjoint algorithm.  This interface does not impose any mechanism for
+performing this sum-reduction.  Performance details and optimizations are
+back-end dependent.</p>
+<p>The adjoint operation (PyTorch grad function class) is generated automatically
+via autograd and calls the <code class="docutils literal notranslate"><span class="pre">backward()</span></code> function implemented by the back-end
+functional interface.</p>
+</section>
+</section>
+<section id="broadcast-rules">
+<h2><a class="toc-backref" href="#id7" role="doc-backlink">Broadcast Rules</a><a class="headerlink" href="#broadcast-rules" title="Permalink to this heading">¶</a></h2>
+<p>DistDL <code class="xref py py-class docutils literal notranslate"><span class="pre">Broadcast</span></code> layers broadcast along partition
+dimensions following rules similar to the <a class="reference external" href="https://numpy.org/doc/stable/user/basics.broadcasting.html#general-broadcasting-rules">NumPy broadcast rules</a>.
+Tensors mapped onto DistDL partitions will broadcast (copy) along a dimension
+when</p>
+<ol class="arabic simple">
+<li><p>the shape of <span class="math notranslate nohighlight">\(P_x\)</span> in that dimension matches the shape of <span class="math notranslate nohighlight">\(P_y\)</span>
+in that dimension, or</p></li>
+<li><p>the shape of <span class="math notranslate nohighlight">\(P_x\)</span> in that dimension is 1.</p></li>
+</ol>
+<p>The major difference between these broadcast rules and the NumPy broadcast
+rules are that Rule 2 for NumPy arrays allows the either array to have shape 1
+in that dimension, but in DistDL, only the input partition can have shape 1.
+Like NumPy, <span class="math notranslate nohighlight">\(P_x\)</span> and <span class="math notranslate nohighlight">\(P_y\)</span> do not have to have the same shape,
+however, it is required that <span class="math notranslate nohighlight">\(\text{dim}(P_x) \le \text{dim}(P_y)\)</span>.
+When the dimensions do not match, <span class="math notranslate nohighlight">\(P_x\)</span> is implicitly extended <em>to the
+left</em> with ones until the dimension does match.</p>
+<p>In the following examples, subtensors are defined by the black partition
+borders.  There is one worker per subtensor in each partition.  Like colors
+indicate subtensors that interact in the broadcast.  For example, the blue
+subtensor in <span class="math notranslate nohighlight">\(P_x\)</span> broadcasts to the blue subtensors in <span class="math notranslate nohighlight">\(P_y\)</span>.</p>
+<section id="standard-broadcasts">
+<h3><a class="toc-backref" href="#id8" role="doc-backlink">Standard Broadcasts</a><a class="headerlink" href="#standard-broadcasts" title="Permalink to this heading">¶</a></h3>
+<section id="example-1">
+<h4>Example 1<a class="headerlink" href="#example-1" title="Permalink to this heading">¶</a></h4>
+<p>A partition with shape <span class="math notranslate nohighlight">\(1\)</span> broadcasts to a partition with shape
+<span class="math notranslate nohighlight">\(4\)</span>.  The shape of the tensor is irrelevant.</p>
+<figure class="align-default">
+<img alt="Image of 1 to 4 broadcast." src="../../_images/broadcast_1_to_4.png" />
+</figure>
+</section>
+<section id="example-2">
+<h4>Example 2<a class="headerlink" href="#example-2" title="Permalink to this heading">¶</a></h4>
+<p>A partition with shape <span class="math notranslate nohighlight">\(1\)</span> broadcasts to a partition with shape <span class="math notranslate nohighlight">\(2
+\times 3\)</span>. <span class="math notranslate nohighlight">\(P_x\)</span> is implicitly extended to <span class="math notranslate nohighlight">\(1 \times 1\)</span>.</p>
+<figure class="align-default">
+<img alt="Image of 1 to 2x3 broadcast." src="../../_images/broadcast_1_to_2x3.png" />
+</figure>
+</section>
+<section id="example-3">
+<h4>Example 3<a class="headerlink" href="#example-3" title="Permalink to this heading">¶</a></h4>
+<p>A partition with shape <span class="math notranslate nohighlight">\(3 \times 1\)</span> broadcasts to a partition with shape
+<span class="math notranslate nohighlight">\(3 \times 4\)</span>.</p>
+<figure class="align-default">
+<img alt="Image of 3x1 to 3x4 broadcast." src="../../_images/broadcast_3x1_to_3x4.png" />
+</figure>
+</section>
+<section id="example-4">
+<h4>Example 4<a class="headerlink" href="#example-4" title="Permalink to this heading">¶</a></h4>
+<p>A partition with shape <span class="math notranslate nohighlight">\(1 \times 1 \times 3\)</span> broadcasts to a partition
+with shape <span class="math notranslate nohighlight">\(4 \times 4 \times 3\)</span>.</p>
+<figure class="align-default">
+<img alt="Image of 1x1x3 to 4x4x3 broadcast." src="../../_images/broadcast_1x1x3_to_4x4x3.png" />
+</figure>
+</section>
+<section id="example-5">
+<h4>Example 5<a class="headerlink" href="#example-5" title="Permalink to this heading">¶</a></h4>
+<p>A partition with shape <span class="math notranslate nohighlight">\(1 \times 1 \times 3\)</span> <strong>does not broadcast</strong> to a
+partition with shape <span class="math notranslate nohighlight">\(3 \times 3 \times 2\)</span>.</p>
+<figure class="align-default">
+<img alt="Image of failed 1x1x3 to 3x3x2 broadcast." src="../../_images/broadcast_1x1x3_to_3x3x2.png" />
+</figure>
+</section>
+<section id="example-6">
+<h4>Example 6<a class="headerlink" href="#example-6" title="Permalink to this heading">¶</a></h4>
+<p>A partition with shape <span class="math notranslate nohighlight">\(1 \times 3\)</span> <strong>does not broadcast</strong> to a
+partition with shape <span class="math notranslate nohighlight">\(3 \times 1\)</span>.  If either <code class="docutils literal notranslate"><span class="pre">transpose_src</span></code> or
+<code class="docutils literal notranslate"><span class="pre">transpose_dest</span></code> are <code class="docutils literal notranslate"><span class="pre">True</span></code>, then this <em>will</em> broadcast.  However, it will
+not be an identity broadcast because there is no guarantee that no
+data movement is required.</p>
+<figure class="align-default">
+<img alt="Image of failed 1x3 to 3x1 broadcast." src="../../_images/broadcast_1x3_to_3x1.png" />
+</figure>
+</section>
+</section>
+<section id="broadcasts-with-transpose-src-true">
+<h3><a class="toc-backref" href="#id9" role="doc-backlink">Broadcasts with <code class="docutils literal notranslate"><span class="pre">transpose_src</span> <span class="pre">=</span> <span class="pre">True</span></code></a><a class="headerlink" href="#broadcasts-with-transpose-src-true" title="Permalink to this heading">¶</a></h3>
+<p>When <code class="docutils literal notranslate"><span class="pre">transpose_src</span></code> is <code class="docutils literal notranslate"><span class="pre">True</span></code>, the shape of the input partition is
+implicitly reversed.  Thus, if <span class="math notranslate nohighlight">\(P_x\)</span> has shape <span class="math notranslate nohighlight">\(1 \times 3 \times
+4\)</span>, the broadcast behaves as if it is has shape <span class="math notranslate nohighlight">\(4 \times 3 \times 1\)</span>.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>If <span class="math notranslate nohighlight">\(P_x\)</span> has shape <span class="math notranslate nohighlight">\(3 \times 4\)</span>, the transpose occurs <em>before</em>
+the left side is padded with ones, so the effective shape is <span class="math notranslate nohighlight">\(1 \times 4
+\times 3\)</span>.</p>
+</div>
+<section id="example-7">
+<h4>Example 7<a class="headerlink" href="#example-7" title="Permalink to this heading">¶</a></h4>
+<p>A partition with shape <span class="math notranslate nohighlight">\(1 \times 3\)</span> broadcasts to a partition with shape
+<span class="math notranslate nohighlight">\(3 \times 4\)</span> if <code class="docutils literal notranslate"><span class="pre">transpose_src</span> <span class="pre">=</span> <span class="pre">True</span></code>.</p>
+<figure class="align-default">
+<img alt="Image of 1x3 to 3x4 broadcast using transpose_src." src="../../_images/broadcast_1x3_to_3x4.png" />
+</figure>
+</section>
+</section>
+<section id="broadcasts-with-transpose-dest-true">
+<h3><a class="toc-backref" href="#id10" role="doc-backlink">Broadcasts with <code class="docutils literal notranslate"><span class="pre">transpose_dest</span> <span class="pre">=</span> <span class="pre">True</span></code></a><a class="headerlink" href="#broadcasts-with-transpose-dest-true" title="Permalink to this heading">¶</a></h3>
+<p>When <code class="docutils literal notranslate"><span class="pre">transpose_dest</span></code> is <code class="docutils literal notranslate"><span class="pre">True</span></code>, the shape of the output partition is
+implicitly reversed.  Thus, if <span class="math notranslate nohighlight">\(P_y\)</span> has shape <span class="math notranslate nohighlight">\(1 \times 3 \times
+4\)</span>, the broadcast behaves as if it is has shape <span class="math notranslate nohighlight">\(4 \times 3 \times 1\)</span>.</p>
+<section id="example-8">
+<h4>Example 8<a class="headerlink" href="#example-8" title="Permalink to this heading">¶</a></h4>
+<p>A partition with shape <span class="math notranslate nohighlight">\(4 \times 1\)</span> broadcasts to a partition with shape
+<span class="math notranslate nohighlight">\(3 \times 4\)</span> if <code class="docutils literal notranslate"><span class="pre">transpose_dest</span> <span class="pre">=</span> <span class="pre">True</span></code>.</p>
+<figure class="align-default">
+<img alt="Image of 1x3 to 3x4 broadcast using transpose_dest." src="../../_images/broadcast_4x1_to_3x4.png" />
+</figure>
+</section>
+</section>
+</section>
+<section id="examples">
+<h2><a class="toc-backref" href="#id11" role="doc-backlink">Examples</a><a class="headerlink" href="#examples" title="Permalink to this heading">¶</a></h2>
+<p>To replicate a 2-dimensional tensor that is partitioned by a <code class="docutils literal notranslate"><span class="pre">1</span> <span class="pre">x</span> <span class="pre">3</span></code> partition
+onto a <code class="docutils literal notranslate"><span class="pre">4</span> <span class="pre">x</span> <span class="pre">3</span></code> partition:</p>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">P_x_base</span> <span class="o">=</span> <span class="n">P_world</span><span class="o">.</span><span class="n">create_partition_inclusive</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">3</span><span class="p">))</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">P_x</span> <span class="o">=</span> <span class="n">P_x_base</span><span class="o">.</span><span class="n">create_cartesian_topology_partition</span><span class="p">([</span><span class="mi">1</span><span class="p">,</span> <span class="mi">3</span><span class="p">])</span>
+<span class="gp">&gt;&gt;&gt;</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">P_y_base</span> <span class="o">=</span> <span class="n">P_world</span><span class="o">.</span><span class="n">create_partition_inclusive</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">12</span><span class="p">))</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">P_y</span> <span class="o">=</span> <span class="n">P_y_base</span><span class="o">.</span><span class="n">create_cartesian_topology_partition</span><span class="p">([</span><span class="mi">4</span><span class="p">,</span> <span class="mi">3</span><span class="p">])</span>
+<span class="gp">&gt;&gt;&gt;</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">x_local_shape</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="mi">7</span><span class="p">,</span> <span class="mi">5</span><span class="p">])</span>
+<span class="gp">&gt;&gt;&gt;</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">layer</span> <span class="o">=</span> <span class="n">Broadcast</span><span class="p">(</span><span class="n">P_x</span><span class="p">,</span> <span class="n">P_y</span><span class="p">,</span> <span class="n">preserve_batch</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt;</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">x</span> <span class="o">=</span> <span class="n">zero_volume_tensor</span><span class="p">()</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="k">if</span> <span class="n">P_x</span><span class="o">.</span><span class="n">active</span><span class="p">:</span>
+<span class="gp">&gt;&gt;&gt; </span>    <span class="n">x</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">rand</span><span class="p">(</span><span class="o">*</span><span class="n">x_local_shape</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt;</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">y</span> <span class="o">=</span> <span class="n">layer</span><span class="p">(</span><span class="n">x</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>Here, 4 copies of each subtensor of <span class="math notranslate nohighlight">\({x}\)</span> will be created.</p>
+</section>
+<section id="api">
+<h2><a class="toc-backref" href="#id12" role="doc-backlink">API</a><a class="headerlink" href="#api" title="Permalink to this heading">¶</a></h2>
+</section>
+</section>
+
+
+            <div class="clearer"></div>
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper">
+    <a id="sidebar-anchor"></a>
+    
+
+<div id="searchbox" style="display: none" role="search">
+  <h3 id="searchlabel">Quick search</h3>
+    <div class="searchformwrapper">
+    <form class="search" action="../../search.html" method="get">
+      <input type="text" name="q" aria-labelledby="searchlabel" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"/>
+      <input type="submit" value="Go" />
+    </form>
+    </div>
+</div>
+<script>document.getElementById('searchbox').style.display = "block"</script><h3><a href="../../index.html">Table Of Contents</a></h3>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="../../user_guide/index.html">Using DistDL</a></li>
+<li class="toctree-l1 current"><a class="reference internal" href="../index.html">Code Reference</a><ul class="current">
+<li class="toctree-l2 current"><a class="reference internal" href="../nn.html">distdl.nn</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../functional.html">distdl.functional</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../backends.html">distdl.backends</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../utilities.html">distdl.utilities</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="../../developer_guide/index.html">Contributor’s Guide</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../developer_guide/index.html#contributing">Contributing</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../release_history/index.html">Release History</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../acknowledgements.html">Citing &amp; Acknowledgements</a></li>
+</ul>
+
+  <div role="note" aria-label="source link">
+    <h3>This Page</h3>
+    <ul class="this-page-menu">
+      <li><a href="../../_sources/code_reference/nn/broadcast.rst.txt"
+            rel="nofollow">Show Source</a></li>
+    </ul>
+   </div>
+        </div>
+<div id="sidebarbutton" title="Collapse sidebar">
+<span>«</span>
+</div>
+
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="related">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../../genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="right" >
+          <a href="convolution.html" title="Convolution Layers"
+             accesskey="N">next</a> |</li>
+        <li class="right" >
+          <a href="all_sum_reduce.html" title="AllSumReduce Layer"
+             accesskey="P">previous</a> |</li>
+      </ul>
+    </div>
+
+    <div class="footer" role="contentinfo">
+        &#169; Copyright 2023, Microsoft.
+      Last updated on May 02, 2023.
+      Created using <a href="https://www.sphinx-doc.org/">Sphinx</a> 6.2.1.
+    </div>
+  </body>
+</html>
