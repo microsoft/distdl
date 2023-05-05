@@ -98,13 +98,13 @@ DistDL is currently still in private development and needs to be installed from 
 GPU
 ---
 
-If a GPU is available on the system, CUDA support can be enabled by passing the cuda version as an argument to the install command. Use ``cuda11x`` for CUDA 11.* or ``cuda12x`` for CUDA 12.*.
+If a GPU is available on the system, CUDA support can be enabled by passing the cuda version as an argument to the install command. Use ``cuda11x`` for CUDA 11.* or ``cuda12x`` for CUDA 12.*:
 
 .. code-block:: bash
 
     pip install -e .[cuda11x]
 
-NCCL support must currently be enables manually by running the following command (using either ``11.x`` or ``12.x`` as appropriate):
+NCCL support must currently be enabled manually by running the following command (using either ``11.x`` or ``12.x``):
 
 .. code-block:: bash
 
