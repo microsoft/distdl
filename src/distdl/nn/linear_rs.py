@@ -206,6 +206,25 @@ class DistributedLinearReduceScatter(Module):
             bound = 1 / math.sqrt(fan_in) if fan_in > 0 else 0
             init.uniform_(self.bias, -bound, bound)
 
+    def _unsqueeze_weight(self, weight):
+        shape = [1]*self.P_y.dim
+        shape[-2] = weight.shape[-2]
+        shape[-1] = weight.shape[-1]
+        return weight.view(shape)
+
+    def _squeeze_weight(self, weight):
+        c_out, c_in = weight.shape[-2:]
+        return weight.view(c_out, c_in)
+
+    def _unsqueeze_bias(self, bias):
+        shape = [1]*self.P_y.dim
+        shape[-2] = bias.shape[0]
+        return bias.view(shape)
+
+    def _squeeze_bias(self, bias):
+        c_out = bias.shape[-2]
+        return bias.view(c_out)
+
     def gather_state_dict(self, module, destination, prefix, *args):
 
         if self.collect_state and self.P_x.active:
@@ -215,22 +234,18 @@ class DistributedLinearReduceScatter(Module):
                 bias_key = next(reversed(destination))
                 bias = destination.pop(bias_key)
 
-                if self.P_store_bias.active:
-                    torch.save(bias, bias_key)
-
             # Collect weights (second last entry added to dict)
             weight_key = next(reversed(destination))
             weight = self.gather_weight(destination.pop(weight_key))
 
             # Serialize weights
             if self.P_root.active:
-                torch.save(weight, weight_key)
 
                 # Add filenames back to state dict
-                destination[weight_key] = weight_key
+                destination[weight_key] = self._squeeze_weight(weight)
 
                 if self.use_bias:
-                    destination[bias_key] = bias_key
+                    destination[bias_key] = self._squeeze_bias(bias)
                 
         return destination
 
@@ -239,10 +254,9 @@ class DistributedLinearReduceScatter(Module):
 
             # Scatter weights
             weight_key = next(iter(destination))
-            destination.pop(weight_key)
+            weight = destination.pop(weight_key)
             if self.P_root.active:
-                pass
-                weight = torch.load(weight_key)
+                weight = self._unsqueeze_weight(weight)
             else:
                 weight = zero_volume_tensor(device=self.P_x.device, requires_grad=True)
             if self.P_weight.active:
@@ -251,10 +265,10 @@ class DistributedLinearReduceScatter(Module):
             # Load bias
             if self.use_bias:
                 bias_key = next(iter(destination))
-                destination.pop(bias_key)
+                bias = destination.pop(bias_key)
 
                 if self.P_store_bias.active:
-                    bias = torch.load(bias_key)
+                    bias = self._unsqueeze_bias(bias)
                     destination[bias_key] = bias
 
                 elif self.P_apply_bias.active:

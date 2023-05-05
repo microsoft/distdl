@@ -71,6 +71,8 @@ class DistributedLayerNorm(Module):
         dim_reduce_slice = slice(P_x.dim - num_dim, P_x.dim)   # dimensions across which we compute mean/var over
         dim_bcast_slice = slice(0, P_x.dim - num_dim)  # dimensions across which we broadcast weights/biases over
         self.num_reduce = np.prod(P_x.shape[dim_reduce_slice])   
+        self.dim_bcast_slice = dim_bcast_slice
+        self.dim_reduce_slice = dim_reduce_slice
 
         if self.elementwise_affine:
             
@@ -136,8 +138,6 @@ class DistributedLayerNorm(Module):
             # Pop bias from state dict and serialize it
             bias_key = next(reversed(destination))
             bias = self.gather(destination.pop(bias_key))
-            if self.P_root.active:
-                torch.save(bias, bias_key)
 
             # Pop weight from state dict and serialize it
             weight_key = next(reversed(destination))
@@ -145,11 +145,14 @@ class DistributedLayerNorm(Module):
 
             # Serialize weights
             if self.P_root.active:
-                torch.save(weight, weight_key)
+
+                # Bring into same shape as the serial torch version
+                weight = weight.view(weight.shape[self.dim_reduce_slice])
+                bias = bias.view(bias.shape[self.dim_reduce_slice])
 
                 # Add filenames back to state dict
-                destination[weight_key] = weight_key
-                destination[bias_key] = bias_key
+                destination[weight_key] = weight
+                destination[bias_key] = bias
 
         return destination
 
@@ -158,14 +161,16 @@ class DistributedLayerNorm(Module):
             
             # Pop entries from state dict
             weight_key = next(iter(destination))
-            destination.pop(weight_key)
+            weight = destination.pop(weight_key)
             bias_key = next(iter(destination))
-            destination.pop(bias_key)
+            bias = destination.pop(bias_key)
 
             # Load states
-            if self.P_root.active:
-                weight = torch.load(weight_key)
-                bias = torch.load(bias_key)
+            if self.P_root.active:                
+                # Bring from PyTorch into DistDL shape (add dimensions for broadcasting)
+                weight = weight.view(*self.weight.shape[self.dim_bcast_slice], -1)
+                bias = bias.view(*self.bias.shape[self.dim_bcast_slice], -1)
+
             else:
                 weight = zero_volume_tensor(device=self.P_x.device, requires_grad=True)
                 bias = zero_volume_tensor(device=self.P_x.device, requires_grad=True)

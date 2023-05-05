@@ -236,6 +236,15 @@ class DistributedLinearAllGatherZero(Module):
         c_out = weight.shape[-2]
         return weight.view(c_in, c_out)
 
+    def _unsqueeze_bias(self, bias):
+        shape = [1]*self.P_y.dim
+        shape[-2] = bias.shape[0]
+        return bias.view(shape)
+
+    def _squeeze_bias(self, bias):
+        c_out = bias.shape[-2]
+        return bias.view(c_out)
+
     # If we collect the weights on the root worker, we need to rearrange the weights, 
     # such that the split into QKV occurs in the 2nd slowest dimension (dim 1). This 
     # enables us to load weights for a different partitioning scheme than they were 
@@ -275,6 +284,10 @@ class DistributedLinearAllGatherZero(Module):
         weight = rearrange(self._squeeze_weight(weight), "n (v p h) -> n (p v h)", 
             p=num_gpu, v=2, h=weight_size)
         return self._unsqueeze_weight(weight)
+
+    # def squeeze_except(self, x, dims):
+    #     dims_to_squeeze = tuple(dim for dim in range(x.dim()) if dim not in dims)
+    #     return x.squeeze(*dims_to_squeeze)
         
     def gather_state_dict(self, module, destination, prefix, *args):
 
@@ -289,7 +302,6 @@ class DistributedLinearAllGatherZero(Module):
                 if self.P_root.active:
                     if self.num_heads is not None: bias = self.qkv_weight_to_serial(bias)
                     if self.geglu: bias = self.geglu_weight_to_serial(bias)
-                    torch.save(bias, bias_key)
 
             # Collect weights and serialize (second last entry added to dict)
             weight_key = next(reversed(destination))
@@ -298,14 +310,14 @@ class DistributedLinearAllGatherZero(Module):
             if self.P_root.active:
                 if self.num_heads is not None: weight = self.qkv_weight_to_serial(weight)   # [ c_in, c_out, 1]
                 if self.geglu: weight = self.geglu_weight_to_serial(weight)
-                torch.save(weight, weight_key)
 
                 # Save filenames in state dict rather than the full weights. Only the root
                 # should have the keys in the end.
-                destination[weight_key] = weight_key
+                weight = self._squeeze_weight(weight).permute(1, 0)
+                destination[weight_key] = weight
 
                 if self.use_bias:
-                    destination[bias_key] = bias_key
+                    destination[bias_key] = self._squeeze_bias(bias)
 
         return destination
 
@@ -314,9 +326,9 @@ class DistributedLinearAllGatherZero(Module):
 
             # Scatter weights
             weight_key = next(iter(destination))
-            destination.pop(weight_key)
+            weight = destination.pop(weight_key)
             if self.P_root.active:
-                weight = torch.load(weight_key)
+                weight = self._unsqueeze_weight(weight.permute(1, 0))
                 if self.num_heads is not None: weight = self.qkv_weight_to_parallel(weight)
                 if self.geglu: weight = self.geglu_weight_to_parallel(weight)
             else:
@@ -327,9 +339,9 @@ class DistributedLinearAllGatherZero(Module):
             # Scatter bias
             if self.use_bias:
                 bias_key = next(iter(destination))
-                destination.pop(bias_key)
+                bias = destination.pop(bias_key)
                 if self.P_root.active:
-                    bias = torch.load(bias_key)
+                    bias = self._unsqueeze_bias(bias)
                     if self.num_heads is not None: bias = self.qkv_weight_to_parallel(bias)
                     if self.geglu: bias = self.geglu_weight_to_parallel(bias)
                 elif self.P_weight.active:

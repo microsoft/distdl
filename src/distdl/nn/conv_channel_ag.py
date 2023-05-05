@@ -262,9 +262,6 @@ class _DistributedChannelAllGatherConvNd(Module):
                     bias = destination.pop(bias_key)
                 bias = self.gather_bias(bias).squeeze()
 
-                if self.P_root.active:
-                    torch.save(bias, bias_key)
-
             # Collect weights and serialize (second last entry added to dict)
             weight_key = next(reversed(destination))
             weight = destination.pop(weight_key)
@@ -275,14 +272,13 @@ class _DistributedChannelAllGatherConvNd(Module):
                 weight = einops.rearrange(weight, 'b a ... -> a b ...')
 
             if self.P_root.active:
-                torch.save(weight, weight_key)
 
                 # Save filenames in state dict rather than the full weights. Only the root
                 # should have the keys in the end.
-                destination[weight_key] = weight_key
+                destination[weight_key] = weight
 
                 if self.use_bias:
-                    destination[bias_key] = bias_key
+                    destination[bias_key] = bias
 
         return destination
 
@@ -291,9 +287,8 @@ class _DistributedChannelAllGatherConvNd(Module):
 
             # Scatter weights
             weight_key = next(iter(destination))
-            destination.pop(weight_key)
+            weight = destination.pop(weight_key)
             if self.P_root.active:
-                weight = torch.load(weight_key)
                 if not self.transposed:
                     weight = einops.rearrange(weight, 'a b ... -> b a ...')
             else:
@@ -306,9 +301,8 @@ class _DistributedChannelAllGatherConvNd(Module):
             # Scatter bias
             if self.use_bias:
                 bias_key = next(iter(destination))
-                destination.pop(bias_key)
+                bias = destination.pop(bias_key)
                 if self.P_root.active:
-                    bias = torch.load(bias_key)
                     bias_shape = [1] * self.P_x.dim
                     bias_shape[1] = bias.shape[0]
                     bias = bias.view(bias_shape)

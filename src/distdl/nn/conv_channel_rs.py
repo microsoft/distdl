@@ -267,14 +267,11 @@ class _DistributedChannelReduceScatterConvNd(Module):
     def gather_state_dict(self, module, destination, prefix, *args):
 
         if self.collect_state and self.P_x.active:
-            if self.bias is not None:   #self.use_bias and self.bias is not None:
+            if self.bias is not None:
                 
                 # Pop bias from state dict and serialize it
                 bias_key = next(reversed(destination))
                 bias = destination.pop(bias_key)
-
-                if self.P_store_bias.active:
-                    torch.save(bias, bias_key)
 
             # Collect weights (second last entry added to dict)
             weight_key = next(reversed(destination))
@@ -287,13 +284,12 @@ class _DistributedChannelReduceScatterConvNd(Module):
 
             # Serialize weights
             if self.P_root.active:
-                torch.save(weight, weight_key)
 
                 # Add filenames back to state dict
-                destination[weight_key] = weight_key
+                destination[weight_key] = weight
 
                 if self.use_bias:
-                    destination[bias_key] = bias_key
+                    destination[bias_key] = bias
                 
         return destination
 
@@ -302,9 +298,8 @@ class _DistributedChannelReduceScatterConvNd(Module):
 
             # Scatter weights
             weight_key = next(iter(destination))
-            destination.pop(weight_key)
+            weight = destination.pop(weight_key)
             if self.P_root.active:
-                weight = torch.load(weight_key)
                 if self.transposed:
                     weight = einops.rearrange(weight, 'a b ... -> b a ...')
             else:
@@ -317,10 +312,9 @@ class _DistributedChannelReduceScatterConvNd(Module):
             # Load bias
             if self.use_bias:
                 bias_key = next(iter(destination))
-                destination.pop(bias_key)
+                bias = destination.pop(bias_key)
 
                 if self.P_store_bias.active:
-                    bias = torch.load(bias_key)
                     destination[bias_key] = bias
 
                 elif self.P_apply_bias.active:
@@ -660,130 +654,6 @@ class DistributedChannelReduceScatterConv3d(_DistributedChannelReduceScatterConv
                             _single(0), self.dilation, self.groups)
         return torch.nn.functional.conv1d(input, weight, bias, self.stride,
                         self.padding, self.dilation, self.groups)
-
-    def forward(self, input: Tensor) -> Tensor:
-        if not self.P_x.active:
-            return input.clone()
-
-        # Broadcast weights
-        weight = self.broadcast_weight(self.weight)
-
-        # Broadcast bias
-        if self.bias is not None:
-            bias = self.broadcast_bias(self.bias)
-        else:
-            bias = self.bias
-
-        output = self._conv_forward(input, weight, bias)
-        return self.reduce_scatter(output)
-
-
-class DistributedChannelReduceScatterConv2d(_DistributedChannelReduceScatterConvNd):
-    r"""A channel-space partitioned 3D convolutional layer.
-
-    This class provides the user interface to a distributed convolutional
-    layer, where the input (and output) tensors are partitioned in the
-    channel-dimension and optionally in the batch-dimension. 
-    
-    This version of the layer uses a reduce-scatter operation to average and
-    partition the output across workers after  the convolution operation. This
-    approach is preferable when the number of output channels is smaller than 
-    the number of input channels. For the opposite case, see the equivalent
-    DistributedChannelAllGatherConv3d layer.
-
-    This class requires a single tensor partition of the following shape: 
-
-    1. :math:`P_x` over input tensor :math:`x` has shape :math:`P_{\text{data}} 
-        \times P_{\text{c_in}} \times 1 \times 1 \times 1`.
-
-    The first dimension of the input and output partitions is the batch
-    dimension,the second is the channel dimension, and remaining dimensions
-    are feature dimensions.
-
-    The bias term does not have its own partition.  It is stored in the first
-    "column" of weight partition, which is created internally by the layer.
-
-    Parameters
-    ----------
-    P_x :
-        Partition of input tensor of shape [ D, M, 1, 1, 1 ], where D is the number
-        of data-parallel workers and M is the number of model-parallel workers.
-    in_channels :
-        Number of channels in the *global* input tensor.
-    out_channels :
-        Number of channels in the *global* output tensor.
-    kernel_size :
-        (int or tuple)
-        Size of the convolving kernel
-    stride :
-        (int or tuple, optional)
-        Stride of the convolution. Default: 1
-    padding :
-        (int or tuple, optional)
-        Zero-padding added to both sides of the input. Default: 0
-    padding_mode :
-        (string, optional)
-        'zeros', 'reflect', 'replicate' or 'circular'. Default: 'zeros'
-    dilation :
-        (int or tuple, optional)
-        Spacing between kernel elements. Default: 1
-    groups :
-        (int, optional)
-        Number of blocked connections from input channels to output channels. Default: 1
-    bias :
-        (bool, optional)
-        If True, adds a learnable bias to the output. Default: True
-    collect_state :
-        (bool, optional)
-        If True, collect weights and biases on the root partition when state_dict is called.
-        For set_state_dict, scatter weights and biases from the root partition. Default: False.
-    device :
-        (torch.device, optional)
-        Device location of the layer parameters. Default: P_x.device.
-
-    """
-
-    def __init__(
-        self,
-        P_x: MPIPartition,
-        in_channels: int,
-        out_channels: int,
-        kernel_size: _size_3_t,
-        stride: _size_3_t = 1,
-        padding: Union[str, _size_3_t] = 0,
-        dilation: _size_3_t = 1,
-        groups: int = 1,
-        bias: bool = True,
-        padding_mode: str = 'zeros',
-        collect_state: bool = False,
-        device=None,
-        dtype=None
-    ) -> None:
-        factory_kwargs = {'device': P_x.device, 'dtype': dtype}
-        kernel_size_ = _triple(kernel_size)
-        stride_ = _triple(stride)
-        padding_ = padding if isinstance(padding, str) else _triple(padding)
-        dilation_ = _triple(dilation)
-        super().__init__(
-            P_x, in_channels, out_channels, kernel_size_, stride_, padding_, dilation_,
-            False, _triple(0), groups, bias, padding_mode, collect_state, **factory_kwargs)
-
-    def _conv_forward(self, input: Tensor, weight: Tensor, bias: Optional[Tensor]):
-        if self.padding_mode != "zeros":
-            return torch.nn.functional.conv3d(
-                torch.nn.functional.pad(
-                    input, self._reversed_padding_repeated_twice, mode=self.padding_mode
-                ),
-                weight,
-                bias,
-                self.stride,
-                _triple(0),
-                self.dilation,
-                self.groups,
-            )
-        return torch.nn.functional.conv3d(
-            input, weight, bias, self.stride, self.padding, self.dilation, self.groups
-        )
 
     def forward(self, input: Tensor) -> Tensor:
         if not self.P_x.active:
