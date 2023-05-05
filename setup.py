@@ -19,6 +19,8 @@ from setuptools import find_packages
 from setuptools import setup
 from torch.utils import cpp_extension
 
+import multiprocessing
+import subprocess
 
 def read(*names, **kwargs):
     with io.open(
@@ -27,6 +29,14 @@ def read(*names, **kwargs):
     ) as fh:
         return fh.read()
 
+# Check if we have GPUs available w/o using torch.cuda.is_available()
+def check_gpu(device_id):
+    try:
+        with open(os.devnull, "w") as f:
+            subprocess.check_call(["nvidia-smi", "-i", str(device_id)], stdout=f, stderr=f)
+        return True
+    except (subprocess.CalledProcessError, FileNotFoundError):
+        return False
 
 # Enable code coverage for C code: we can't use CFLAGS=-coverage in tox.ini, since that may mess with compiling
 # dependencies (e.g. numpy). Therefore we set SETUPPY_CFLAGS=-coverage in tox.ini and copy it to CFLAGS here (after
@@ -83,6 +93,7 @@ def build_cpu_extension(name, src_files=None):
 
 # Interpolation
 torch_extensions.append(build_cpu_extension("distdl.functional.interpolate"))
+has_cuda = check_gpu(0)
 
 setup(
     name='distdl',
@@ -135,11 +146,11 @@ setup(
     ],
     python_requires='>=3.5',
     install_requires=[
+        'torch>=2.0.0', 'numpy<=1.20', 'einops', 'mpi4py'
     ],
     extras_require={
-        # eg:
-        #   'rst': ['docutils>=0.11'],
-        #   ':python_version=="2.6"': ['argparse'],
+        "cuda11x": ['cupy-cuda11x'] if has_cuda else [],
+        "cuda12x": ['cupy-cuda12x'] if has_cuda else [],
     },
     ext_modules=torch_extensions,
     cmdclass={'build_ext': cpp_extension.BuildExtension},
