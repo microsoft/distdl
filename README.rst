@@ -81,6 +81,9 @@ The overall package structure is as follows:
 Installation
 ============
 
+CPU
+---
+
 DistDL is currently still in private development and needs to be installed from source.
 
 .. code-block:: bash
@@ -91,6 +94,22 @@ DistDL is currently still in private development and needs to be installed from 
     # Install locally
     cd distdl
     pip install -e .
+
+GPU
+---
+
+If a GPU is available on the system, CUDA support can be enabled by passing the cuda version as an argument to the install command. Use ``cuda11x`` for CUDA 11.* or ``cuda12x`` for CUDA 12.*.
+
+.. code-block:: bash
+
+    pip install -e .[cuda11x]
+
+NCCL support must currently be enables manually by running the following command (using either ``11.x`` or ``12.x`` as appropriate):
+
+.. code-block:: bash
+
+    python3 -m cupyx.tools.install_library --cuda 11.x --library nccl
+
 
 Getting started
 ===============
