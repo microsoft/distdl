@@ -55,6 +55,7 @@ class DistributedLayerNorm(Module):
         self.elementwise_affine = elementwise_affine
         self.collect_state = collect_state
         factory_kwargs = {'device': device, 'dtype': dtype}
+        self.dtype = dtype
 
         if isinstance(normalized_shape, numbers.Integral):
             normalized_shape = (normalized_shape,)
@@ -107,8 +108,8 @@ class DistributedLayerNorm(Module):
                 self.weight = torch.nn.Parameter(torch.empty(normalized_shape_local, **factory_kwargs))
                 self.bias = torch.nn.Parameter(torch.empty(normalized_shape_local, **factory_kwargs))
             else:
-                self.register_buffer('weight', zero_volume_tensor(device=device, requires_grad=True))
-                self.register_buffer('bias', zero_volume_tensor(device=device, requires_grad=True))
+                self.register_buffer('weight', zero_volume_tensor(device=device, requires_grad=True, dtype=self.dtype))
+                self.register_buffer('bias', zero_volume_tensor(device=device, requires_grad=True, dtype=self.dtype))
         else:
             self.register_parameter('weight', None)
             self.register_parameter('bias', None)
@@ -172,8 +173,8 @@ class DistributedLayerNorm(Module):
                 bias = bias.view(*self.bias.shape[self.dim_bcast_slice], -1)
 
             else:
-                weight = zero_volume_tensor(device=self.P_x.device, requires_grad=True)
-                bias = zero_volume_tensor(device=self.P_x.device, requires_grad=True)
+                weight = zero_volume_tensor(device=self.P_x.device, requires_grad=True, dtype=self.dtype)
+                bias = zero_volume_tensor(device=self.P_x.device, requires_grad=True, dtype=self.dtype)
             
             # Scatter states
             weight = self.scatter(weight)

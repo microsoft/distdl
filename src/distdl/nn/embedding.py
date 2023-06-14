@@ -78,6 +78,7 @@ class DistributedEmbedding(Module):
         self.scale_grad_by_freq = scale_grad_by_freq
         self.sparse = sparse
         self.collect_state = collect_state
+        self.dtype = dtype
 
         self.P_x = P_x
         if not self.P_x.active:
@@ -121,7 +122,7 @@ class DistributedEmbedding(Module):
             self.reset_parameters()
         else:
             self.register_buffer('weight', zero_volume_tensor(device=P_x.device, 
-                requires_grad=True))
+                requires_grad=True, dtype=self.dtype))
 
         # State dict hooks for gather/scattering distributed weights
         self._register_state_dict_hook(self.gather_state_dict)
@@ -189,7 +190,7 @@ class DistributedEmbedding(Module):
                 weight = destination.pop(weight_key)
             else:
                 destination.pop(weight_key)
-                weight = zero_volume_tensor(device=self.P_x.device, requires_grad=True)
+                weight = zero_volume_tensor(device=self.P_x.device, requires_grad=True, dtype=self.dtype)
             if self.P_weight.active:
                 weight = self._squeeze(self.scatter_weight(self._expand(weight)))
 
@@ -207,7 +208,7 @@ class DistributedEmbedding(Module):
 
         """
         if not self.P_x.active:
-            return zero_volume_tensor(device=self.P_x.device)
+            return zero_volume_tensor(device=self.P_x.device, dtype=self.dtype)
 
         # Broadcast weights
         weight = self._squeeze(self.broadcast(self._expand(self.weight)))

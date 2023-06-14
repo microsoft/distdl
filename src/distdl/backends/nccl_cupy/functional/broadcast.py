@@ -97,7 +97,6 @@ class BroadcastFunction(torch.autograd.Function):
             Output tensor.
 
         """
-        
         device = input.device
         ctx.P_send = P_send
         ctx.P_recv = P_recv
@@ -109,9 +108,9 @@ class BroadcastFunction(torch.autograd.Function):
         # This allows all ranks to use the same exit path, so that we can be
         # sure that all requests have cleared.
         if preserve_batch:
-            output = zero_volume_tensor(input.shape[0], device=device)
+            output = zero_volume_tensor(input.shape[0], device=device, dtype=output_tensor_structure.dtype)
         else:
-            output = zero_volume_tensor(device=device)
+            output = zero_volume_tensor(device=device, dtype=output_tensor_structure.dtype)
 
         # MPI requests to clear
         requests = []
@@ -195,9 +194,9 @@ class BroadcastFunction(torch.autograd.Function):
         # This allows all ranks to use the same exit path, so that we can be
         # sure that all requests have cleared.
         if preserve_batch:
-            grad_input = zero_volume_tensor(grad_output.shape[0], device=device)
+            grad_input = zero_volume_tensor(grad_output.shape[0], device=device, dtype=output_tensor_structure.dtype)
         else:
-            grad_input = zero_volume_tensor(device=device)
+            grad_input = zero_volume_tensor(device=device, dtype=output_tensor_structure.dtype)
 
         requests = []
 

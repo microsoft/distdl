@@ -114,6 +114,7 @@ class DistributedLinearAllGatherZero(Module):
         self.num_vars = num_vars    #  3, 2, 1 (QKV, KV, Q)
         self.geglu = geglu
         self.use_bias = bias
+        self.dtype = dtype
 
         # Partition for storing weights & biases
         if P_store_bias is not None:
@@ -180,7 +181,7 @@ class DistributedLinearAllGatherZero(Module):
             # Create weights. Every worker either has weights or receives weights.
             self.weight = torch.nn.Parameter(torch.empty(tuple(weight_shape), **factory_kwargs))
         else:
-            self.register_buffer('weight', zero_volume_tensor(device=device, requires_grad=True))
+            self.register_buffer('weight', zero_volume_tensor(device=device, requires_grad=True, dtype=self.dtype))
 
         # Create bias
         if self.use_bias and P_store_bias.active:
@@ -188,7 +189,7 @@ class DistributedLinearAllGatherZero(Module):
             bias_shape[-2] = out_features_local
             self.bias = torch.nn.Parameter(torch.empty(tuple(bias_shape), **factory_kwargs))
         elif self.use_bias:
-            self.register_buffer('bias', zero_volume_tensor(device=device, requires_grad=True))
+            self.register_buffer('bias', zero_volume_tensor(device=device, requires_grad=True, dtype=self.dtype))
         else:
            self.register_parameter('bias', None)
 
@@ -332,7 +333,7 @@ class DistributedLinearAllGatherZero(Module):
                 if self.num_heads is not None: weight = self.qkv_weight_to_parallel(weight)
                 if self.geglu: weight = self.geglu_weight_to_parallel(weight)
             else:
-                weight = zero_volume_tensor(device=self.P_y.device, requires_grad=True)
+                weight = zero_volume_tensor(device=self.P_y.device, requires_grad=True, dtype=self.dtype)
             if self.P_weight.active:
                 weight = self.scatter_weight(weight)
 
@@ -345,7 +346,7 @@ class DistributedLinearAllGatherZero(Module):
                     if self.num_heads is not None: bias = self.qkv_weight_to_parallel(bias)
                     if self.geglu: bias = self.geglu_weight_to_parallel(bias)
                 elif self.P_weight.active:
-                    bias = zero_volume_tensor(device=self.P_y.device, requires_grad=True)
+                    bias = zero_volume_tensor(device=self.P_y.device, requires_grad=True, dtype=self.dtype)
                 if self.P_store_bias.active:
                     bias = self.scatter_bias(bias)
                 if self.P_weight.active:
