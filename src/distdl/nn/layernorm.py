@@ -232,9 +232,7 @@ class DistributedLayerNorm(Module):
 
         if not self.P_x.active:
             return input.clone()
-
-        print("No. of partitions to reduce over: ", self.num_reduce)
-
+            
         # If we compute mean/variance over more than one partition, we need to
         # use our custom mean/variance implementations with allreduce. Otherwise
         # just use the torch implementation.
