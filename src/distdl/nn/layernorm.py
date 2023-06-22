@@ -55,10 +55,12 @@ class DistributedLayerNorm(Module):
         self.elementwise_affine = elementwise_affine
         self.collect_state = collect_state
         factory_kwargs = {'device': device, 'dtype': dtype}
+        self.dtype = dtype
 
         if isinstance(normalized_shape, numbers.Integral):
             normalized_shape = (normalized_shape,)
         normalized_shape = tuple(normalized_shape)
+        self.normalized_shape = normalized_shape
 
         # Number of dimensions across which mean/var is computed
         num_dim = len(normalized_shape)    
@@ -107,8 +109,8 @@ class DistributedLayerNorm(Module):
                 self.weight = torch.nn.Parameter(torch.empty(normalized_shape_local, **factory_kwargs))
                 self.bias = torch.nn.Parameter(torch.empty(normalized_shape_local, **factory_kwargs))
             else:
-                self.register_buffer('weight', zero_volume_tensor(device=device, requires_grad=True))
-                self.register_buffer('bias', zero_volume_tensor(device=device, requires_grad=True))
+                self.register_buffer('weight', zero_volume_tensor(device=device, requires_grad=True, dtype=self.dtype))
+                self.register_buffer('bias', zero_volume_tensor(device=device, requires_grad=True, dtype=self.dtype))
         else:
             self.register_parameter('weight', None)
             self.register_parameter('bias', None)
@@ -172,8 +174,8 @@ class DistributedLayerNorm(Module):
                 bias = bias.view(*self.bias.shape[self.dim_bcast_slice], -1)
 
             else:
-                weight = zero_volume_tensor(device=self.P_x.device, requires_grad=True)
-                bias = zero_volume_tensor(device=self.P_x.device, requires_grad=True)
+                weight = zero_volume_tensor(device=self.P_x.device, requires_grad=True, dtype=self.dtype)
+                bias = zero_volume_tensor(device=self.P_x.device, requires_grad=True, dtype=self.dtype)
             
             # Scatter states
             weight = self.scatter(weight)
@@ -230,16 +232,31 @@ class DistributedLayerNorm(Module):
 
         if not self.P_x.active:
             return input.clone()
+            
+        # If we compute mean/variance over more than one partition, we need to
+        # use our custom mean/variance implementations with allreduce. Otherwise
+        # just use the torch implementation.
+        if self.num_reduce > 1:
 
-        # Calculate mean and variance
-        mean = self._compute_mean(input)
-        var = self._compute_var(input, mean)
+            # Calculate mean and variance
+            mean = self._compute_mean(input)
+            var = self._compute_var(input, mean)
 
-        # Re-scale
-        input = (input - mean) / torch.sqrt(var + self.eps)
+            # Re-scale
+            input = (input - mean) / torch.sqrt(var + self.eps)
 
-        if self.elementwise_affine:
-            weight = self.broadcast(self.weight)
-            bias = self.broadcast(self.bias)
-            input = weight*input + bias
+            if self.elementwise_affine:
+                weight = self.broadcast(self.weight)
+                bias = self.broadcast(self.bias)
+                input = weight*input + bias
+
+        else:
+            if self.elementwise_affine:
+                weight = self.broadcast(self.weight).squeeze()
+                bias = self.broadcast(self.bias).squeeze()
+            else:
+                weight = None
+                bias = None
+            input = torch.nn.functional.layer_norm(input, self.normalized_shape, weight, bias, self.eps)
+
         return input

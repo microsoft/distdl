@@ -91,6 +91,7 @@ class DistributedLinearReduceScatterZero(Module):
         self.collect_state = collect_state
         self.use_bias = bias
         self.geglu = geglu
+        self.dtype = dtype
 
         # Partition for applying bias
         if P_bias is not None:
@@ -139,7 +140,7 @@ class DistributedLinearReduceScatterZero(Module):
             # Create weights. Every worker either has weights or receives weights.
             self.weight = torch.nn.Parameter(torch.empty(tuple(weight_shape), **factory_kwargs))
         else:
-            self.register_buffer('weight', zero_volume_tensor(device=device, requires_grad=True))
+            self.register_buffer('weight', zero_volume_tensor(device=device, requires_grad=True, dtype=self.dtype))
 
         # Create bias. Only 1 worker stores the bias and a subset of workers receive it.
         if self.use_bias and self.P_bias.active:
@@ -235,7 +236,7 @@ class DistributedLinearReduceScatterZero(Module):
             if self.P_root.active:
                 weight = self._unsqueeze_weight(weight)
             else:
-                weight = zero_volume_tensor(device=self.P_x.device, requires_grad=True)
+                weight = zero_volume_tensor(device=self.P_x.device, requires_grad=True, dtype=self.dtype)
             if self.P_x.active:
                 weight = self.scatter_weight(weight)
 
@@ -247,7 +248,7 @@ class DistributedLinearReduceScatterZero(Module):
                 if self.P_root.active:
                     bias = self._unsqueeze_bias(bias)
                 else:
-                    bias = zero_volume_tensor(device=self.P_x.device, requires_grad=True)
+                    bias = zero_volume_tensor(device=self.P_x.device, requires_grad=True, dtype=self.dtype)
                 if self.P_bias.active:
                     destination[bias_key] = self.scatter_bias(bias)
 
