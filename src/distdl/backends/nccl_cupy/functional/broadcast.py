@@ -123,7 +123,7 @@ class BroadcastFunction(torch.autograd.Function):
         if P_recv.active:
             # If I send to and receive from the same partition, make a copy.
             if P_send == P_recv:
-                output = input.clone().contiguous()
+                output = input#.clone().contiguous()
             # If I just receive, receive the broadcast
             else:
                 cupy_dtype = torch_to_cupy_dtype_dict[output_tensor_structure.dtype]
