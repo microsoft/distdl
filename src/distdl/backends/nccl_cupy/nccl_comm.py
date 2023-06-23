@@ -425,7 +425,7 @@ class _DenseNCCLCommunicator:
 
     @classmethod
     def _send(cls, comm, array, peer, dtype, count, stream=None):
-        comm._comm.send(array.data.ptr, count, dtype, peer, stream)
+        comm._comm.send(array.data_ptr(), count, dtype, peer, stream)
 
     @classmethod
     def recv(cls, comm, out_array, peer, stream=None):
@@ -436,7 +436,7 @@ class _DenseNCCLCommunicator:
 
     @classmethod
     def _recv(cls, comm, out_array, peer, dtype, count, stream=None):
-        comm._comm.recv(out_array.data.ptr, count, dtype, peer, stream)
+        comm._comm.recv(out_array.data_ptr(), count, dtype, peer, stream)
 
     @classmethod
     def send_recv(cls, comm, in_array, out_array, peer, stream=None):
@@ -771,7 +771,7 @@ class _SparseNCCLCommunicator:
             raise TypeError(f'Unknown dtype {array.dtype} for NCCL')
         dtype, count = comm._get_nccl_dtype_and_count(array)
         stream = comm._get_stream(stream)
-        comm._comm.send(array.data.ptr, count, dtype, peer, stream)
+        comm._comm.send(array.data_ptr(), count, dtype, peer, stream)
 
     @classmethod
     def recv(cls, comm, out_array, peer, stream=None):
@@ -800,7 +800,7 @@ class _SparseNCCLCommunicator:
             raise TypeError(f'Unknown dtype {out_array.dtype} for NCCL')
         dtype, count = comm._get_nccl_dtype_and_count(out_array)
         stream = comm._get_stream(stream)
-        comm._comm.recv(out_array.data.ptr, count, dtype, peer, stream)
+        comm._comm.recv(out_array.data_ptr(), count, dtype, peer, stream)
 
     @classmethod
     def send_recv(cls, comm, in_array, out_array, peer, stream=None):
