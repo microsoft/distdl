@@ -6,7 +6,6 @@ import cupy as cp
 import torch
 from mpi4py import MPI
 
-from distdl.utilities.dtype import torch_to_cupy_dtype_dict
 from distdl.utilities.torch import zero_volume_tensor
 
 # A better idea is to implement a progress engine for this purpose
@@ -74,15 +73,12 @@ class AllSumReduceFunction(torch.autograd.Function):
 
         # There is no need to specificy a root.
         if P_allreduce.active:
-            cupy_dtype = torch_to_cupy_dtype_dict[input_tensor_structure.dtype]
-            reduced_data = cp.zeros(input_tensor_structure.shape, dtype=cupy_dtype)
-            input_cupy = cp.asarray(input.detach())
-            P_allreduce._nccl.all_reduce(input_cupy, reduced_data, op='sum', stream=None)
+            reduced_data = torch.zeros(input_tensor_structure.shape, dtype=input_tensor_structure.dtype, device=device)
+            P_allreduce._nccl.all_reduce(input.detach(), reduced_data, op='sum', stream=None)
 
         # If we had to receive data, we need to tensorify it.
         if P_allreduce.active:
-            output = torch.as_tensor(reduced_data, dtype=input_tensor_structure.dtype,
-                                     device=device)
+            output = reduced_data
             output.requires_grad_(output_tensor_structure.requires_grad)
 
         return output
@@ -119,15 +115,12 @@ class AllSumReduceFunction(torch.autograd.Function):
 
         # All-sum-reduce is self-adjoint
         if P_allreduce.active:
-            cupy_dtype = torch_to_cupy_dtype_dict[input_tensor_structure.dtype]
-            reduced_data = cp.zeros(input_tensor_structure.shape, dtype=cupy_dtype)
-            grad_output_cupy = cp.asarray(grad_output.detach())
-            P_allreduce._nccl.all_reduce(grad_output_cupy, reduced_data, op='sum', stream=None)
+            reduced_data = torch.zeros(input_tensor_structure.shape, dtype=input_tensor_structure.dtype, device=device  )
+            P_allreduce._nccl.all_reduce(grad_output.detach(), reduced_data, op='sum', stream=None)
 
         # If we had to receive data, we need to tensorify it.
         if P_allreduce.active:
-            grad_input = torch.as_tensor(reduced_data, dtype=input_tensor_structure.dtype,
-                                         device=device)
+            grad_input =reduced_data
             grad_input.requires_grad_(input_tensor_structure.requires_grad)
 
         return grad_input, None, None, None

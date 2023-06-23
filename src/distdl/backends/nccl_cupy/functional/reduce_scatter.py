@@ -7,7 +7,6 @@ import numpy as np
 import torch
 from mpi4py import MPI
 
-from distdl.utilities.dtype import torch_to_cupy_dtype_dict
 from distdl.utilities.torch import zero_volume_tensor
 
 
@@ -73,28 +72,25 @@ class ReduceScatterFunction(torch.autograd.Function):
         ctx.device = device
         ctx.slices = slices
 
-        output = zero_volume_tensor(device=device)
+        output = zero_volume_tensor(device=device, dtype=output_tensor_structure.dtype)
 
         # There is no need to specificy a root.
         if P_reducescatter.active:
             
             # Allocate output array
-            cupy_dtype = torch_to_cupy_dtype_dict[input_tensor_structure.dtype]
-            scattered_data = cp.zeros(output_tensor_structure.shape, dtype=cupy_dtype)
-            input_cupy = cp.asarray(input.detach(), dtype=cupy_dtype)
+            scattered_data = torch.zeros(torch.Size(output_tensor_structure.shape), dtype=output_tensor_structure.dtype, device=device)
 
             # Re-order input array
-            input_flat = cp.zeros(np.prod(input.shape), dtype=cupy_dtype)
+            input_flat = torch.zeros(np.prod(input.shape), dtype=input_tensor_structure.dtype, device=device)
             for cart, flat in zip(*slices):
-                input_flat[flat] = input_cupy[cart].reshape(-1)
+                input_flat[flat] = input.detach()[cart].reshape(-1)
 
             count = np.prod(scattered_data.shape).item()
             P_reducescatter._nccl.reduce_scatter(input_flat, scattered_data, count, op='sum', stream=None)
 
         # If we had to receive data, we need to tensorify it.
         if P_reducescatter.active:
-            output = torch.as_tensor(scattered_data, dtype=input_tensor_structure.dtype,
-                                     device=device)
+            output = scattered_data
             output.requires_grad_(output_tensor_structure.requires_grad)
 
         return output
@@ -129,27 +125,24 @@ class ReduceScatterFunction(torch.autograd.Function):
         device = ctx.device
         slices = ctx.slices
 
-        grad_input = zero_volume_tensor(device=device)
-        cupy_dtype = torch_to_cupy_dtype_dict[input_tensor_structure.dtype]
+        grad_input = zero_volume_tensor(device=device, dtype=input_tensor_structure.dtype)
 
         # All-gather operation
         if P_reducescatter.active:
             
-            gathered_data = cp.zeros(np.prod(input_tensor_structure.shape), dtype=cupy_dtype)
-            grad_output_cupy = cp.asarray(grad_output.detach().contiguous(), dtype=cupy_dtype)
-            count = np.prod(grad_output_cupy.shape).item()
-            P_reducescatter._nccl.all_gather(grad_output_cupy, gathered_data, count, stream=None)
+            gathered_data = torch.zeros(np.prod(input_tensor_structure.shape), dtype=input_tensor_structure.dtype, device=device)
+            count = np.prod(grad_output.shape).item()
+            P_reducescatter._nccl.all_gather(grad_output.detach().contiguous(), gathered_data, count, stream=None)
 
         # If we had to receive data, we need to tensorify it.
         if P_reducescatter.active:
 
             # Re-order flat output array from all-gather to correct cartesian shape
-            grad_input_cupy = cp.zeros(input_tensor_structure.shape, dtype=cupy_dtype)
+            grad_input = torch.zeros(input_tensor_structure.shape, dtype=input_tensor_structure.dtype, device=device)
                 
             for cart, flat in zip(*slices):
-                grad_input_cupy[cart] = gathered_data[flat].reshape(output_tensor_structure.shape)
+                grad_input[cart] = gathered_data[flat].reshape(torch.Size(output_tensor_structure.shape))
                 
-            grad_input = torch.as_tensor(grad_input_cupy, dtype=input_tensor_structure.dtype, device=device)
             grad_input.requires_grad_(input_tensor_structure.requires_grad)
 
         return grad_input, None, None, None, None

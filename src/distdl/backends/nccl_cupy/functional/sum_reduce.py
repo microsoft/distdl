@@ -6,7 +6,6 @@ import cupy as cp
 import torch
 from mpi4py import MPI
 
-from distdl.utilities.dtype import torch_to_cupy_dtype_dict
 from distdl.utilities.torch import zero_volume_tensor
 
 # A better idea is to implement a progress engine for this purpose
@@ -112,27 +111,21 @@ class SumReduceFunction(torch.autograd.Function):
         # is OK, as the reduction accounts for the copy, unlike the broadcast
         # below.
         if P_send.active:
-            cupy_dtype = torch_to_cupy_dtype_dict[input_tensor_structure.dtype]
-            reduced_data_send = cp.zeros(input_tensor_structure.shape, dtype=cupy_dtype)
-            input_cupy = cp.asarray(input.detach().contiguous())
-            P_send._nccl.reduce(input_cupy, reduced_data_send, op='sum', root=0, stream=None)
+            reduced_data_send = torch.zeros(input_tensor_structure.shape, dtype=input_tensor_structure.dtype, device=device)
+            P_send._nccl.reduce(input.detach().contiguous(), reduced_data_send, op='sum', root=0, stream=None)
 
         # If I sent data in the forward, I have to receive it here.
         if P_send != P_recv and P_recv.active:
-            cupy_dtype = torch_to_cupy_dtype_dict[output_tensor_structure.dtype]
-            reduced_data_recv = cp.zeros(output_tensor_structure.shape, dtype=cupy_dtype)
-
+            reduced_data_recv = torch.zeros(output_tensor_structure.shape, dtype=output_tensor_structure.dtype, device=device)
             P_recv._nccl.reduce(reduced_data_recv, reduced_data_recv, op='sum', root=0, stream=None)
 
         # If we had to receive data, we need to tensorify it.
         if P_recv.active:
             if P_send == P_recv:
-                output = torch.as_tensor(reduced_data_send, dtype=output_tensor_structure.dtype,
-                                         device=device)
+                output = reduced_data_send
                 output.requires_grad_(output_tensor_structure.requires_grad)
             else:
-                output = torch.as_tensor(reduced_data_recv, dtype=output_tensor_structure.dtype,
-                                         device=device)
+                output = reduced_data_recv
                 output.requires_grad_(output_tensor_structure.requires_grad)
 
         return output
@@ -205,21 +198,17 @@ class SumReduceFunction(torch.autograd.Function):
 
         # If I received the reduction in the forward call, I broadcast my data
         if P_recv.active:
-            grad_output_cupy = cp.asarray(grad_output.detach().contiguous())
-            P_recv._nccl.broadcast(grad_output_cupy, root=0, stream=None)
+            P_recv._nccl.broadcast(grad_output.detach().contiguous(), root=0, stream=None)
 
         # If I just receive, receive the broadcast
         if P_send.active:
             # If I both sent and received reduction data, then I copy the "input"
             if P_send == P_recv:
-                grad_input = grad_output.clone()
+                grad_input = grad_output
             else:
-                cupy_dtype = torch_to_cupy_dtype_dict[input_tensor_structure.dtype]
-                grad_input = cp.zeros(input_tensor_structure.shape, dtype=cupy_dtype)
+                grad_input = torch.zeros(input_tensor_structure.shape, dtype=input_tensor_structure.dtype, device=device)
                 P_send._nccl.broadcast(grad_input, root=0, stream=None)
 
-                grad_input = torch.as_tensor(grad_input, dtype=input_tensor_structure.dtype,
-                                             device=device)
                 grad_input.requires_grad_(input_tensor_structure.requires_grad)
 
         return grad_input, None, None, None, None, None

@@ -69,7 +69,8 @@ intID_to_torch_dtype_dict = {value: key for (key, value) in torch_to_intID_dtype
 
 # TODO: where should we put this??
 try:
-    import cupy as cp  
+    import cupy as cp
+    from cupy.cuda import nccl
 
     # Dict of cupy dtype -> torch dtype (when the correspondence exists)
     cupy_to_torch_dtype_dict = {
@@ -103,6 +104,23 @@ try:
     # Get Cupy's unique numerical id numbers and map back to dtypes
     cupy_to_intID_dtype_dict = {key: cp.dtype(key).num for (key, value) in cupy_to_torch_dtype_dict.items()}
     intID_to_cupy_dtype_dict = {value: key for (key, value) in cupy_to_intID_dtype_dict.items()}
+
+    # Dict of torch dtype -> cupy NCCL dtype
+    torch_to_nccl_dtype_dict = {
+        torch.bfloat16: nccl.NCCL_BFLOAT16,  # noqa E203
+        torch.double: nccl.NCCL_DOUBLE,  # noqa E203
+        torch.float: nccl.NCCL_FLOAT,  # noqa E203
+        torch.float16: nccl.NCCL_FLOAT16,  # noqa E203
+        torch.float32: nccl.NCCL_FLOAT32,  # noqa E203
+        torch.float64: nccl.NCCL_FLOAT64,  # noqa E203
+        torch.half: nccl.NCCL_HALF,  # noqa E203
+        torch.int: nccl.NCCL_INT,  # noqa E203
+        torch.int32: nccl.NCCL_INT32,  # noqa E203
+        torch.int64: nccl.NCCL_INT64,  # noqa E203
+        torch.int8: nccl.NCCL_INT8,  # noqa E203
+        torch.uint8: nccl.NCCL_UINT8,  # noqa E203
+    }
+    nccl_to_torch_dtype_dict = {value: key for (key, value) in torch_to_nccl_dtype_dict.items()}
 
 except:
     logger.warning("Cupy dtype conversion not supported.")
