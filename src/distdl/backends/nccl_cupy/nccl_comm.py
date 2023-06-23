@@ -150,26 +150,10 @@ class NCCLBackend(_Backend):
         # Initialize devices
         self._comm = nccl.NcclCommunicator(n_devices, nccl_id, rank)
 
-    # def _check_contiguous(self, array):
-    #     if not array.flags.c_contiguous and not array.flags.f_contiguous:
-    #         raise RuntimeError(
-    #             'NCCL requires arrays to be either c- or f-contiguous')
-
     def _check_contiguous(self, array):
         if not array.is_contiguous():
             raise RuntimeError(
                 'NCCL requires arrays to be either c- or f-contiguous')
-
-    # def _get_nccl_dtype_and_count(self, array, count=None):
-    #     dtype = array.dtype.char
-    #     if dtype not in _nccl_dtypes:
-    #         raise TypeError(f'Unknown dtype {array.dtype} for NCCL')
-    #     nccl_dtype = _nccl_dtypes[dtype]
-    #     if count is None:
-    #         count = array.size
-    #     if dtype in 'FD':
-    #         return nccl_dtype, 2 * count
-    #     return nccl_dtype, count
 
     def _get_nccl_dtype_and_count(self, array, count=None):
         nccl_dtype = torch_to_nccl_dtype_dict[array.dtype]
