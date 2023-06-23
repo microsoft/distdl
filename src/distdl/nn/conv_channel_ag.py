@@ -837,7 +837,7 @@ class DistributedChannelAllGatherConvTranspose1d(_DistributedChannelAllGatherCon
             raise ValueError('Only `zeros` padding mode is supported for ConvTranspose1d')
 
         if not self.P_x.active:
-            return input.#clone()
+            return input#.clone()
 
         assert isinstance(self.padding, tuple)
         # One cannot replace List by Tuple or Sequence in "_output_padding" because
