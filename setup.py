@@ -146,7 +146,7 @@ setup(
     ],
     python_requires='>=3.5',
     install_requires=[
-        'torch>=2.0.0', 'numpy', 'einops', 'mpi4py'
+        'torch==1.13.1', 'numpy', 'einops', 'mpi4py'
     ],
     extras_require={
         "cuda11x": ['cupy-cuda11x'] if has_cuda else [],

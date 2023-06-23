@@ -1,6 +1,6 @@
 import torch
 
-from distdl.functional.interpolate import InterpolateFunction
+#from distdl.functional.interpolate import InterpolateFunction
 
 
 class Interpolate(torch.nn.Module):
