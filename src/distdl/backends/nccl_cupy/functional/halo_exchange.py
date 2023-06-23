@@ -49,9 +49,11 @@ class HaloExchangeFunction(torch.autograd.Function):
             lrank, rrank = neighbor_ranks[i]
 
             if lbb is not None:
-                cp.copyto(lbb, cp.asarray(output[lbs]))
+                #cp.copyto(lbb, cp.asarray(output[lbs]))
+                lbb.copy_(output[lbs])
             if rbb is not None:
-                cp.copyto(rbb, cp.asarray(output[rbs]))
+                #cp.copyto(rbb, cp.asarray(output[rbs]))
+                rbb.copy_(output[rbs])
 
             ltag = 0
             rtag = 1
@@ -79,11 +81,15 @@ class HaloExchangeFunction(torch.autograd.Function):
             # Wait for receive calls to complete
             if rgb is not None:
                 cp.cuda.runtime.eventSynchronize(event_rgb.ptr)
-                output[rgs] = torch.as_tensor(rgb, device=device)
+                #output[rgs] = #torch.as_tensor(rgb, device=device)
+                output[rgs].copy_(rgb.detach())
+                output[rgs].requires_grad_(input.requires_grad)
 
             if lgb is not None:
                 cp.cuda.runtime.eventSynchronize(event_lgb.ptr)
-                output[lgs] = torch.as_tensor(lgb, device=device)
+                #output[lgs] = #torch.as_tensor(lgb, device=device)
+                output[lgs].copy_(lgb.detach())
+                output[lgs].requires_grad_(input.requires_grad)
 
         return output.requires_grad_(input.requires_grad)
 
@@ -122,10 +128,12 @@ class HaloExchangeFunction(torch.autograd.Function):
             lrank, rrank = neighbor_ranks[i]
 
             if lgb is not None:
-                cp.copyto(lgb, cp.asarray(grad_output.detach()[lgs]))
+                #cp.copyto(lgb, cp.asarray(grad_output.detach()[lgs]))
+                lgb.copy_(grad_output[lgs])
                 grad_output[lgs] = 0.0
             if rgb is not None:
-                cp.copyto(rgb, cp.asarray(grad_output.detach()[rgs]))
+                #cp.copyto(rgb, cp.asarray(grad_output.detach()[rgs]))
+                rgb.copy_(grad_output[rgs])
                 grad_output[rgs] = 0.0
 
             ltag = 0
@@ -149,10 +157,12 @@ class HaloExchangeFunction(torch.autograd.Function):
             # Wait for receive calls to complete
             if lbb is not None:
                 cp.cuda.runtime.eventSynchronize(event_lbb.ptr)
-                grad_output[lbs] += torch.as_tensor(lbb, device=device)
+                #grad_output[lbs] += torch.as_tensor(lbb, device=device)
+                grad_output[lbs] += lbb
 
             if rbb is not None:
                 cp.cuda.runtime.eventSynchronize(event_rbb.ptr)
-                grad_output[rbs] += torch.as_tensor(rbb, device=device)
+                #grad_output[rbs] += torch.as_tensor(rbb, device=device)
+                grad_output[rbs] += rbb
 
         return grad_output, None, None, None, None
