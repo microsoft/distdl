@@ -367,7 +367,7 @@ class DistributedFeatureConvBase(Module, HaloMixin, ConvMixin):
         """
 
         if not self.P_x.active:
-            return input.clone()
+            return input#.clone()
 
         if self.serial:
             return self.conv_layer(input)

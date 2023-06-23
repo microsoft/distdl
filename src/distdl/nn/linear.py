@@ -93,7 +93,7 @@ class DistributedLinear(Module):
         """
 
         if not (self.P_x.active or self.P_y.active or self.P_w.active):
-            return input.clone()
+            return input#.clone()
 
         # broadcast x down the columns
         x = self.x_broadcast(input)

@@ -231,7 +231,7 @@ class DistributedLayerNorm(Module):
         """
 
         if not self.P_x.active:
-            return input.clone()
+            return input#.clone()
             
         # If we compute mean/variance over more than one partition, we need to
         # use our custom mean/variance implementations with allreduce. Otherwise

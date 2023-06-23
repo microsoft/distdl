@@ -425,7 +425,7 @@ class DistributedChannelAllGatherConv1d(_DistributedChannelAllGatherConvNd):
 
     def forward(self, input: Tensor) -> Tensor:
         if not self.P_x.active:
-            return input.clone()
+            return input#.clone()
 
         # Broadcast weights
         weight = self.broadcast_weight(self.weight)
@@ -540,7 +540,7 @@ class DistributedChannelAllGatherConv2d(_DistributedChannelAllGatherConvNd):
 
     def forward(self, input: Tensor) -> Tensor:
         if not self.P_x.active:
-            return input.clone()
+            return input#.clone()
 
         # Broadcast weights
         weight = self.broadcast_weight(self.weight)
@@ -664,7 +664,7 @@ class DistributedChannelAllGatherConv3d(_DistributedChannelAllGatherConvNd):
 
     def forward(self, input: Tensor) -> Tensor:
         if not self.P_x.active:
-            return input.clone()
+            return input#.clone()
 
         # Broadcast weights
         weight = self.broadcast_weight(self.weight)
@@ -831,13 +831,13 @@ class DistributedChannelAllGatherConvTranspose1d(_DistributedChannelAllGatherCon
 
     def forward(self, input: Tensor, output_size: Optional[List[int]] = None) -> Tensor:
         if not self.P_x.active:
-            return input.clone()
+            return input#.clone()
 
         if self.padding_mode != 'zeros':
             raise ValueError('Only `zeros` padding mode is supported for ConvTranspose1d')
 
         if not self.P_x.active:
-            return input.clone()
+            return input.#clone()
 
         assert isinstance(self.padding, tuple)
         # One cannot replace List by Tuple or Sequence in "_output_padding" because
@@ -959,7 +959,7 @@ class DistributedChannelAllGatherConvTranspose2d(_DistributedChannelAllGatherCon
 
     def forward(self, input: Tensor, output_size: Optional[List[int]] = None) -> Tensor:
         if not self.P_x.active:
-            return input.clone()
+            return input#.clone()
 
         if self.padding_mode != 'zeros':
             raise ValueError('Only `zeros` padding mode is supported for ConvTranspose2d')
@@ -1083,7 +1083,7 @@ class DistributedChannelAllGatherConvTranspose3d(_DistributedChannelAllGatherCon
 
     def forward(self, input: Tensor, output_size: Optional[List[int]] = None) -> Tensor:
         if not self.P_x.active:
-            return input.clone()
+            return input#.clone()
 
         if self.padding_mode != 'zeros':
             raise ValueError('Only `zeros` padding mode is supported for ConvTranspose3d')

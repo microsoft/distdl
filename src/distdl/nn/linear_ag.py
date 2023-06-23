@@ -355,7 +355,7 @@ class DistributedLinearAllGather(Module):
         """
 
         if not self.P_y.active:
-            return input.clone()
+            return input#.clone()
 
         # All-gather input
         input = self.all_gather(input)

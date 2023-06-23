@@ -268,7 +268,7 @@ class DistributedLinearReduceScatterZero(Module):
         """
 
         if not self.P_x.active:
-            return input.clone()
+            return input#.clone()
 
         # Gather weights
         weight = self.all_gather_weight(self.weight)

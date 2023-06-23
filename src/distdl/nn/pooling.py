@@ -284,7 +284,7 @@ class DistributedPoolBase(Module, HaloMixin, PoolingMixin):
         """
 
         if not self.P_x.active:
-            return input.clone()
+            return input#.clone()
 
         # Compute the total padding and convert to PyTorch format
         total_padding = self.local_padding + self.halo_shape

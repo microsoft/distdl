@@ -335,7 +335,7 @@ class DistributedChannelConvBase(Module, ConvMixin):
         if not (self.P_x.active or
                 self.P_y.active or
                 self.P_w.active):
-            return input.clone()
+            return input#.clone()
 
         if self.serial:
             return self.conv_layer(input)

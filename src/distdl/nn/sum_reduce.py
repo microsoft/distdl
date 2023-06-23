@@ -194,10 +194,10 @@ class SumReduce(Module):
         Function = self._distdl_backend.functional.sum_reduce.SumReduceFunction
 
         if self.identity:
-            return input.clone()
+            return input#.clone()
 
         if not (self.P_x.active or self.P_y.active):
-            return input.clone()
+            return input#.clone()
 
         return Function.apply(input,
                               self.P_send,
