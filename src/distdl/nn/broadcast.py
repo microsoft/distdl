@@ -197,12 +197,12 @@ class Broadcast(Module):
         # If this is an identity operation (no communication necessary),
         # simply return a clone of the input.
         if self.identity:
-            return input.clone()
+            return input#.clone()
 
         # If this worker is not active for the input or output, then the input
         # should be a zero-volume tensor, and the output should be the same.
         if not (self.P_x.active or self.P_y.active):
-            return input.clone()
+            return input#.clone()
 
         return Function.apply(input,
                               self.P_send,

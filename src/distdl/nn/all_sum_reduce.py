@@ -157,10 +157,10 @@ class AllSumReduce(Module):
         Function = self._distdl_backend.functional.all_sum_reduce.AllSumReduceFunction
 
         if self.identity:
-            return input.clone()
+            return input#.clone()
 
         if not (self.P_x.active):
-            return input.clone()
+            return input#.clone()
 
         return Function.apply(input,
                               self.P_allreduce,

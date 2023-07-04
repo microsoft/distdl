@@ -6,7 +6,6 @@ import cupy as cp
 import torch
 from mpi4py import MPI
 
-from distdl.utilities.dtype import torch_to_cupy_dtype_dict
 from distdl.utilities.torch import zero_volume_tensor
 
 # A better idea is to implement a progress engine for this purpose
@@ -112,24 +111,18 @@ class BroadcastFunction(torch.autograd.Function):
         else:
             output = zero_volume_tensor(device=device, dtype=output_tensor_structure.dtype)
 
-        # MPI requests to clear
-        requests = []
-
         # Send all of the data
         if P_send.active:
-            input_cupy = cp.asarray(input.detach().contiguous())
-            P_send._nccl.broadcast(input_cupy, root=0, stream=None)
+            P_send._nccl.broadcast(input.detach().contiguous(), root=0, stream=None)
 
         if P_recv.active:
             # If I send to and receive from the same partition, make a copy.
             if P_send == P_recv:
-                output = input#.clone().contiguous()
+                output = input
             # If I just receive, receive the broadcast
             else:
-                cupy_dtype = torch_to_cupy_dtype_dict[output_tensor_structure.dtype]
-                output = cp.zeros(output_tensor_structure.shape, dtype=cupy_dtype)
+                output = torch.zeros(output_tensor_structure.shape, dtype=output_tensor_structure.dtype, device=device)
                 P_recv._nccl.broadcast(output, root=0, stream=None)
-                output = torch.as_tensor(output, dtype=output_tensor_structure.dtype, device=device)
                 output.requires_grad_(output_tensor_structure.requires_grad)
 
         return output
@@ -198,38 +191,27 @@ class BroadcastFunction(torch.autograd.Function):
         else:
             grad_input = zero_volume_tensor(device=device, dtype=output_tensor_structure.dtype)
 
-        requests = []
-
-        # Creating the thread, not passed the args yet
-
         # If I received data (either from a remote worker or just from myself)
         # I need to reduce that data.  If I send and receive to myself, this
         # is OK, as the reduction accounts for the copy, unlike the broadcast
         # above.
         if P_recv.active:
-            cupy_dtype = torch_to_cupy_dtype_dict[output_tensor_structure.dtype]
-            reduced_data_recv = cp.zeros(output_tensor_structure.shape, dtype=cupy_dtype)
-            grad_output_cupy = cp.asarray(grad_output.detach().contiguous())
-            P_recv._nccl.reduce(grad_output_cupy, reduced_data_recv, op='sum', root=0, stream=None)
+            reduced_data_recv = torch.zeros(output_tensor_structure.shape, dtype=output_tensor_structure.dtype, device=device)
+            P_recv._nccl.reduce(grad_output.detach().contiguous(), reduced_data_recv, op='sum', root=0, stream=None)
 
         # If I sent data in the forward, I have to receive it here.  Unless I
         # also received that data, then I already have it from above.
         if P_send != P_recv and P_send.active:
-            cupy_dtype = torch_to_cupy_dtype_dict[input_tensor_structure.dtype]
-            reduced_data_send = cp.zeros(input_tensor_structure.shape, dtype=cupy_dtype)
+            reduced_data_send = torch.zeros(input_tensor_structure.shape, dtype=input_tensor_structure.dtype, device=device)
             P_send._nccl.reduce(reduced_data_send, reduced_data_send, op='sum', root=0, stream=None)
 
         # If we had to receive data, we need to tensorify it.
         if P_send.active:
             if P_send == P_recv:
-                grad_input = torch.as_tensor(reduced_data_recv,
-                                             dtype=input_tensor_structure.dtype,
-                                             device=device)
-                grad_input.requires_grad_ = input_tensor_structure.requires_grad
+                grad_input = reduced_data_recv
+                grad_input.requires_grad_(input_tensor_structure.requires_grad)
             else:
-                grad_input = torch.as_tensor(reduced_data_send,
-                                             dtype=input_tensor_structure.dtype,
-                                             device=device)
+                grad_input = reduced_data_send
                 grad_input.requires_grad_(input_tensor_structure.requires_grad)
 
         return grad_input, None, None, None, None, None

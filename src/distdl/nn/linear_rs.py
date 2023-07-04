@@ -291,7 +291,7 @@ class DistributedLinearReduceScatter(Module):
         """
 
         if not self.P_x.active:
-            return input.clone()
+            return input#.clone()
 
         # Broadcast weights to everyone
         weight = self.broadcast_weight(self.weight).view(self.out_features, -1)

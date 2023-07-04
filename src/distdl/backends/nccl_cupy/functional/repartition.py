@@ -161,9 +161,7 @@ class RepartitionFunction(torch.autograd.Function):
             for (sl, sh, partner), buff in zip(P_x_to_y_overlaps, P_x_to_y_buffers):
                 if buff is not None:
                     xfer_buff = buff.get_view(sh)
-                    # np.copyto(xfer_buff, input.detach()[sl].cpu().numpy())
-                    # TODO: Is it ok to make the buffer contiguous like this?
-                    cp.copyto(xfer_buff, cp.array(input.detach()[sl]))
+                    xfer_buff.copy_(input.detach()[sl])
                     req = P_union._nccl.send(xfer_buff, partner, stream=None)
                     requests.append(req)
                 else:
@@ -174,8 +172,8 @@ class RepartitionFunction(torch.autograd.Function):
         # We do this after the sends so that they can get started before local
         # allocations.
         if P_y.active:
-            cupy_dtype = torch_to_cupy_dtype_dict[x_global_structure.dtype]
-            output = cp.zeros(y_local_structure.shape, dtype=cupy_dtype)
+            output = torch.zeros(*y_local_structure.shape, dtype=x_global_structure.dtype,
+                device=P_y.device)
 
         # Handle the self-copy
         if P_x.active and P_y.active:
@@ -184,7 +182,7 @@ class RepartitionFunction(torch.autograd.Function):
                 if x2ypartner == "self":
                     for (ysl, ysh, y2xpartner) in P_y_to_x_overlaps:
                         if y2xpartner == "self":
-                            cp.copyto(output[ysl], cp.asarray(input.detach()[xsl]))
+                            output[ysl] = input.detach()[xsl]
                             # There is only one case where this can happen
                             break
                     # There is only one case where this can happen
@@ -203,7 +201,7 @@ class RepartitionFunction(torch.autograd.Function):
                 buff = P_y_to_x_buffers[index]
                 if buff is not None:
                     xfer_buff = buff.get_view(sh)
-                    cp.copyto(output[sl], xfer_buff)
+                    output[sl] = xfer_buff.detach().clone()
 
         if P_y.active:
             output = torch.as_tensor(output,
@@ -300,7 +298,7 @@ class RepartitionFunction(torch.autograd.Function):
             for (sl, sh, partner), buff in zip(P_y_to_x_overlaps, P_y_to_x_buffers):
                 if buff is not None:
                     xfer_buff = buff.get_view(sh)
-                    cp.copyto(xfer_buff, cp.asarray(grad_output.detach()[sl]))
+                    xfer_buff.copy_(grad_output.detach()[sl])
                     req = P_union._nccl.send(xfer_buff, partner, stream=None)
                     requests.append(req)
                 else:
@@ -309,8 +307,8 @@ class RepartitionFunction(torch.autograd.Function):
                 send_count += 1
 
         if P_x.active:
-            cupy_dtype = torch_to_cupy_dtype_dict[x_global_structure.dtype]
-            grad_input = cp.zeros(x_local_structure.shape, dtype=cupy_dtype)
+            grad_input = torch.zeros(*x_local_structure.shape, dtype=x_global_structure.dtype,
+                device=P_y.device)
 
         # Handle the self-copy
         if P_y.active and P_x.active:
@@ -319,7 +317,7 @@ class RepartitionFunction(torch.autograd.Function):
                 if y2xpartner == "self":
                     for (xsl, xsh, x2ypartner) in P_x_to_y_overlaps:
                         if x2ypartner == "self":
-                            cp.copyto(grad_input[xsl], cp.asarray(grad_output.detach()[ysl]))
+                            grad_input[xsl] = grad_output.detach()[ysl].clone()
                             # There is only one case where this can happen
                             break
                     # There is only one case where this can happen
@@ -339,7 +337,7 @@ class RepartitionFunction(torch.autograd.Function):
                     xfer_buff = buff.get_view(sh)
                     # This would normally be an add into the grad_input tensor
                     # but we just created it, so a copy is sufficient.
-                    cp.copyto(grad_input[sl], xfer_buff)
+                    grad_input[sl] = xfer_buff.detach().clone()
 
         if P_x.active:
             grad_input = torch.as_tensor(grad_input,

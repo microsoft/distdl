@@ -226,7 +226,7 @@ class DistributedExpertAllGather(Module):
         """
 
         if not self.P_x.active:
-            return input.clone()
+            return input#.clone()
 
         # All-gather input
         input = self.all_gather(input)

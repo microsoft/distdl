@@ -84,6 +84,7 @@ from cupy.cuda import nccl
 from cupyx.distributed import _store
 from cupyx.distributed._comm import _Backend
 from cupyx.scipy import sparse
+from distdl.utilities.dtype import torch_to_nccl_dtype_dict
 
 try:
     from mpi4py import MPI
@@ -150,19 +151,16 @@ class NCCLBackend(_Backend):
         self._comm = nccl.NcclCommunicator(n_devices, nccl_id, rank)
 
     def _check_contiguous(self, array):
-        if not array.flags.c_contiguous and not array.flags.f_contiguous:
+        if not array.is_contiguous():
             raise RuntimeError(
                 'NCCL requires arrays to be either c- or f-contiguous')
 
     def _get_nccl_dtype_and_count(self, array, count=None):
-        dtype = array.dtype.char
-        if dtype not in _nccl_dtypes:
-            raise TypeError(f'Unknown dtype {array.dtype} for NCCL')
-        nccl_dtype = _nccl_dtypes[dtype]
+        nccl_dtype = torch_to_nccl_dtype_dict[array.dtype]
         if count is None:
-            count = array.size
-        if dtype in 'FD':
-            return nccl_dtype, 2 * count
+            count = numpy.prod(array.size())
+        #if dtype in 'FD':
+        #    return nccl_dtype, 2 * count
         return nccl_dtype, count
 
     def _get_stream(self, stream):
@@ -173,9 +171,9 @@ class NCCLBackend(_Backend):
     def _get_op(self, op, dtype):
         if op not in _nccl_ops:
             raise RuntimeError(f'Unknown op {op} for NCCL')
-        if dtype in 'FD' and op != nccl.NCCL_SUM:
-            raise ValueError(
-                'Only nccl.SUM is supported for complex arrays')
+        # if dtype in 'FD' and op != nccl.NCCL_SUM:
+        #     raise ValueError(
+        #         'Only nccl.SUM is supported for complex arrays')
         return _nccl_ops[op]
 
     def _dispatch_arg_type(self, function, args):
@@ -357,9 +355,9 @@ class _DenseNCCLCommunicator:
         comm._check_contiguous(out_array)
         stream = comm._get_stream(stream)
         dtype, count = comm._get_nccl_dtype_and_count(in_array)
-        op = comm._get_op(op, in_array.dtype.char)
+        op = comm._get_op(op, in_array.dtype)
         comm._comm.allReduce(
-            in_array.data.ptr, out_array.data.ptr, count, dtype, op, stream)
+            in_array.data_ptr(), out_array.data_ptr(), count, dtype, op, stream)
 
     @classmethod
     def reduce(cls, comm, in_array, out_array, root=0, op='sum', stream=None):
@@ -368,9 +366,9 @@ class _DenseNCCLCommunicator:
             comm._check_contiguous(out_array)
         stream = comm._get_stream(stream)
         dtype, count = comm._get_nccl_dtype_and_count(in_array)
-        op = comm._get_op(op, in_array.dtype.char)
+        op = comm._get_op(op, in_array.dtype)
         comm._comm.reduce(
-            in_array.data.ptr, out_array.data.ptr,
+            in_array.data_ptr(), out_array.data_ptr(),
             count, dtype, op, root, stream)
 
     @classmethod
@@ -379,7 +377,7 @@ class _DenseNCCLCommunicator:
         stream = comm._get_stream(stream)
         dtype, count = comm._get_nccl_dtype_and_count(in_out_array)
         comm._comm.broadcast(
-            in_out_array.data.ptr, in_out_array.data.ptr,
+            in_out_array.data_ptr(), in_out_array.data_ptr(),
             count, dtype, root, stream)
 
     @classmethod
@@ -389,9 +387,9 @@ class _DenseNCCLCommunicator:
         comm._check_contiguous(out_array)
         stream = comm._get_stream(stream)
         dtype, count = comm._get_nccl_dtype_and_count(in_array, count)
-        op = comm._get_op(op, in_array.dtype.char)
+        op = comm._get_op(op, in_array.dtype)
         comm._comm.reduceScatter(
-            in_array.data.ptr, out_array.data.ptr, count, dtype, op, stream)
+            in_array.data_ptr(), out_array.data_ptr(), count, dtype, op, stream)
 
     @classmethod
     def all_gather(cls, comm, in_array, out_array, count, stream=None):
@@ -400,7 +398,7 @@ class _DenseNCCLCommunicator:
         stream = comm._get_stream(stream)
         dtype, count = comm._get_nccl_dtype_and_count(in_array, count)
         comm._comm.allGather(
-            in_array.data.ptr, out_array.data.ptr, count, dtype, stream)
+            in_array.data_ptr(), out_array.data_ptr(), count, dtype, stream)
 
     @classmethod
     def send(cls, comm, array, peer, stream=None):
@@ -411,7 +409,7 @@ class _DenseNCCLCommunicator:
 
     @classmethod
     def _send(cls, comm, array, peer, dtype, count, stream=None):
-        comm._comm.send(array.data.ptr, count, dtype, peer, stream)
+        comm._comm.send(array.data_ptr(), count, dtype, peer, stream)
 
     @classmethod
     def recv(cls, comm, out_array, peer, stream=None):
@@ -422,7 +420,7 @@ class _DenseNCCLCommunicator:
 
     @classmethod
     def _recv(cls, comm, out_array, peer, dtype, count, stream=None):
-        comm._comm.recv(out_array.data.ptr, count, dtype, peer, stream)
+        comm._comm.recv(out_array.data_ptr(), count, dtype, peer, stream)
 
     @classmethod
     def send_recv(cls, comm, in_array, out_array, peer, stream=None):
@@ -757,7 +755,7 @@ class _SparseNCCLCommunicator:
             raise TypeError(f'Unknown dtype {array.dtype} for NCCL')
         dtype, count = comm._get_nccl_dtype_and_count(array)
         stream = comm._get_stream(stream)
-        comm._comm.send(array.data.ptr, count, dtype, peer, stream)
+        comm._comm.send(array.data_ptr(), count, dtype, peer, stream)
 
     @classmethod
     def recv(cls, comm, out_array, peer, stream=None):
@@ -786,7 +784,7 @@ class _SparseNCCLCommunicator:
             raise TypeError(f'Unknown dtype {out_array.dtype} for NCCL')
         dtype, count = comm._get_nccl_dtype_and_count(out_array)
         stream = comm._get_stream(stream)
-        comm._comm.recv(out_array.data.ptr, count, dtype, peer, stream)
+        comm._comm.recv(out_array.data_ptr(), count, dtype, peer, stream)
 
     @classmethod
     def send_recv(cls, comm, in_array, out_array, peer, stream=None):

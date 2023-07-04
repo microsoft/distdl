@@ -229,7 +229,7 @@ class DistributedExpertReduceScatter(Module):
         """
 
         if not self.P_x.active:
-            return input.clone()
+            return input#.clone()
 
         # Affine/linear transform
         if self.bias is not None:

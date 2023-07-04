@@ -142,7 +142,7 @@ class HaloExchange(Module):
         Function = self._distdl_backend.functional.halo_exchange.HaloExchangeFunction
 
         if not self.P_x.active:
-            return input.clone()
+            return input#.clone()
 
         return Function.apply(input,
                               self.P_x,
