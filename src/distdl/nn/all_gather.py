@@ -207,4 +207,4 @@ class AllGather(Module):
                               self.P_allgather,
                               self.input_tensor_structure,
                               self.output_tensor_structure,
-                              self.slices)
+                              self.axes_all_gather)

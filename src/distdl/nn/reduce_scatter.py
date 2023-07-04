@@ -205,4 +205,4 @@ class ReduceScatter(Module):
                               self.P_reducescatter,
                               self.input_tensor_structure,
                               self.output_tensor_structure,
-                              self.slices)
+                              self.axes_reduce_scatter)

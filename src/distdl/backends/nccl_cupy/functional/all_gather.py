@@ -6,8 +6,25 @@ import cupy as cp
 import numpy as np
 import torch
 from mpi4py import MPI
+from einops import rearrange
 
 from distdl.utilities.torch import zero_volume_tensor
+from distdl.utilities.slicing import get_rearrange_ordering
+
+def reorg(x_vec, axis, shape):
+
+    # Reshape vector
+    orig_shape = list(shape)
+    new_shape = orig_shape.copy()
+    temp = new_shape.pop(axis)
+    new_shape.insert(0, temp)
+    x = x_vec.reshape(new_shape)
+
+    # Permute back to orig shape
+    num_dims = len(x.shape)
+    orig_order, new_order = get_rearrange_ordering(num_dims, axis)
+    operation = new_order + ' -> ' + orig_order
+    return rearrange(x, operation)
 
 
 class AllGatherFunction(torch.autograd.Function):
@@ -32,7 +49,7 @@ class AllGatherFunction(torch.autograd.Function):
 
     @staticmethod
     def forward(ctx, input, P_allgather,
-                input_tensor_structure, output_tensor_structure, slices):
+                input_tensor_structure, output_tensor_structure, axes):
         r"""Forward function of distributed all-gather layer.
 
         This method implements the forward all-gather operation using the
@@ -55,8 +72,8 @@ class AllGatherFunction(torch.autograd.Function):
         output_tensor_structure : tuple
             Tuple containing properties of the output tensor (dimension, shape,
             requires_grad).
-        slices : tuple
-            Tuple of slices in cartesian and flattened form for reshaping the input/output.
+        axes : tuple
+            Axes along which to all-gather.
 
         Returns
         -------
@@ -70,7 +87,7 @@ class AllGatherFunction(torch.autograd.Function):
         ctx.input_tensor_structure = input_tensor_structure
         ctx.output_tensor_structure = output_tensor_structure
         ctx.device = device
-        ctx.slices = slices
+        ctx.axes = axes
 
         output = zero_volume_tensor(device=device, dtype=output_tensor_structure.dtype)
 
@@ -89,12 +106,7 @@ class AllGatherFunction(torch.autograd.Function):
         if P_allgather.active:
             
             # Re-order flat output array from all-gather to correct cartesian shape
-            output = torch.zeros(torch.Size(output_tensor_structure.shape), 
-                dtype=output_tensor_structure.dtype, device=device)
-                
-            for cart, flat in zip(*slices):
-                output[cart] = gathered_data[flat].reshape(input_tensor_structure.shape)
-                
+            output = reorg(gathered_data, axes[0], output_tensor_structure.shape)
             output.requires_grad_(output_tensor_structure.requires_grad)
 
         return output
@@ -127,7 +139,7 @@ class AllGatherFunction(torch.autograd.Function):
         input_tensor_structure = ctx.input_tensor_structure
         output_tensor_structure = ctx.output_tensor_structure
         device = ctx.device
-        slices = ctx.slices
+        axes = ctx.axes
 
         grad_input = zero_volume_tensor(device=device, dtype=input_tensor_structure.dtype)
 
@@ -138,9 +150,9 @@ class AllGatherFunction(torch.autograd.Function):
             scattered_data = torch.zeros(input_tensor_structure.shape, dtype=input_tensor_structure.dtype, device=device)
 
             # Re-order input array
-            grad_output_flat = torch.zeros(np.prod(grad_output.shape), dtype=output_tensor_structure.dtype, device=device)
-            for cart, flat in zip(*slices):
-                grad_output_flat[flat] = grad_output.detach()[cart].reshape(-1)
+            orig_order, new_order = get_rearrange_ordering(len(grad_output.shape), axes[0])
+            operation = orig_order + ' -> ' + new_order
+            grad_output_flat = rearrange(grad_output, operation).reshape(-1)
 
             # Reduce-scatter primitive
             count = np.prod(scattered_data.shape).item()
