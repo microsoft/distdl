@@ -156,9 +156,6 @@ class AllGatherFunction(torch.autograd.Function):
             scattered_data = np.zeros(input_tensor_structure.shape, dtype=numpy_dtype)
 
             # Re-order input array
-            # grad_output_flat = np.zeros(np.prod(grad_output.shape), dtype=numpy_dtype)
-            # for cart, flat in zip(*slices):
-            #     grad_output_flat[flat] = np.array(grad_output[cart].detach().reshape(-1))
             expanded_order, new_order = get_rearrange_ordering(len(grad_output.shape), axes[0])
             operation = new_order + ' -> ' + expanded_order
             grad_output_flat = rearrange(grad_output, operation, p=P_allgather.shape[axes]).reshape(-1)
