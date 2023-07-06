@@ -66,9 +66,6 @@ class AllGather(Module):
         # Structure of the output tensor (shape, dtype, requires_grad, etc).
         self.output_tensor_structure = TensorStructure()
 
-        # Store slices to correctly reshape input/output
-        self.slices = None
-
         # Variables for tracking input changes and buffer construction
         self._distdl_is_setup = False
         self._input_tensor_structure = TensorStructure()
@@ -76,31 +73,6 @@ class AllGather(Module):
         # The identity case is if the partition is of size 1,
         if self.P_x.size == 1:
             self.identity = True
-
-    @staticmethod
-    def _assemble_slices(out_local_shape, P_x, axis):
-
-        # Reshape target array to correct form
-        axis = axis[0]
-        cart_slices = []
-        flat_slices = []
-
-        # We slice the input data along the dimension of the reduce-scatter
-        # operation and insert it into the right location in the 1D array.
-        for i in range(P_x.shape[axis]):
-            
-            # Slice source array
-            target_slice = []
-            origin_slice = slice(i*np.prod(out_local_shape), (i+1)*np.prod(out_local_shape))
-            for j in range(len(out_local_shape)):
-                if j == axis:
-                    target_slice.append(slice(int(i*out_local_shape[axis]), int((i+1)*out_local_shape[axis])))
-                else:
-                    target_slice.append(slice(None))        
-            cart_slices.append(tuple(target_slice))
-            flat_slices.append(origin_slice)
-
-        return cart_slices, flat_slices
 
     def _distdl_module_setup(self, input):
         r"""AllGather module setup function.
@@ -136,9 +108,6 @@ class AllGather(Module):
             self._distdl_backend.assemble_global_tensor_structure_along_axis(self.input_tensor_structure,
                                                                              self.P_x,
                                                                              self.axes_all_gather)
-
-            self.slices = self._assemble_slices(self.input_tensor_structure.shape, 
-                self.P_x, self.axes_all_gather)
 
         self._distdl_is_setup = True
         self._input_tensor_structure = TensorStructure(input[0])
@@ -207,4 +176,4 @@ class AllGather(Module):
                               self.P_allgather,
                               self.input_tensor_structure,
                               self.output_tensor_structure,
-                              self.slices)
+                              self.axes_all_gather)

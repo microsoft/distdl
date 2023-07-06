@@ -235,3 +235,39 @@ def assemble_index_filter(index, dims, invert=False):
         return tuple([index[k] if k not in dims else None for k in range(len(index))])
     else:
         return tuple([index[k] if k in dims else None for k in range(len(index))])
+
+
+def get_rearrange_ordering(num_dims, axis):
+    r"""Returns the original and new orderings of a tensor for the einops.rearrange
+    function. The new ordering is equal to the original ordering, but moves the 
+    dimension specified by axis to the front.
+
+    Parameters
+    ----------
+
+    num_dims : int
+        The number of dimensions of the tensor.
+    axis : int
+        The axis along which the tensor is all-gathered/reduce-scattered.
+
+    Returns
+    -------
+    expanded_order : str
+        The original ordering of the tensor with the partition dimension prepended.
+    new_order : str
+        The new ordering of the tensor in which the partition dimension is merged 
+        with the dimension specified by axis.
+    """
+
+    # Create string representations of the original and new orders
+    orig_order = list(map(chr, range(97, 97 + num_dims)))   # list of alphabetical letters
+    new_order = orig_order.copy()
+
+    # Orig order
+    expanded_order = 'p ' + ' '.join(orig_order)
+
+    # New order
+    new_order[axis] = '(p ' + new_order[axis] + ')'
+    new_order = ' '.join(new_order)
+
+    return expanded_order, new_order
