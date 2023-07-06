@@ -6,9 +6,24 @@ import cupy as cp
 import numpy as np
 import torch
 from mpi4py import MPI
+from einops import rearrange
 
 from distdl.utilities.dtype import torch_to_cupy_dtype_dict
 from distdl.utilities.torch import zero_volume_tensor
+from distdl.utilities.slicing import get_rearrange_ordering
+
+def reorg(x_vec, P_x, axis, in_shape):
+
+    # Reshape to p x (n1 x n2 x ... x nN)
+    num_partitions = P_x.shape[axis]
+    new_shape =  [num_partitions] + list(in_shape)
+    x = x_vec.reshape(new_shape)
+
+    # Permute back to orig shape
+    num_dims = len(P_x.shape)
+    expanded_order, new_order = get_rearrange_ordering(num_dims, axis)
+    operation = expanded_order + ' -> ' + new_order
+    return rearrange(x, operation)
 
 
 class ReduceScatterFunction(torch.autograd.Function):
@@ -33,7 +48,7 @@ class ReduceScatterFunction(torch.autograd.Function):
 
     @staticmethod
     def forward(ctx, input, P_reducescatter,
-                input_tensor_structure, output_tensor_structure, slices):
+                input_tensor_structure, output_tensor_structure, axes):
         r"""Forward function of distributed reduce-scatter layer.
 
         This method implements the forward reduce-scatter operation using the
@@ -56,8 +71,8 @@ class ReduceScatterFunction(torch.autograd.Function):
         output_tensor_structure : tuple
             Tuple containing properties of the output tensor (dimension, shape,
             requires_grad).
-        slices : tuple
-            Tuple of slices in cartesian and flattened form for reshaping the input/output.
+        axes : tuple
+            Axes along which to reduce-scatter.
 
         Returns
         -------
@@ -71,7 +86,7 @@ class ReduceScatterFunction(torch.autograd.Function):
         ctx.input_tensor_structure = input_tensor_structure
         ctx.output_tensor_structure = output_tensor_structure
         ctx.device = device
-        ctx.slices = slices
+        ctx.axes = axes
 
         output = zero_volume_tensor(device=device)
 
@@ -83,9 +98,10 @@ class ReduceScatterFunction(torch.autograd.Function):
             scattered_data = cp.zeros(output_tensor_structure.shape, dtype=cupy_dtype)
 
             # Re-order input array
-            input_flat = cp.zeros(np.prod(input.shape), dtype=cupy_dtype)
-            for cart, flat in zip(*slices):
-                input_flat[flat] = cp.array(input[cart].detach().reshape(-1))
+            expanded_order, new_order = get_rearrange_ordering(len(input.shape), axes[0])
+            operation = new_order + ' -> ' + expanded_order
+            input_flat = rearrange(input, operation, p=P_reducescatter.shape[axes]).reshape(-1)
+            input_flat = cp.asarray(input_flat.detach(), dtype=cupy_dtype)
 
             # Reduce-scatter primitive
             P_reducescatter._comm.Reduce_scatter(input_flat, scattered_data, op=MPI.SUM)
@@ -126,7 +142,7 @@ class ReduceScatterFunction(torch.autograd.Function):
         input_tensor_structure = ctx.input_tensor_structure
         output_tensor_structure = ctx.output_tensor_structure
         device = ctx.device
-        slices = ctx.slices
+        axes = ctx.axes
 
         grad_input = zero_volume_tensor(device=device)
 
@@ -141,13 +157,8 @@ class ReduceScatterFunction(torch.autograd.Function):
         if P_reducescatter.active:
             
             # Re-order flat output array from all-gather to correct cartesian shape
-            grad_input = torch.zeros(torch.Size(input_tensor_structure.shape), 
-                dtype=input_tensor_structure.dtype, device=device)
-                
-            for cart, flat in zip(*slices):
-                grad_input[cart] = torch.tensor(gathered_data[flat].reshape(output_tensor_structure.shape), 
-                    device=device)
-                
+            gathered_data = torch.asarray(gathered_data, dtype=output_tensor_structure.dtype, device=device)
+            grad_input = reorg(gathered_data, P_reducescatter, axes[0], output_tensor_structure.shape)
             grad_input.requires_grad_(input_tensor_structure.requires_grad)
 
         return grad_input, None, None, None, None

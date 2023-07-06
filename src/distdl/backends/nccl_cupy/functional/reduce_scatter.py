@@ -155,6 +155,4 @@ class ReduceScatterFunction(torch.autograd.Function):
             grad_input = reorg(gathered_data, P_reducescatter, axes[0], output_tensor_structure.shape)
             grad_input.requires_grad_(input_tensor_structure.requires_grad)
 
-
-
         return grad_input, None, None, None, None
