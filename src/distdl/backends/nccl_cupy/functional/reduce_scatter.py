@@ -152,7 +152,7 @@ class ReduceScatterFunction(torch.autograd.Function):
 
         # If we had to receive data, we need to tensorify it.
         if P_reducescatter.active:
-            grad_input = reorg(gathered_data, P_reducescatter, axes[0], input_tensor_structure.shape)
+            grad_input = reorg(gathered_data, P_reducescatter, axes[0], output_tensor_structure.shape)
             grad_input.requires_grad_(input_tensor_structure.requires_grad)
 
 
