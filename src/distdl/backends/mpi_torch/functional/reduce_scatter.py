@@ -98,7 +98,7 @@ class ReduceScatterFunction(torch.autograd.Function):
             # Re-order input array
             expanded_order, new_order = get_rearrange_ordering(len(input.shape), axes[0])
             operation = new_order + ' -> ' + expanded_order
-            input_flat = rearrange(input, operation, p=P_reducescatter.shape[axes]).reshape(-1)
+            input_flat = rearrange(input.detach(), operation, p=P_reducescatter.shape[axes]).reshape(-1)
 
             P_reducescatter._comm.Reduce_scatter(input_flat, scattered_data, op=MPI.SUM)
 
