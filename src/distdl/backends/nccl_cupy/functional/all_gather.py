@@ -11,19 +11,17 @@ from einops import rearrange
 from distdl.utilities.torch import zero_volume_tensor
 from distdl.utilities.slicing import get_rearrange_ordering
 
-def reorg(x_vec, axis, shape):
+def reorg(x_vec, P_x, axis, in_shape):
 
-    # Reshape vector
-    orig_shape = list(shape)
-    new_shape = orig_shape.copy()
-    temp = new_shape.pop(axis)
-    new_shape.insert(0, temp)
+    # Reshape to p x (n1 x n2 x ... x nN)
+    num_partitions = P_x.shape[axis]
+    new_shape =  [num_partitions] + list(in_shape)
     x = x_vec.reshape(new_shape)
 
     # Permute back to orig shape
-    num_dims = len(x.shape)
-    orig_order, new_order = get_rearrange_ordering(num_dims, axis)
-    operation = new_order + ' -> ' + orig_order
+    num_dims = len(P_x.shape)
+    expanded_order, new_order = get_rearrange_ordering(num_dims, axis)
+    operation = expanded_order + ' -> ' + new_order
     return rearrange(x, operation)
 
 
@@ -106,7 +104,7 @@ class AllGatherFunction(torch.autograd.Function):
         if P_allgather.active:
             
             # Re-order flat output array from all-gather to correct cartesian shape
-            output = reorg(gathered_data, axes[0], output_tensor_structure.shape)
+            output = reorg(gathered_data, P_allgather, axes[0], input_tensor_structure.shape)
             output.requires_grad_(output_tensor_structure.requires_grad)
 
         return output
@@ -150,9 +148,9 @@ class AllGatherFunction(torch.autograd.Function):
             scattered_data = torch.zeros(input_tensor_structure.shape, dtype=input_tensor_structure.dtype, device=device)
 
             # Re-order input array
-            orig_order, new_order = get_rearrange_ordering(len(grad_output.shape), axes[0])
-            operation = orig_order + ' -> ' + new_order
-            grad_output_flat = rearrange(grad_output, operation).reshape(-1)
+            expanded_order, new_order = get_rearrange_ordering(len(grad_output.shape), axes[0])
+            operation = new_order + ' -> ' + expanded_order
+            grad_output_flat = rearrange(grad_output, operation, p=P_allgather.shape[axes]).reshape(-1)
 
             # Reduce-scatter primitive
             count = np.prod(scattered_data.shape).item()

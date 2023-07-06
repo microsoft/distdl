@@ -252,22 +252,22 @@ def get_rearrange_ordering(num_dims, axis):
 
     Returns
     -------
-    orig_order : str
-        The original ordering of the tensor.
+    expanded_order : str
+        The original ordering of the tensor with the partition dimension prepended.
     new_order : str
-        The new ordering of the tensor.
+        The new ordering of the tensor in which the partition dimension is merged 
+        with the dimension specified by axis.
     """
 
     # Create string representations of the original and new orders
     orig_order = list(map(chr, range(97, 97 + num_dims)))   # list of alphabetical letters
     new_order = orig_order.copy()
 
-    # Move the axis along which we operate to the front
-    item = new_order.pop(axis)
-    new_order.insert(0, item)
+    # Orig order
+    expanded_order = 'p ' + ' '.join(orig_order)
 
-    # Convert the list of letters to a string
-    orig_order = ' '.join(orig_order)
+    # New order
+    new_order[axis] = '(p ' + new_order[axis] + ')'
     new_order = ' '.join(new_order)
 
-    return orig_order, new_order
+    return expanded_order, new_order
