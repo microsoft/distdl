@@ -12,6 +12,7 @@ from distdl.nn.broadcast import Broadcast
 from distdl.utilities.torch import zero_volume_tensor
 import distdl.nn.init as init
 from einops import rearrange
+import cupy as cp
 
 class DistributedLinearAllGatherZero(Module):
     r"""A distributed linear or affine layer with 2D parallelism for weights 
@@ -214,6 +215,11 @@ class DistributedLinearAllGatherZero(Module):
                 self.gather_bias = Repartition(P_store_bias, self.P_root, preserve_batch=False)
                 self.scatter_bias = Repartition(self.P_root, P_store_bias, preserve_batch=False)
 
+        # Streams
+        self.stream0 = torch.cuda.Stream()
+        self.stream1 = torch.cuda.Stream()
+        self.stream2 = torch.cuda.Stream()
+
     def reset_parameters(self) -> None:
 
         if self.P_weight.active:
@@ -372,17 +378,25 @@ class DistributedLinearAllGatherZero(Module):
             return input#.clone()
 
         # All-gather input
-        input = self.all_gather(input)
+        torch.cuda.synchronize()
+        with torch.cuda.stream(self.stream0):
+            with cp.cuda.ExternalStream(self.stream0.cuda_stream):
+                input = self.all_gather(input)
 
         # Broadcast weights to everyone
-        weight = self.allgather_weight(self.weight)
-        weight = weight.transpose(-1, 0).view(-1, self.in_features)
+        with torch.cuda.stream(self.stream1):
+            with cp.cuda.ExternalStream(self.stream1.cuda_stream):
+                weight = self.allgather_weight(self.weight)
+                weight = weight.transpose(-1, 0).view(-1, self.in_features)
 
         # Broadcast bias
         if self.bias is not None:
-            bias = self.broadcast_bias(self.bias).view(weight.shape[-2])
+            with torch.cuda.stream(self.stream2):
+                with cp.cuda.ExternalStream(self.stream2.cuda_stream):
+                    bias = self.broadcast_bias(self.bias).view(weight.shape[-2])
         else:
             bias = self.bias
 
         # Affine/linear transform
+        torch.cuda.synchronize()
         return torch.nn.functional.linear(input, weight, bias)

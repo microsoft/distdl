@@ -13,6 +13,7 @@ from distdl.nn.broadcast import Broadcast
 from distdl.utilities.torch import zero_volume_tensor
 import distdl.nn.init as init
 from einops import rearrange
+import cupy as cp
 
 class DistributedLinearReduceScatterZero(Module):
     r"""A distributed linear or affine layer with 2D parallelism for weights 
@@ -172,6 +173,10 @@ class DistributedLinearReduceScatterZero(Module):
                 self.gather_bias = Repartition(self.P_bias, self.P_root, preserve_batch=False)
                 self.scatter_bias = Repartition(self.P_root, self.P_bias, preserve_batch=False)
 
+        # Streams
+        self.stream0 = torch.cuda.Stream()
+        self.stream1 = torch.cuda.Stream()
+
     def reset_parameters(self) -> None:
 
         if self.P_x.active:
@@ -271,12 +276,17 @@ class DistributedLinearReduceScatterZero(Module):
             return input#.clone()
 
         # Gather weights
-        weight = self.all_gather_weight(self.weight)
-        weight = weight.view(self.out_features, -1)
+        torch.cuda.synchronize()
+        with torch.cuda.stream(self.stream0):
+            with cp.cuda.ExternalStream(self.stream0.cuda_stream):
+                weight = self.all_gather_weight(self.weight)
+                weight = weight.view(self.out_features, -1)
 
         # Broadcast bias
         if self.bias is not None and self.P_bias.active:
-           bias = self.all_gather_bias(self.bias).view(self.out_features)
+            with torch.cuda.stream(self.stream1):
+                with cp.cuda.ExternalStream(self.stream1.cuda_stream):
+                    bias = self.all_gather_bias(self.bias).view(self.out_features)
         else:
            bias = self.bias
 
