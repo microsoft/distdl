@@ -337,31 +337,31 @@ class DistributedLinearReduceScatterZero(Module):
             return input
 
         # Custom forward/backward implementation
-        # return LinearReduceScatterZeROFunc.apply(
-        #     input,
-        #     self.weight,
-        #     self.bias,
-        #     self.all_gather,
-        #     self.reduce_scatter,
-        #     self.all_gather_weight,
-        #     self.reduce_scatter_weight,
-        #     self.all_gather_bias,
-        #     self.reduce_scatter_bias,
-        #     self.P_bias.active
-        # )
+        return LinearReduceScatterZeROFunc.apply(
+            input,
+            self.weight,
+            self.bias,
+            self.all_gather,
+            self.reduce_scatter,
+            self.all_gather_weight,
+            self.reduce_scatter_weight,
+            self.all_gather_bias,
+            self.reduce_scatter_bias,
+            self.P_bias.active
+        )
 
-        # Gather weights
-        weight = self.all_gather_weight(self.weight)
-        weight = weight.view(self.out_features, -1)
+        # # Gather weights
+        # weight = self.all_gather_weight(self.weight)
+        # weight = weight.view(self.out_features, -1)
 
-        # Broadcast bias
-        if self.bias is not None and self.P_bias.active:
-           bias = self.all_gather_bias(self.bias).view(self.out_features)
-        else:
-           bias = self.bias
+        # # Broadcast bias
+        # if self.bias is not None and self.P_bias.active:
+        #    bias = self.all_gather_bias(self.bias).view(self.out_features)
+        # else:
+        #    bias = self.bias
 
-        # Affine/linear transform
-        y = torch.nn.functional.linear(input, weight, bias)
+        # # Affine/linear transform
+        # y = torch.nn.functional.linear(input, weight, bias)
 
-        # Reduce-scatter
-        return self.reduce_scatter(y)
+        # # Reduce-scatter
+        # return self.reduce_scatter(y)

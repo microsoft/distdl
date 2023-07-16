@@ -432,33 +432,33 @@ class DistributedLinearAllGatherZero(Module):
         if not self.P_y.active:
             return input
 
-        # # Custom forward/backward implementation
-        # return LinearAllGatherZeROFunc.apply(
-        #     input,
-        #     self.weight,
-        #     self.bias,
-        #     self.all_gather,
-        #     self.reduce_scatter,
-        #     self.allgather_weight,
-        #     self.reduce_scatter_weight,
-        #     self.broadcast_bias,
-        #     self.sum_reduce_bias
-        # )
+        # Custom forward/backward implementation
+        return LinearAllGatherZeROFunc.apply(
+            input,
+            self.weight,
+            self.bias,
+            self.all_gather,
+            self.reduce_scatter,
+            self.allgather_weight,
+            self.reduce_scatter_weight,
+            self.broadcast_bias,
+            self.sum_reduce_bias
+        )
 
-        # All-gather input
-        input = self.all_gather(input)
+        # # All-gather input
+        # input = self.all_gather(input)
 
-        # Broadcast weights to everyone
-        weight = self.allgather_weight(self.weight)
-        weight = weight.transpose(-1, 0).view(-1, self.in_features)
+        # # Broadcast weights to everyone
+        # weight = self.allgather_weight(self.weight)
+        # weight = weight.transpose(-1, 0).view(-1, self.in_features)
 
-        # Broadcast bias
-        if self.bias is not None:
-            bias = self.broadcast_bias(self.bias).view(weight.shape[-2])
-        else:
-            bias = self.bias
+        # # Broadcast bias
+        # if self.bias is not None:
+        #     bias = self.broadcast_bias(self.bias).view(weight.shape[-2])
+        # else:
+        #     bias = self.bias
 
-        # Affine/linear transform
-        return torch.nn.functional.linear(input, weight, bias)
+        # # Affine/linear transform
+        # return torch.nn.functional.linear(input, weight, bias)
 
 
