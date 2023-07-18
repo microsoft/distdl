@@ -254,6 +254,10 @@ class DistributedLayerNorm(Module):
             if self.elementwise_affine:
                 weight = self.broadcast(self.weight).squeeze()
                 bias = self.broadcast(self.bias).squeeze()
+                if len(self.normalized_shape) > len(weight.shape):
+                    weight = weight.unsqueeze(0)
+                if len(self.normalized_shape) > len(bias.shape):
+                    bias = bias.unsqueeze(0)
             else:
                 weight = None
                 bias = None
