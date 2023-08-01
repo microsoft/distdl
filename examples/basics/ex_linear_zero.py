@@ -12,7 +12,7 @@ from distdl.utilities.torch import zero_volume_tensor
 from distdl.nn.repartition import Repartition
 
 # Set backend
-set_backend(backend_comm="mpi", backend_array="numpy")
+set_backend(backend_comm="nccl", backend_array="cupy")
 
 # Set up MPI cartesian communicator
 P_world = MPIPartition(MPI.COMM_WORLD)
@@ -31,16 +31,16 @@ P_x = P_x_base.create_cartesian_topology_partition(in_shape)
 
 # Input/output data dimensions
 batch_size = 8
-num_tokens = 16
-in_channels = 24
-hidden_channels = 36
-out_channels = 28
+num_tokens = 2048
+in_channels = 12288
+hidden_channels = int(4*12288)
+out_channels = 12288
 
 # Linear layers with 2D data- and weight partitioning (ZeRO-3, FDSP1)
 # The all-gather version is preferred if out_channels > in_channels. 
 # Otherwise, the reduce-scatter version is preferred.
-linear_in = DistributedLinearReduceScatterZero(P_x, in_channels, hidden_channels)
-linear_out = DistributedLinearAllGatherZero(P_x, hidden_channels, out_channels)
+linear_in = DistributedLinearReduceScatterZero(P_x, in_channels, hidden_channels, checkpoint=True)
+linear_out = DistributedLinearAllGatherZero(P_x, hidden_channels, out_channels, checkpoint=True)
 
 # For ZeRO-3, the output channel dimension is folded into the batch dimension, such that
 # the weight is partitioned along the data-parallel workers. The input channel dimension

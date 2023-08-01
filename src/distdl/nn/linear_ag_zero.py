@@ -135,12 +135,15 @@ class DistributedLinearAllGatherZero(Module):
     geglu: bool, optional
         Set to true if a gated linear unit is used directly after the linear layer and
         collect_state=True. Default is False.
+    checkpoint : bool, optional
+        If true, use custom backward implementation that recomputes the
+        all-gathers in the backward pass.
     """
 
 
     def __init__(self, P_y, in_features, out_features, bias=True, device=None, dtype=None, 
         P_x=None, P_store_bias=None, P_weight=None, collect_state=False, num_heads=None, 
-        num_vars=3, geglu=False):
+        num_vars=3, geglu=False, checkpoint=False):
 
         super(DistributedLinearAllGatherZero, self).__init__()
 
@@ -173,6 +176,7 @@ class DistributedLinearAllGatherZero(Module):
         self.geglu = geglu
         self.use_bias = bias
         self.dtype = dtype
+        self.checkpoint = checkpoint
 
         # Partition for storing weights & biases
         if P_store_bias is not None:
@@ -432,33 +436,31 @@ class DistributedLinearAllGatherZero(Module):
         if not self.P_y.active:
             return input
 
-        # Custom forward/backward implementation
-        return LinearAllGatherZeROFunc.apply(
-            input,
-            self.weight,
-            self.bias,
-            self.all_gather,
-            self.reduce_scatter,
-            self.allgather_weight,
-            self.reduce_scatter_weight,
-            self.broadcast_bias,
-            self.sum_reduce_bias
-        )
+        if self.checkpoint:
+            return LinearAllGatherZeROFunc.apply(
+                input,
+                self.weight,
+                self.bias,
+                self.all_gather,
+                self.reduce_scatter,
+                self.allgather_weight,
+                self.reduce_scatter_weight,
+                self.broadcast_bias,
+                self.sum_reduce_bias
+            )
+        else:
+            # All-gather input
+            input = self.all_gather(input)
 
-        # # All-gather input
-        # input = self.all_gather(input)
+            # Broadcast weights to everyone
+            weight = self.allgather_weight(self.weight)
+            weight = weight.transpose(-1, 0).view(-1, self.in_features)
 
-        # # Broadcast weights to everyone
-        # weight = self.allgather_weight(self.weight)
-        # weight = weight.transpose(-1, 0).view(-1, self.in_features)
+            # Broadcast bias
+            if self.bias is not None:
+                bias = self.broadcast_bias(self.bias).view(weight.shape[-2])
+            else:
+                bias = self.bias
 
-        # # Broadcast bias
-        # if self.bias is not None:
-        #     bias = self.broadcast_bias(self.bias).view(weight.shape[-2])
-        # else:
-        #     bias = self.bias
-
-        # # Affine/linear transform
-        # return torch.nn.functional.linear(input, weight, bias)
-
-
+            # Affine/linear transform
+            return torch.nn.functional.linear(input, weight, bias)

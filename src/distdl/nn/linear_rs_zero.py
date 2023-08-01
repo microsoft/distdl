@@ -119,10 +119,13 @@ class DistributedLinearReduceScatterZero(Module):
         serializes them to disk when the state_dict() function is called.
         Instead of the weights and biases, the state dictionary contains 
         paths to those files. Default is false.
+    checkpoint : bool, optional
+        If true, use custom backward implementation that recomputes the
+        all-gathers in the backward pass.
     """
 
     def __init__(self, P_x, in_features, out_features, bias=True, device=None, dtype=None,
-        P_y=None, P_bias=None, collect_state=False, geglu=False):
+        P_y=None, P_bias=None, collect_state=False, checkpoint=False):
 
         super(DistributedLinearReduceScatterZero, self).__init__()
 
@@ -151,8 +154,8 @@ class DistributedLinearReduceScatterZero(Module):
         self.out_features = out_features
         self.collect_state = collect_state
         self.use_bias = bias
-        self.geglu = geglu
         self.dtype = dtype
+        self.checkpoint = checkpoint
 
         # Partition for applying bias
         if P_bias is not None:
@@ -336,32 +339,34 @@ class DistributedLinearReduceScatterZero(Module):
         if not self.P_x.active:
             return input
 
-        # Custom forward/backward implementation
-        return LinearReduceScatterZeROFunc.apply(
-            input,
-            self.weight,
-            self.bias,
-            self.all_gather,
-            self.reduce_scatter,
-            self.all_gather_weight,
-            self.reduce_scatter_weight,
-            self.all_gather_bias,
-            self.reduce_scatter_bias,
-            self.P_bias.active
-        )
+        if self.checkpoint:
+            return LinearReduceScatterZeROFunc.apply(
+                input,
+                self.weight,
+                self.bias,
+                self.all_gather,
+                self.reduce_scatter,
+                self.all_gather_weight,
+                self.reduce_scatter_weight,
+                self.all_gather_bias,
+                self.reduce_scatter_bias,
+                self.P_bias.active
+            )
 
-        # # Gather weights
-        # weight = self.all_gather_weight(self.weight)
-        # weight = weight.view(self.out_features, -1)
+        else:
 
-        # # Broadcast bias
-        # if self.bias is not None and self.P_bias.active:
-        #    bias = self.all_gather_bias(self.bias).view(self.out_features)
-        # else:
-        #    bias = self.bias
+            # Gather weights
+            weight = self.all_gather_weight(self.weight)
+            weight = weight.view(self.out_features, -1)
 
-        # # Affine/linear transform
-        # y = torch.nn.functional.linear(input, weight, bias)
+            # Broadcast bias
+            if self.bias is not None and self.P_bias.active:
+                bias = self.all_gather_bias(self.bias).view(self.out_features)
+            else:
+                bias = self.bias
 
-        # # Reduce-scatter
-        # return self.reduce_scatter(y)
+            # Affine/linear transform
+            y = torch.nn.functional.linear(input, weight, bias)
+
+            # Reduce-scatter
+            return self.reduce_scatter(y)
