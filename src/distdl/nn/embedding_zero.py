@@ -147,6 +147,7 @@ class DistributedEmbeddingZero(Module):
             weight_view = [1]*self.P_x.dim
             weight_view[0] = weight.shape[-2]
             weight_view[-1] = weight.shape[-1]
+
             weight = weight.view(weight_view)
         return weight
 
@@ -163,7 +164,6 @@ class DistributedEmbeddingZero(Module):
 
             # Serialize weights
             if self.P_root.active:
-                #torch.save(weight, weight_key)
 
                 # Add filenames back to state dict
                 destination[weight_key] = weight#weight_key
@@ -175,15 +175,14 @@ class DistributedEmbeddingZero(Module):
 
             # Scatter weights
             weight_key = next(iter(destination))
-            #destination.pop(weight_key)
             if self.P_root.active:
-                #weight = torch.load(weight_key)
                 weight = destination.pop(weight_key)
+                weight = self._expand(weight)
             else:
                 destination.pop(weight_key)
                 weight = zero_volume_tensor(device=self.P_x.device, requires_grad=True, dtype=self.dtype)
             if self.P_x.active:
-                weight = self._squeeze(self.scatter_weight(self._expand(weight)))
+                weight = self._squeeze(self.scatter_weight(weight))
 
             destination[weight_key] = weight
 
