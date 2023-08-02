@@ -36,6 +36,7 @@ from .embedding_zero import DistributedEmbeddingZero
 from .embedding import DistributedEmbedding
 from .halo_exchange import HaloExchange  # noqa: F401
 from .interpolate import Interpolate  # noqa: F401
+from .layernorm_zero import DistributedLayerNormZero
 from .layernorm import DistributedLayerNorm
 from .linear import DistributedLinear  # noqa: F401
 from .linear_ag import DistributedLinearAllGather  # noqa: F401
@@ -97,6 +98,7 @@ __all__ = ["AllGather",
            "HaloExchange",
            "DistributedEmbeddingZero",
            "DistributedEmbedding",
+           "DistributedLayerNormZero",
            "DistributedLayerNorm",
            "DistributedLinear",
            "DistributedLinearAllGather",
