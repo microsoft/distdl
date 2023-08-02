@@ -135,7 +135,8 @@ class DistributedLayerNormZero(Module):
             P_root_base = P_x.create_partition_inclusive([0])
             self.P_root = P_root_base.create_cartesian_topology_partition([1]*P_x.dim)
             self.gather = Repartition(self.P_w, self.P_root, preserve_batch=False)
-            self.scatter = Repartition(self.P_root, self.P_w, preserve_batch=False)
+            self.scatter_mp = Repartition(self.P_root, self.P_w, preserve_batch=False)
+            self.scatter_dp = Repartition(self.P_w, self.P_x, preserve_batch=False)
 
     # Initializer for parameters
     def reset_parameters(self):
@@ -189,8 +190,10 @@ class DistributedLayerNormZero(Module):
                 bias = zero_volume_tensor(device=self.P_x.device, requires_grad=True, dtype=self.dtype)
             
             # Scatter states
-            weight = self.scatter(weight)
-            bias = self.scatter(bias)
+            weight = self.scatter_mp(weight)
+            bias = self.scatter_mp(bias)
+            weight = self.scatter_dp(weight.transpose(0,-1)).transpose(0,-1)
+            bias = self.scatter_dp(bias.transpose(0,-1)).transpose(0,-1)
 
             # Add data back to state dict
             destination[weight_key] = weight
