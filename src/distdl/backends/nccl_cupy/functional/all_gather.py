@@ -16,13 +16,20 @@ def reorg(x_vec, P_x, axis, in_shape):
     # Reshape to p x (n1 x n2 x ... x nN)
     num_partitions = P_x.shape[axis]
     new_shape =  [num_partitions] + list(in_shape)
-    x = x_vec.reshape(new_shape)
 
     # Permute back to orig shape
     num_dims = len(P_x.shape)
     expanded_order, new_order = get_rearrange_ordering(num_dims, axis)
     operation = expanded_order + ' -> ' + new_order
-    return rearrange(x, operation)
+
+    if expanded_order == new_order.replace('(', '').replace(')',''):
+        new_shape = list(new_shape)
+        new_shape[axis] = -1
+        new_shape.pop(axis+1)
+        return x_vec.reshape(tuple(new_shape))
+    else:
+        x = x_vec.reshape(new_shape)
+        return rearrange(x, operation)
 
 
 class AllGatherFunction(torch.autograd.Function):
@@ -97,7 +104,7 @@ class AllGatherFunction(torch.autograd.Function):
                 dtype=output_tensor_structure.dtype, device=device)
 
             # All-gather (Conversion from torch cuda tensor to cupy array is via pointers. No mem copy.)
-            count = np.prod(input.shape).item()
+            count = np.prod(output_tensor_structure.shape).item()
             P_allgather._nccl.all_gather(input.detach(), gathered_data, count, stream=None)
 
         # If we had to receive data, we need to tensorify it.
