@@ -46,6 +46,42 @@ adjoint_parametrizations.append(
         )
     )
 
+adjoint_parametrizations.append(
+    pytest.param(
+        np.arange(0, 6), [2, 3],  # P_x_ranks, P_x_topo
+        [6, 3],  # x_global_shape
+        [3, 3], # y_global_shape
+        (0,),  # axes_reduce_scatter
+        6,  # passed to comm_split_fixture, required MPI ranks
+        id="distributed-2D-0D_reduction",
+        marks=[pytest.mark.mpi(min_size=6)]
+        )
+    )
+
+adjoint_parametrizations.append(
+    pytest.param(
+        np.arange(0, 6), [2, 3],  # P_x_ranks, P_x_topo
+        [2, 15],  # x_global_shape
+        [2, 5], # y_global_shape
+        (1,),  # axes_reduce_scatter
+        6,  # passed to comm_split_fixture, required MPI ranks
+        id="distributed-2D-1D_reduction",
+        marks=[pytest.mark.mpi(min_size=6)]
+        )
+    )
+
+adjoint_parametrizations.append(
+    pytest.param(
+        np.arange(0, 4), [4],  # P_x_ranks, P_x_topo
+        [24],  # x_global_shape
+        [6], # y_global_shape
+        (0,),  # axes_gather
+        4,  # passed to comm_split_fixture, required MPI ranks
+        id="distributed-2D-0D_reduction",
+        marks=[pytest.mark.mpi(min_size=4)]
+        )
+    )
+
 # For example of indirect, see https://stackoverflow.com/a/28570677
 @pytest.mark.parametrize("P_x_ranks, P_x_shape,"
                          "x_global_shape,"
