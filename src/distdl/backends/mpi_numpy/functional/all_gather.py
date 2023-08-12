@@ -8,21 +8,8 @@ from mpi4py import MPI
 from einops import rearrange
 
 from distdl.utilities.dtype import torch_to_numpy_dtype_dict
-from distdl.utilities.torch import zero_volume_tensor
+from distdl.utilities.torch import zero_volume_tensor, distdl_padding_to_torch_padding
 from distdl.utilities.slicing import get_rearrange_ordering
-
-def reorg(x_vec, P_x, axis, in_shape):
-
-    # Reshape to p x (n1 x n2 x ... x nN)
-    num_partitions = P_x.shape[axis]
-    new_shape =  [num_partitions] + list(in_shape)
-    x = x_vec.reshape(new_shape)
-
-    # Permute back to orig shape
-    num_dims = len(P_x.shape)
-    expanded_order, new_order = get_rearrange_ordering(num_dims, axis)
-    operation = expanded_order + ' -> ' + new_order
-    return rearrange(x, operation)
 
 
 class AllGatherFunction(torch.autograd.Function):
@@ -85,17 +72,35 @@ class AllGatherFunction(torch.autograd.Function):
         ctx.output_tensor_structure = output_tensor_structure
         ctx.device = device
         ctx.axes = axes
+        ctx.remainder = 0
 
         output = zero_volume_tensor(device=device)
+        input_tensor_shape = np.array(input_tensor_structure.shape)
+        output_tensor_shape = np.array(output_tensor_structure.shape)
 
         requests = []
 
         # There is no need to specificy a root.
         if P_allgather.active:
 
+            # If output shape does not evenly divide by number of partitions, we need to zero-pad the input
+            ctx.remainder = output_tensor_shape[axes[0]] % P_allgather.shape[axes[0]]
+            if ctx.remainder != 0:
+                if P_allgather.rank >= ctx.remainder:
+                    padding = [0]*2*P_allgather.dim
+                    padding[2*axes[0]] = 1
+                    padding = distdl_padding_to_torch_padding(tuple(padding))
+                    input = torch.nn.functional.pad(input, padding, mode='constant', value=0)
+
+                # Update input/ouput shapes after padding
+                input_tensor_shape = input.shape
+                output_shape = list(output_tensor_shape)
+                output_shape[axes[0]] = input_tensor_shape[axes[0]] * P_allgather.shape[axes[0]]
+                output_tensor_shape = torch.Size(output_shape)
+
             # Allocate flattened output array
             numpy_dtype = torch_to_numpy_dtype_dict[input_tensor_structure.dtype]
-            gathered_data = np.zeros(np.prod(output_tensor_structure.shape), dtype=numpy_dtype)
+            gathered_data = np.zeros(np.prod(output_tensor_shape), dtype=numpy_dtype)
 
             # All-gather
             input_numpy = np.asarray(input.detach(), dtype=numpy_dtype)
@@ -108,8 +113,34 @@ class AllGatherFunction(torch.autograd.Function):
         if P_allgather.active:
             
             # Re-order flat output array from all-gather to correct cartesian shape
-            gathered_data = torch.tensor(gathered_data, device=device)
-            output = reorg(gathered_data, P_allgather, axes[0], input_tensor_structure.shape)
+            gathered_cart_shape = [P_allgather.shape[axes[0]]] + list(input_tensor_shape)
+            output = torch.tensor(gathered_data, device=device).reshape(gathered_cart_shape)
+
+            # Dimension ordering for rearrange.E.g.,  p a, b, c -> a, (p b), c
+            in_shape_char, out_shape_char = get_rearrange_ordering(P_allgather.dim, axes[0])
+
+            # If we zero-padded, we need to remove the padding now from the gathered tensor.
+            if ctx.remainder > 0:
+
+                # Split tensor into its original inputs, so we can
+                # remove padding from inputs that were zero-padded
+                output_list = list(torch.split(output, 1, dim=0))
+
+                # Remove padding
+                s = [slice(None)]*(P_allgather.dim+1)
+                s[axes[0]+1] = slice(0, -1)
+                for i in range(ctx.remainder, P_allgather.shape[axes[0]]):
+                    output_list[i] = output_list[i][s]
+            
+                # Rearrange
+                for i in range(P_allgather.shape[axes[0]]):
+                    output_list[i] = rearrange(output_list[i], in_shape_char + ' -> ' + out_shape_char)
+
+                # Undo splitting
+                output = torch.cat(tuple(output_list), dim=axes[0])
+
+            else:
+                output = rearrange(output, in_shape_char + ' -> ' + out_shape_char)
             output.requires_grad_(output_tensor_structure.requires_grad)
 
         return output
@@ -143,22 +174,53 @@ class AllGatherFunction(torch.autograd.Function):
         output_tensor_structure = ctx.output_tensor_structure
         device = ctx.device
         axes = ctx.axes
+        remainder = ctx.remainder
 
         grad_input = zero_volume_tensor(device=device)
+        input_tensor_shape = np.array(input_tensor_structure.shape)
 
         requests = []
 
         # All-gather operation
         if P_allgather.active:
 
-            # Allocate output array
-            numpy_dtype = torch_to_numpy_dtype_dict[output_tensor_structure.dtype]
-            scattered_data = np.zeros(input_tensor_structure.shape, dtype=numpy_dtype)
-
             # Re-order input array
             expanded_order, new_order = get_rearrange_ordering(len(grad_output.shape), axes[0])
             operation = new_order + ' -> ' + expanded_order
-            grad_output_flat = rearrange(grad_output, operation, p=P_allgather.shape[axes]).reshape(-1)
+
+            # If input shape does not split evenly along no. of partitions, we need to zero-pad
+            if remainder > 0:
+
+                # Split tensor along reduce-scatter axis
+                local_shapes = [output_tensor_structure.shape[axes[0]] // P_allgather.shape[axes[0]]] * \
+                    P_allgather.shape[axes[0]]
+                for i in range(ctx.remainder):
+                    local_shapes[i] += 1
+                grad_output_list = list(torch.split(grad_output, local_shapes, dim=axes[0]))
+
+                # Re-order each sub-tensor
+                for i in range(P_allgather.shape[axes[0]]):
+                    grad_output_list[i] = rearrange(grad_output_list[i], operation, p=1)
+
+                # Zero-pad sub-tensors that are too small
+                for i in range(ctx.remainder, P_allgather.shape[axes[0]]):
+                    padding = [0]*2*P_allgather.dim
+                    padding[2*axes[0]] = 1
+                    padding = distdl_padding_to_torch_padding(tuple(padding))
+                    grad_output_list[i] = torch.nn.functional.pad(grad_output_list[i], padding, mode='constant', value=0)
+
+                # Concatenate and flatten
+                grad_output_flat = torch.cat(grad_output_list, dim=0).reshape(-1)
+                
+                # Update output shape for ranks that received zero-padded data
+                if P_allgather.rank >= ctx.remainder:
+                    input_tensor_shape[axes[0]] += 1
+            else:
+                grad_output_flat = rearrange(grad_output, operation, p=P_allgather.shape[axes]).reshape(-1)
+
+            # Allocate output array
+            numpy_dtype = torch_to_numpy_dtype_dict[output_tensor_structure.dtype]
+            scattered_data = np.zeros(input_tensor_shape, dtype=numpy_dtype)
             grad_output_flat = np.asarray(grad_output_flat.detach(), dtype=numpy_dtype)
 
             # Reduce-scatter primitive
@@ -173,4 +235,10 @@ class AllGatherFunction(torch.autograd.Function):
                                      device=device)
             grad_input.requires_grad_(input_tensor_structure.requires_grad)
 
+            # If we're one of the workers having received zero-padded data, remove padding
+            if remainder != 0 and P_allgather.rank >= remainder:
+                s = [slice(None)]*(P_allgather.dim)
+                s[axes[0]] = slice(0, -1)
+                grad_input = grad_input[s]
+                
         return grad_input, None, None, None, None
