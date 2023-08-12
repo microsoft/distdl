@@ -74,7 +74,7 @@ class AllGatherFunction(torch.autograd.Function):
         ctx.axes = axes
         ctx.remainder = 0
 
-        output = zero_volume_tensor(device=device)
+        output = zero_volume_tensor(device=device, dtype=output_tensor_structure.dtype)
         input_tensor_shape = np.array(input_tensor_structure.shape)
         output_tensor_shape = np.array(output_tensor_structure.shape)
 
@@ -114,7 +114,7 @@ class AllGatherFunction(torch.autograd.Function):
             
             # Re-order flat output array from all-gather to correct cartesian shape
             gathered_cart_shape = [P_allgather.shape[axes[0]]] + list(input_tensor_shape)
-            output = torch.tensor(gathered_data, device=device).reshape(gathered_cart_shape)
+            output = torch.asarray(gathered_data, device=device).reshape(gathered_cart_shape)
 
             # Dimension ordering for rearrange.E.g.,  p a, b, c -> a, (p b), c
             in_shape_char, out_shape_char = get_rearrange_ordering(P_allgather.dim, axes[0])
@@ -176,7 +176,7 @@ class AllGatherFunction(torch.autograd.Function):
         axes = ctx.axes
         remainder = ctx.remainder
 
-        grad_input = zero_volume_tensor(device=device)
+        grad_input = zero_volume_tensor(device=device, dtype=input_tensor_structure.dtype)
         input_tensor_shape = np.array(input_tensor_structure.shape)
 
         requests = []

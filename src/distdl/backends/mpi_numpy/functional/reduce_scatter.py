@@ -72,7 +72,6 @@ class ReduceScatterFunction(torch.autograd.Function):
         ctx.axes = axes
         ctx.remainder = 0
 
-        output = zero_volume_tensor(device=device)
         output = zero_volume_tensor(device=device, dtype=output_tensor_structure.dtype)
         output_tensor_shape = output_tensor_structure.shape.copy()
 
@@ -129,9 +128,9 @@ class ReduceScatterFunction(torch.autograd.Function):
 
         # If we had to receive data, we need to tensorify it.
         if P_reducescatter.active:
-            output = torch.tensor(scattered_data,
-                                  requires_grad=output_tensor_structure.requires_grad,
-                                  device=device)
+            output = torch.asarray(scattered_data,
+                                   requires_grad=output_tensor_structure.requires_grad,
+                                   device=device)
 
             # If we're one of the workers having received zero-padded data, remove padding
             if ctx.remainder != 0 and P_reducescatter.rank >= ctx.remainder:
@@ -172,7 +171,7 @@ class ReduceScatterFunction(torch.autograd.Function):
         axes = ctx.axes
         remainder = ctx.remainder
 
-        grad_input = zero_volume_tensor(device=device)
+        grad_input = zero_volume_tensor(device=device, dtype=input_tensor_structure.dtype)
         input_tensor_shape = np.array(input_tensor_structure.shape)
         output_tensor_shape = np.array(output_tensor_structure.shape)
 
@@ -207,7 +206,7 @@ class ReduceScatterFunction(torch.autograd.Function):
             grad_input.requires_grad_(input_tensor_structure.requires_grad)
 
             # Re-order flat output array from all-gather to correct cartesian shape
-            gathered_data = torch.tensor(gathered_data, device=device, dtype=output_tensor_structure.dtype)
+            gathered_data = torch.asarray(gathered_data, device=device, dtype=output_tensor_structure.dtype)
 
             # Reshape vectorized all-gather output to tensor.
             gathered_cart_shape = [P_reducescatter.shape[axes[0]]] + list(output_tensor_shape)
