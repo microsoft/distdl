@@ -186,8 +186,8 @@ class DistributedLayerNormZero(Module):
                 bias = bias.view(*self.bias.shape[self.dim_bcast_slice], -1)
 
             else:
-                weight = zero_volume_tensor(device=self.P_x.device, requires_grad=True, dtype=self.dtype)
-                bias = zero_volume_tensor(device=self.P_x.device, requires_grad=True, dtype=self.dtype)
+                weight = zero_volume_tensor(device=self.P_x.device, requires_grad=True, dtype=weight.dtype)
+                bias = zero_volume_tensor(device=self.P_x.device, requires_grad=True, dtype=bias.dtype)
             
             # Scatter states
             weight = self.scatter_mp(weight)
