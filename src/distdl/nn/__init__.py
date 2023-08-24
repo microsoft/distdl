@@ -33,9 +33,11 @@ from .conv_general import DistributedGeneralConv1d  # noqa: F401
 from .conv_general import DistributedGeneralConv2d  # noqa: F401
 from .conv_general import DistributedGeneralConv3d  # noqa: F401
 from .embedding import DistributedEmbedding
+from .embedding_zero import DistributedEmbeddingZero
 from .halo_exchange import HaloExchange  # noqa: F401
 #from .interpolate import Interpolate  # noqa: F401
 from .layernorm import DistributedLayerNorm
+from .layernorm_zero import DistributedLayerNormZero
 from .linear import DistributedLinear  # noqa: F401
 from .linear_ag import DistributedLinearAllGather  # noqa: F401
 from .linear_ag_zero import DistributedLinearAllGatherZero  # noqa: F401
@@ -95,7 +97,9 @@ __all__ = ["AllGather",
            "DistributedGeneralConv3d",
            "HaloExchange",
            "DistributedEmbedding",
+           "DistributedEmbeddingZero",
            "DistributedLayerNorm",
+           "DistributedLayerNormZero",
            "DistributedLinear",
            "DistributedLinearAllGather",
            "DistributedLinearAllGatherZero",

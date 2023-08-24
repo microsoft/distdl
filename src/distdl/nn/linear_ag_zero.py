@@ -4,14 +4,70 @@ import torch, math
 from distdl.backends.common.tensor_comm import assemble_global_tensor_structure
 from distdl.nn.module import Module
 from distdl.nn.all_gather import AllGather
+from distdl.nn.reduce_scatter import ReduceScatter
 from distdl.utilities.slicing import compute_subshape
 from distdl.utilities.torch import TensorStructure
 from distdl.utilities.slicing import worker_layout
-from distdl.nn.repartition import Repartition
-from distdl.nn.broadcast import Broadcast
+from distdl.nn.repartition import Repartition   # TODO may have to remove
 from distdl.utilities.torch import zero_volume_tensor
 import distdl.nn.init as init
 from einops import rearrange
+
+# Custom forward/backward functions
+class LinearAllGatherZeROFunc(torch.autograd.Function):
+
+    @staticmethod
+    def forward(input, weight, bias, ag_input, rs_input, ag_weight, rs_weight, ag_bias, rs_bias):
+
+        # Gather inputs
+        input = ag_input(input)
+        weight = ag_weight(weight).squeeze(2)
+        
+        # Broadcast bias
+        if bias is not None:
+            bias = ag_bias(bias.transpose(0, -2)).transpose(0, -2).view(1, 1, -1)
+
+        # Affine layer
+        return torch.einsum('bij,jk->bik', input, weight) + bias
+
+    @staticmethod
+    def setup_context(ctx, inputs, output):
+        input, weight, bias, ag_input, rs_input, ag_weight, rs_weight, ag_bias, rs_bias = inputs
+        ctx.save_for_backward(input, weight, bias)
+        ctx.constant = (ag_input, rs_input, ag_weight, rs_weight, rs_bias)
+
+    @staticmethod
+    def backward(ctx, grad_output):
+
+        # Load saved tensors and operators
+        input, weight, bias  = ctx.saved_tensors
+        ag_input, rs_input, ag_weight, rs_weight, rs_bias = ctx.constant
+
+        # Input gradient
+        if ctx.needs_input_grad[0]:
+            weight = ag_weight(weight).squeeze(2)
+            grad_input = torch.einsum('bij,kj->bik', grad_output, weight)
+            grad_input = rs_input(grad_input)
+        else:
+            grad_input = None
+
+        # Weight gradient
+        if ctx.needs_input_grad[1]:
+            input = ag_input(input)
+            grad_weight = torch.einsum('bij,bik->jk', input, grad_output).unsqueeze(2)
+            grad_weight = rs_weight(grad_weight)
+        else:
+            grad_weight = None
+
+        # Bias gradient
+        if bias is not None and ctx.needs_input_grad[2]:
+            grad_bias = grad_output.sum((0,1)).view(1, -1, 1)
+            grad_bias = rs_bias(grad_bias.transpose(0, -2)).transpose(0, -2)
+        else:
+            grad_bias = None
+
+        return grad_input, grad_weight, grad_bias, None, None, None, None, None, None
+
 
 class DistributedLinearAllGatherZero(Module):
     r"""A distributed linear or affine layer with 2D parallelism for weights 
@@ -77,12 +133,15 @@ class DistributedLinearAllGatherZero(Module):
     geglu: bool, optional
         Set to true if a gated linear unit is used directly after the linear layer and
         collect_state=True. Default is False.
+    checkpoint : bool, optional
+        If true, use custom backward implementation that recomputes the
+        all-gathers in the backward pass.
     """
 
 
     def __init__(self, P_y, in_features, out_features, bias=True, device=None, dtype=None, 
         P_x=None, P_store_bias=None, P_weight=None, collect_state=False, num_heads=None, 
-        num_vars=3, geglu=False):
+        num_vars=3, geglu=False, checkpoint=False):
 
         super(DistributedLinearAllGatherZero, self).__init__()
 
@@ -115,6 +174,7 @@ class DistributedLinearAllGatherZero(Module):
         self.geglu = geglu
         self.use_bias = bias
         self.dtype = dtype
+        self.checkpoint = checkpoint
 
         # Partition for storing weights & biases
         if P_store_bias is not None:
@@ -161,8 +221,10 @@ class DistributedLinearAllGatherZero(Module):
 
         # Function to broadcast weights and biases
         self.allgather_weight = AllGather(P_weight, axes_all_gather=(0,))
+        self.reduce_scatter_weight = ReduceScatter(P_weight, axes_reduce_scatter=(0,))
         if bias:
-            self.broadcast_bias = Broadcast(P_store_bias, P_weight)
+            self.allgather_bias = AllGather(P_weight, axes_all_gather=(0,))
+            self.reducescatter_bias = ReduceScatter(P_weight, axes_reduce_scatter=(0,))
 
         # Create weights
         if P_weight.active:
@@ -184,9 +246,12 @@ class DistributedLinearAllGatherZero(Module):
             self.register_buffer('weight', zero_volume_tensor(device=device, requires_grad=True, dtype=self.dtype))
 
         # Create bias
-        if self.use_bias and P_store_bias.active:
+        if self.use_bias and P_weight.active:
             bias_shape = [1] * P_y.dim
-            bias_shape[-2] = out_features_local
+            out_features_bias_local = compute_subshape(P_weight.shape[0],
+                                                       P_weight.index[0],
+                                                      [out_features_local])[0]
+            bias_shape[-2] = out_features_bias_local
             self.bias = torch.nn.Parameter(torch.empty(tuple(bias_shape), **factory_kwargs))
         elif self.use_bias:
             self.register_buffer('bias', zero_volume_tensor(device=device, requires_grad=True, dtype=self.dtype))
@@ -199,20 +264,21 @@ class DistributedLinearAllGatherZero(Module):
         # All-gather operation
         gather_dim = torch.argmax(torch.tensor(self.P_x.shape[-2:])) + self.P_x.dim - 2
         self.all_gather = AllGather(self.P_x, axes_all_gather=(gather_dim,))
+        self.reduce_scatter = ReduceScatter(self.P_x, axes_reduce_scatter=(gather_dim,))
 
         # State dict hooks for gather/scattering distributed weights
         self._register_state_dict_hook(self.gather_state_dict)
         self._register_load_state_dict_pre_hook(self.scatter_state_dict)
 
         # Partition for collecting weights/biases for saving the state dict
-        if self.collect_state:
-            P_root_base = P_y.create_partition_inclusive([0])
-            self.P_root = P_root_base.create_cartesian_topology_partition([1]*P_y.dim)
-            self.gather_weight = Repartition(P_weight, self.P_root, preserve_batch=False)
-            self.scatter_weight = Repartition(self.P_root, P_weight, preserve_batch=False)
-            if self.use_bias:
-                self.gather_bias = Repartition(P_store_bias, self.P_root, preserve_batch=False)
-                self.scatter_bias = Repartition(self.P_root, P_store_bias, preserve_batch=False)
+        P_root_base = P_y.create_partition_inclusive([0])
+        self.P_root = P_root_base.create_cartesian_topology_partition([1]*P_y.dim)
+        self.gather_weight = Repartition(P_weight, self.P_root, preserve_batch=False)
+        self.scatter_weight = Repartition(self.P_root, P_weight, preserve_batch=False)
+        if self.use_bias:
+            self.gather_bias = Repartition(P_store_bias, self.P_root, preserve_batch=False)
+            self.scatter_bias_mp = Repartition(self.P_root, P_store_bias, preserve_batch=False)
+            self.scatter_bias_dp = Repartition(self.P_store_bias, P_weight, preserve_batch=False)
 
     def reset_parameters(self) -> None:
 
@@ -285,10 +351,6 @@ class DistributedLinearAllGatherZero(Module):
         weight = rearrange(self._squeeze_weight(weight), "n (v p h) -> n (p v h)", 
             p=num_gpu, v=2, h=weight_size)
         return self._unsqueeze_weight(weight)
-
-    # def squeeze_except(self, x, dims):
-    #     dims_to_squeeze = tuple(dim for dim in range(x.dim()) if dim not in dims)
-    #     return x.squeeze(*dims_to_squeeze)
         
     def gather_state_dict(self, module, destination, prefix, *args):
 
@@ -298,8 +360,9 @@ class DistributedLinearAllGatherZero(Module):
                 # Collect bias and serialize (last entry added to dict).
                 # All workers should pop their bias from the state dict.
                 bias_key = next(reversed(destination))
-                bias = self.gather_bias(destination.pop(bias_key))
-
+                bias = self.allgather_bias(destination.pop(bias_key).transpose(0, -2)).transpose(0, -2)
+                bias = self.gather_bias(bias)
+            
                 if self.P_root.active:
                     if self.num_heads is not None: bias = self.qkv_weight_to_serial(bias)
                     if self.geglu: bias = self.geglu_weight_to_serial(bias)
@@ -333,7 +396,7 @@ class DistributedLinearAllGatherZero(Module):
                 if self.num_heads is not None: weight = self.qkv_weight_to_parallel(weight)
                 if self.geglu: weight = self.geglu_weight_to_parallel(weight)
             else:
-                weight = zero_volume_tensor(device=self.P_y.device, requires_grad=True, dtype=self.dtype)
+                weight = zero_volume_tensor(device=self.P_y.device, requires_grad=True, dtype=weight.dtype)
             if self.P_weight.active:
                 weight = self.scatter_weight(weight)
 
@@ -346,9 +409,12 @@ class DistributedLinearAllGatherZero(Module):
                     if self.num_heads is not None: bias = self.qkv_weight_to_parallel(bias)
                     if self.geglu: bias = self.geglu_weight_to_parallel(bias)
                 elif self.P_weight.active:
-                    bias = zero_volume_tensor(device=self.P_y.device, requires_grad=True, dtype=self.dtype)
-                if self.P_store_bias.active:
-                    bias = self.scatter_bias(bias)
+                    bias = zero_volume_tensor(device=self.P_y.device, requires_grad=True, dtype=bias.dtype)
+                if self.P_weight.active:
+                    bias = self.scatter_bias_mp(bias)
+                    if self.P_store_bias.active:
+                        bias = bias.transpose(0, -2)
+                    bias = self.scatter_bias_dp(bias).transpose(0, -2)
                 if self.P_weight.active:
                     destination[bias_key] = bias
             
@@ -369,20 +435,34 @@ class DistributedLinearAllGatherZero(Module):
         """
 
         if not self.P_y.active:
-            return input#.clone()
+            return input
 
-        # All-gather input
-        input = self.all_gather(input)
-
-        # Broadcast weights to everyone
-        weight = self.allgather_weight(self.weight)
-        weight = weight.transpose(-1, 0).view(-1, self.in_features)
-
-        # Broadcast bias
-        if self.bias is not None:
-            bias = self.broadcast_bias(self.bias).view(weight.shape[-2])
+        if self.checkpoint:
+            return LinearAllGatherZeROFunc.apply(
+                input,
+                self.weight,
+                self.bias,
+                self.all_gather,
+                self.reduce_scatter,
+                self.allgather_weight,
+                self.reduce_scatter_weight,
+                self.allgather_bias,
+                self.reducescatter_bias
+            )
         else:
-            bias = self.bias
+            # All-gather input
+            input = self.all_gather(input)
 
-        # Affine/linear transform
-        return torch.nn.functional.linear(input, weight, bias)
+            # Broadcast weights to everyone
+            weight = self.allgather_weight(self.weight)
+            weight = weight.transpose(-1, 0).view(-1, self.in_features)
+
+            # Broadcast bias
+            if self.bias is not None:
+                bias = self.allgather_bias(self.bias.transpose(0,-2)).transpose(0,-2)
+                bias = bias.view(weight.shape[-2])
+            else:
+                bias = self.bias
+
+            # Affine/linear transform
+            return torch.nn.functional.linear(input, weight, bias)
