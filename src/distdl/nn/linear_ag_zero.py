@@ -8,7 +8,7 @@ from distdl.nn.reduce_scatter import ReduceScatter
 from distdl.utilities.slicing import compute_subshape
 from distdl.utilities.torch import TensorStructure
 from distdl.utilities.slicing import worker_layout
-from distdl.nn.repartition import Repartition   # TODO may have to remove
+#from distdl.nn.repartition import Repartition   # TODO may have to remove
 from distdl.utilities.torch import zero_volume_tensor
 import distdl.nn.init as init
 from einops import rearrange
@@ -267,18 +267,18 @@ class DistributedLinearAllGatherZero(Module):
         self.reduce_scatter = ReduceScatter(self.P_x, axes_reduce_scatter=(gather_dim,))
 
         # State dict hooks for gather/scattering distributed weights
-        self._register_state_dict_hook(self.gather_state_dict)
-        self._register_load_state_dict_pre_hook(self.scatter_state_dict)
+        # self._register_state_dict_hook(self.gather_state_dict)
+        # self._register_load_state_dict_pre_hook(self.scatter_state_dict)
 
-        # Partition for collecting weights/biases for saving the state dict
-        P_root_base = P_y.create_partition_inclusive([0])
-        self.P_root = P_root_base.create_cartesian_topology_partition([1]*P_y.dim)
-        self.gather_weight = Repartition(P_weight, self.P_root, preserve_batch=False)
-        self.scatter_weight = Repartition(self.P_root, P_weight, preserve_batch=False)
-        if self.use_bias:
-            self.gather_bias = Repartition(P_store_bias, self.P_root, preserve_batch=False)
-            self.scatter_bias_mp = Repartition(self.P_root, P_store_bias, preserve_batch=False)
-            self.scatter_bias_dp = Repartition(self.P_store_bias, P_weight, preserve_batch=False)
+        # # Partition for collecting weights/biases for saving the state dict
+        # P_root_base = P_y.create_partition_inclusive([0])
+        # self.P_root = P_root_base.create_cartesian_topology_partition([1]*P_y.dim)
+        # self.gather_weight = Repartition(P_weight, self.P_root, preserve_batch=False)
+        # self.scatter_weight = Repartition(self.P_root, P_weight, preserve_batch=False)
+        # if self.use_bias:
+        #     self.gather_bias = Repartition(P_store_bias, self.P_root, preserve_batch=False)
+        #     self.scatter_bias_mp = Repartition(self.P_root, P_store_bias, preserve_batch=False)
+        #     self.scatter_bias_dp = Repartition(self.P_store_bias, P_weight, preserve_batch=False)
 
     def reset_parameters(self) -> None:
 
@@ -352,77 +352,77 @@ class DistributedLinearAllGatherZero(Module):
             p=num_gpu, v=2, h=weight_size)
         return self._unsqueeze_weight(weight)
         
-    def gather_state_dict(self, module, destination, prefix, *args):
+    # def gather_state_dict(self, module, destination, prefix, *args):
 
-        if self.collect_state and self.P_y.active:
-            if self.use_bias:
+    #     if self.collect_state and self.P_y.active:
+    #         if self.use_bias:
                 
-                # Collect bias and serialize (last entry added to dict).
-                # All workers should pop their bias from the state dict.
-                bias_key = next(reversed(destination))
-                bias = self.allgather_bias(destination.pop(bias_key).transpose(0, -2)).transpose(0, -2)
-                bias = self.gather_bias(bias)
+    #             # Collect bias and serialize (last entry added to dict).
+    #             # All workers should pop their bias from the state dict.
+    #             bias_key = next(reversed(destination))
+    #             bias = self.allgather_bias(destination.pop(bias_key).transpose(0, -2)).transpose(0, -2)
+    #             bias = self.gather_bias(bias)
             
-                if self.P_root.active:
-                    if self.num_heads is not None: bias = self.qkv_weight_to_serial(bias)
-                    if self.geglu: bias = self.geglu_weight_to_serial(bias)
+    #             if self.P_root.active:
+    #                 if self.num_heads is not None: bias = self.qkv_weight_to_serial(bias)
+    #                 if self.geglu: bias = self.geglu_weight_to_serial(bias)
 
-            # Collect weights and serialize (second last entry added to dict)
-            weight_key = next(reversed(destination))
-            weight = self.gather_weight(destination.pop(weight_key))
+    #         # Collect weights and serialize (second last entry added to dict)
+    #         weight_key = next(reversed(destination))
+    #         weight = self.gather_weight(destination.pop(weight_key))
 
-            if self.P_root.active:
-                if self.num_heads is not None: weight = self.qkv_weight_to_serial(weight)   # [ c_in, c_out, 1]
-                if self.geglu: weight = self.geglu_weight_to_serial(weight)
+    #         if self.P_root.active:
+    #             if self.num_heads is not None: weight = self.qkv_weight_to_serial(weight)   # [ c_in, c_out, 1]
+    #             if self.geglu: weight = self.geglu_weight_to_serial(weight)
 
-                # Save filenames in state dict rather than the full weights. Only the root
-                # should have the keys in the end.
-                weight = self._squeeze_weight(weight).permute(1, 0)
-                destination[weight_key] = weight
+    #             # Save filenames in state dict rather than the full weights. Only the root
+    #             # should have the keys in the end.
+    #             weight = self._squeeze_weight(weight).permute(1, 0)
+    #             destination[weight_key] = weight
 
-                if self.use_bias:
-                    destination[bias_key] = self._squeeze_bias(bias)
+    #             if self.use_bias:
+    #                 destination[bias_key] = self._squeeze_bias(bias)
 
-        return destination
+    #     return destination
 
-    def scatter_state_dict(self, destination, prefix, *args):
-        if self.collect_state and self.P_y.active:
+    # def scatter_state_dict(self, destination, prefix, *args):
+    #     if self.collect_state and self.P_y.active:
 
-            # Scatter weights
-            weight_key = next(iter(destination))
-            weight = destination.pop(weight_key)
-            if self.P_root.active:
-                weight = self._unsqueeze_weight(weight.permute(1, 0))
-                if self.num_heads is not None: weight = self.qkv_weight_to_parallel(weight)
-                if self.geglu: weight = self.geglu_weight_to_parallel(weight)
-            else:
-                weight = zero_volume_tensor(device=self.P_y.device, requires_grad=True, dtype=weight.dtype)
-            if self.P_weight.active:
-                weight = self.scatter_weight(weight)
+    #         # Scatter weights
+    #         weight_key = next(iter(destination))
+    #         weight = destination.pop(weight_key)
+    #         if self.P_root.active:
+    #             weight = self._unsqueeze_weight(weight.permute(1, 0))
+    #             if self.num_heads is not None: weight = self.qkv_weight_to_parallel(weight)
+    #             if self.geglu: weight = self.geglu_weight_to_parallel(weight)
+    #         else:
+    #             weight = zero_volume_tensor(device=self.P_y.device, requires_grad=True, dtype=weight.dtype)
+    #         if self.P_weight.active:
+    #             weight = self.scatter_weight(weight)
 
-            # Scatter bias
-            if self.use_bias:
-                bias_key = next(iter(destination))
-                bias = destination.pop(bias_key)
-                if self.P_root.active:
-                    bias = self._unsqueeze_bias(bias)
-                    if self.num_heads is not None: bias = self.qkv_weight_to_parallel(bias)
-                    if self.geglu: bias = self.geglu_weight_to_parallel(bias)
-                elif self.P_weight.active:
-                    bias = zero_volume_tensor(device=self.P_y.device, requires_grad=True, dtype=bias.dtype)
-                if self.P_weight.active:
-                    bias = self.scatter_bias_mp(bias)
-                    if self.P_store_bias.active:
-                        bias = bias.transpose(0, -2)
-                    bias = self.scatter_bias_dp(bias).transpose(0, -2)
-                if self.P_weight.active:
-                    destination[bias_key] = bias
+    #         # Scatter bias
+    #         if self.use_bias:
+    #             bias_key = next(iter(destination))
+    #             bias = destination.pop(bias_key)
+    #             if self.P_root.active:
+    #                 bias = self._unsqueeze_bias(bias)
+    #                 if self.num_heads is not None: bias = self.qkv_weight_to_parallel(bias)
+    #                 if self.geglu: bias = self.geglu_weight_to_parallel(bias)
+    #             elif self.P_weight.active:
+    #                 bias = zero_volume_tensor(device=self.P_y.device, requires_grad=True, dtype=bias.dtype)
+    #             if self.P_weight.active:
+    #                 bias = self.scatter_bias_mp(bias)
+    #                 if self.P_store_bias.active:
+    #                     bias = bias.transpose(0, -2)
+    #                 bias = self.scatter_bias_dp(bias).transpose(0, -2)
+    #             if self.P_weight.active:
+    #                 destination[bias_key] = bias
             
-            # Add scattered weight to state dict
-            if self.P_y.active:
-                destination[weight_key] = weight
+    #         # Add scattered weight to state dict
+    #         if self.P_y.active:
+    #             destination[weight_key] = weight
                 
-        return destination
+    #     return destination
 
     def forward(self, input):
         r"""Forward function interface.
