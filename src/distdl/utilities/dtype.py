@@ -51,7 +51,7 @@ numpy_to_torch_dtype_dict = {
     np.float64: torch.float64,  # noqa E203
     np.complex64: torch.complex64,  # noqa E203
     np.complex128: torch.complex128,  # noqa E203
-    np.float16: torch.bfloat16,  # noqa E203
+    np.uint32: torch.bfloat16,  # noqa E203
 }
 
 # Dict of torch dtype -> NumPy dtype
