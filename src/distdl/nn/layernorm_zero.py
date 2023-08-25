@@ -125,17 +125,17 @@ class DistributedLayerNormZero(Module):
             self.register_parameter('bias', None)
         self.reset_parameters()
 
-        # State dict hooks for gather/scattering distributed weights
-        self._register_state_dict_hook(self.gather_state_dict)
-        self._register_load_state_dict_pre_hook(self.scatter_state_dict)
+        # # State dict hooks for gather/scattering distributed weights
+        # self._register_state_dict_hook(self.gather_state_dict)
+        # self._register_load_state_dict_pre_hook(self.scatter_state_dict)
 
-        # Partition for collecting weights/biases for saving the state dict
-        if self.elementwise_affine:
-            P_root_base = P_x.create_partition_inclusive([0])
-            self.P_root = P_root_base.create_cartesian_topology_partition([1]*P_x.dim)
-            self.gather = Repartition(self.P_w, self.P_root, preserve_batch=False)
-            self.scatter_mp = Repartition(self.P_root, self.P_w, preserve_batch=False)
-            self.scatter_dp = Repartition(self.P_w, self.P_x, preserve_batch=False)
+        # # Partition for collecting weights/biases for saving the state dict
+        # if self.elementwise_affine:
+        #     P_root_base = P_x.create_partition_inclusive([0])
+        #     self.P_root = P_root_base.create_cartesian_topology_partition([1]*P_x.dim)
+        #     self.gather = Repartition(self.P_w, self.P_root, preserve_batch=False)
+        #     self.scatter_mp = Repartition(self.P_root, self.P_w, preserve_batch=False)
+        #     self.scatter_dp = Repartition(self.P_w, self.P_x, preserve_batch=False)
 
     # Initializer for parameters
     def reset_parameters(self):
@@ -143,62 +143,62 @@ class DistributedLayerNormZero(Module):
             torch.nn.init.ones_(self.weight)
             torch.nn.init.zeros_(self.bias)
 
-    def gather_state_dict(self, module, destination, prefix, *args):
-        if self.collect_state and self.elementwise_affine and self.P_x.active:
+    # def gather_state_dict(self, module, destination, prefix, *args):
+    #     if self.collect_state and self.elementwise_affine and self.P_x.active:
  
-            # Pop bias from state dict and serialize it
-            bias_key = next(reversed(destination))
-            bias = self.allgather(destination.pop(bias_key).transpose(0,-1)).transpose(0,-1)
-            bias = self.gather(bias)
+    #         # Pop bias from state dict and serialize it
+    #         bias_key = next(reversed(destination))
+    #         bias = self.allgather(destination.pop(bias_key).transpose(0,-1)).transpose(0,-1)
+    #         bias = self.gather(bias)
 
-            # Pop weight from state dict and serialize it
-            weight_key = next(reversed(destination))
-            weight = self.allgather(destination.pop(weight_key).transpose(0, -1)).transpose(0,-1)
-            weight = self.gather(weight)
+    #         # Pop weight from state dict and serialize it
+    #         weight_key = next(reversed(destination))
+    #         weight = self.allgather(destination.pop(weight_key).transpose(0, -1)).transpose(0,-1)
+    #         weight = self.gather(weight)
 
-            # Serialize weights
-            if self.P_root.active:
+    #         # Serialize weights
+    #         if self.P_root.active:
 
-                # Bring into same shape as the serial torch version
-                weight = weight.view(weight.shape[self.dim_reduce_slice])
-                bias = bias.view(bias.shape[self.dim_reduce_slice])
+    #             # Bring into same shape as the serial torch version
+    #             weight = weight.view(weight.shape[self.dim_reduce_slice])
+    #             bias = bias.view(bias.shape[self.dim_reduce_slice])
 
-                # Add filenames back to state dict
-                destination[weight_key] = weight
-                destination[bias_key] = bias
+    #             # Add filenames back to state dict
+    #             destination[weight_key] = weight
+    #             destination[bias_key] = bias
 
-        return destination
+    #     return destination
 
-    def scatter_state_dict(self, destination, prefix, *args):
-        if self.collect_state and self.elementwise_affine and self.P_x.active:
+    # def scatter_state_dict(self, destination, prefix, *args):
+    #     if self.collect_state and self.elementwise_affine and self.P_x.active:
             
-            # Pop entries from state dict
-            weight_key = next(iter(destination))
-            weight = destination.pop(weight_key)
-            bias_key = next(iter(destination))
-            bias = destination.pop(bias_key)
+    #         # Pop entries from state dict
+    #         weight_key = next(iter(destination))
+    #         weight = destination.pop(weight_key)
+    #         bias_key = next(iter(destination))
+    #         bias = destination.pop(bias_key)
 
-            # Load states
-            if self.P_root.active:                
-                # Bring from PyTorch into DistDL shape (add dimensions for broadcasting)
-                weight = weight.view(*self.weight.shape[self.dim_bcast_slice], -1)
-                bias = bias.view(*self.bias.shape[self.dim_bcast_slice], -1)
+    #         # Load states
+    #         if self.P_root.active:                
+    #             # Bring from PyTorch into DistDL shape (add dimensions for broadcasting)
+    #             weight = weight.view(*self.weight.shape[self.dim_bcast_slice], -1)
+    #             bias = bias.view(*self.bias.shape[self.dim_bcast_slice], -1)
 
-            else:
-                weight = zero_volume_tensor(device=self.P_x.device, requires_grad=True, dtype=weight.dtype)
-                bias = zero_volume_tensor(device=self.P_x.device, requires_grad=True, dtype=bias.dtype)
+    #         else:
+    #             weight = zero_volume_tensor(device=self.P_x.device, requires_grad=True, dtype=weight.dtype)
+    #             bias = zero_volume_tensor(device=self.P_x.device, requires_grad=True, dtype=bias.dtype)
             
-            # Scatter states
-            weight = self.scatter_mp(weight)
-            bias = self.scatter_mp(bias)
-            weight = self.scatter_dp(weight.transpose(0,-1)).transpose(0,-1)
-            bias = self.scatter_dp(bias.transpose(0,-1)).transpose(0,-1)
+    #         # Scatter states
+    #         weight = self.scatter_mp(weight)
+    #         bias = self.scatter_mp(bias)
+    #         weight = self.scatter_dp(weight.transpose(0,-1)).transpose(0,-1)
+    #         bias = self.scatter_dp(bias.transpose(0,-1)).transpose(0,-1)
 
-            # Add data back to state dict
-            destination[weight_key] = weight
-            destination[bias_key] = bias
+    #         # Add data back to state dict
+    #         destination[weight_key] = weight
+    #         destination[bias_key] = bias
 
-        return destination
+    #     return destination
 
     def _compute_mean(self, input):
         r"""

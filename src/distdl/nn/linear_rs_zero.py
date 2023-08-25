@@ -226,18 +226,18 @@ class DistributedLinearReduceScatterZero(Module):
         self.reduce_scatter = ReduceScatter(self.P_y, axes_reduce_scatter=(scatter_dim,))
         self.all_gather = AllGather(self.P_y, axes_all_gather=(scatter_dim,))
 
-        # State dict hooks for gather/scattering distributed weights
-        self._register_state_dict_hook(self.gather_state_dict)
-        self._register_load_state_dict_pre_hook(self.scatter_state_dict)
+        # # State dict hooks for gather/scattering distributed weights
+        # self._register_state_dict_hook(self.gather_state_dict)
+        # self._register_load_state_dict_pre_hook(self.scatter_state_dict)
 
-        # Partition for collecting weights/biases for saving the state dict
-        P_root_base = P_x.create_partition_inclusive([0])
-        self.P_root = P_root_base.create_cartesian_topology_partition([1]*P_x.dim)
-        self.gather_weight = Repartition(P_x, self.P_root, preserve_batch=False)
-        self.scatter_weight = Repartition(self.P_root, P_x, preserve_batch=False)
-        if self.use_bias:
-            self.gather_bias = Repartition(self.P_bias, self.P_root, preserve_batch=False)
-            self.scatter_bias = Repartition(self.P_root, self.P_bias, preserve_batch=False)
+        # # Partition for collecting weights/biases for saving the state dict
+        # P_root_base = P_x.create_partition_inclusive([0])
+        # self.P_root = P_root_base.create_cartesian_topology_partition([1]*P_x.dim)
+        # self.gather_weight = Repartition(P_x, self.P_root, preserve_batch=False)
+        # self.scatter_weight = Repartition(self.P_root, P_x, preserve_batch=False)
+        # if self.use_bias:
+        #     self.gather_bias = Repartition(self.P_bias, self.P_root, preserve_batch=False)
+        #     self.scatter_bias = Repartition(self.P_root, self.P_bias, preserve_batch=False)
 
     def reset_parameters(self) -> None:
 
@@ -270,59 +270,59 @@ class DistributedLinearReduceScatterZero(Module):
         c_out = bias.shape[0]
         return bias.view(c_out)
 
-    def gather_state_dict(self, module, destination, prefix, *args):
+    # def gather_state_dict(self, module, destination, prefix, *args):
 
-        if self.collect_state and self.P_x.active:
-            if self.use_bias and self.P_bias.active:
+    #     if self.collect_state and self.P_x.active:
+    #         if self.use_bias and self.P_bias.active:
                 
-                # Pop bias from state dict and serialize it
-                bias_key = next(reversed(destination))
-                bias = self.gather_bias(destination.pop(bias_key))
+    #             # Pop bias from state dict and serialize it
+    #             bias_key = next(reversed(destination))
+    #             bias = self.gather_bias(destination.pop(bias_key))
 
-            # Collect weights (second last entry added to dict)
-            weight_key = next(reversed(destination))
-            weight = self.gather_weight(destination.pop(weight_key))
+    #         # Collect weights (second last entry added to dict)
+    #         weight_key = next(reversed(destination))
+    #         weight = self.gather_weight(destination.pop(weight_key))
 
-            # Serialize weights
-            if self.P_root.active:
+    #         # Serialize weights
+    #         if self.P_root.active:
 
-                # Add filenames back to state dict
-                destination[weight_key] = self._squeeze_weight(weight)
+    #             # Add filenames back to state dict
+    #             destination[weight_key] = self._squeeze_weight(weight)
 
-                if self.use_bias:
-                    destination[bias_key] = self._squeeze_bias(bias)
+    #             if self.use_bias:
+    #                 destination[bias_key] = self._squeeze_bias(bias)
                 
-        return destination
+    #     return destination
 
-    def scatter_state_dict(self, destination, prefix, *args):
-        if self.collect_state and self.P_x.active:
+    # def scatter_state_dict(self, destination, prefix, *args):
+    #     if self.collect_state and self.P_x.active:
 
-            # Scatter weights
-            weight_key = next(iter(destination))
-            weight = destination.pop(weight_key)
-            if self.P_root.active:
-                weight = self._unsqueeze_weight(weight)
-            else:
-                weight = zero_volume_tensor(device=self.P_x.device, requires_grad=True, dtype=weight.dtype)
-            if self.P_x.active:
-                weight = self.scatter_weight(weight)
+    #         # Scatter weights
+    #         weight_key = next(iter(destination))
+    #         weight = destination.pop(weight_key)
+    #         if self.P_root.active:
+    #             weight = self._unsqueeze_weight(weight)
+    #         else:
+    #             weight = zero_volume_tensor(device=self.P_x.device, requires_grad=True, dtype=weight.dtype)
+    #         if self.P_x.active:
+    #             weight = self.scatter_weight(weight)
 
-            # Load bias
-            if self.use_bias:
-                bias_key = next(iter(destination))
-                bias = destination.pop(bias_key)
+    #         # Load bias
+    #         if self.use_bias:
+    #             bias_key = next(iter(destination))
+    #             bias = destination.pop(bias_key)
 
-                if self.P_root.active:
-                    bias = self._unsqueeze_bias(bias)
-                else:
-                    bias = zero_volume_tensor(device=self.P_x.device, requires_grad=True, dtype=bias.dtype)
-                if self.P_bias.active:
-                    destination[bias_key] = self.scatter_bias(bias)
+    #             if self.P_root.active:
+    #                 bias = self._unsqueeze_bias(bias)
+    #             else:
+    #                 bias = zero_volume_tensor(device=self.P_x.device, requires_grad=True, dtype=bias.dtype)
+    #             if self.P_bias.active:
+    #                 destination[bias_key] = self.scatter_bias(bias)
 
-            if self.P_x.active:
-                destination[weight_key] = weight
+    #         if self.P_x.active:
+    #             destination[weight_key] = weight
 
-        return destination
+    #     return destination
 
     def forward(self, input):
         r"""Forward function interface.
