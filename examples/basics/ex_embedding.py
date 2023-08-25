@@ -8,7 +8,7 @@ from distdl.backends.common.partition import MPIPartition
 from distdl.nn.linear_rs import DistributedLinearReduceScatter
 from distdl.nn.linear_ag import DistributedLinearAllGather
 from distdl.nn.repartition import Repartition
-from distdl.nn.embedding import DistributedEmbedding
+from distdl.nn.embedding_zero import DistributedEmbeddingZero
 from distdl.utilities.slicing import compute_subshape
 from distdl.utilities.torch import zero_volume_tensor
 from distdl.nn.repartition import Repartition
@@ -21,7 +21,7 @@ P_world = MPIPartition(MPI.COMM_WORLD)
 P_world._comm.Barrier()
 
 # Data partition corresponding to [ batch, tokens, embedding ]
-in_shape = (2, 1, 4)    # [ data-parallel workers, 1, model-parallel workers ]
+in_shape = (2, 1, 8)    # [ data-parallel workers, 1, model-parallel workers ]
 in_size = np.prod(in_shape)
 in_workers = np.arange(0, in_size)
 
@@ -43,7 +43,7 @@ embedding_dim = 32
 input_idx = torch.arange(num_embeddings, device=P_x.device)
 
 # Create embedding layer
-embedding = DistributedEmbedding(P_x, num_embeddings, embedding_dim)
+embedding = DistributedEmbeddingZero(P_x, num_embeddings, embedding_dim)
 
 # Forward pass
 y = embedding(input_idx)

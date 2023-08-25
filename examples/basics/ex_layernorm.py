@@ -5,12 +5,12 @@ from distdl.config import set_backend
 
 import distdl.utilities.slicing as slicing
 from distdl.backends.common.partition import MPIPartition
-from distdl.nn.layernorm import DistributedLayerNorm
+from distdl.nn.layernorm_zero import DistributedLayerNormZero
 from distdl.nn.repartition import Repartition
 from distdl.utilities.torch import zero_volume_tensor
 
 # Set backend
-set_backend(backend_comm="mpi", backend_array="numpy")
+set_backend(backend_comm="nccl", backend_array="cupy")
 
 # Set up MPI cartesian communicator
 P_world = MPIPartition(MPI.COMM_WORLD)
@@ -21,7 +21,7 @@ P_root_base = P_world.create_partition_inclusive([0])
 P_root = P_root_base.create_cartesian_topology_partition([1, 1, 1])
 
 # Data partition
-in_shape = (4, 1, 2)    # [ data-parallel workers, 1, model-parallel workers ]
+in_shape = (2, 1, 8)    # [ data-parallel workers, 1, model-parallel workers ]
 in_size = np.prod(in_shape)
 in_workers = np.arange(0, in_size)
 
@@ -35,7 +35,7 @@ num_features = 32
 normalized_shape = (num_features)
 
 # Layer norm
-layer_norm = DistributedLayerNorm(P_x, normalized_shape, elementwise_affine=True, collect_state=True)
+layer_norm = DistributedLayerNormZero(P_x, normalized_shape, elementwise_affine=True, collect_state=True)
 
 # Scatter data
 scatter = Repartition(P_root, P_x, preserve_batch=False)
