@@ -136,7 +136,7 @@ class NCCLBackend(_Backend):
             server for initialization & synchronization. Defaults to `False`.
     """
 
-    def __init__(self, mpi_comm, n_devices, rank):
+    def __init__(self, mpi_comm, n_devices, rank, use_roce=0):
         # MPI is used only for management purposes
         # so the rank may be different than the one specified
         self._mpi_comm = mpi_comm
@@ -146,9 +146,9 @@ class NCCLBackend(_Backend):
         nccl_id = None
         if self._mpi_rank == 0:
             nccl_id = nccl.get_unique_id()
-        nccl_id = self._mpi_comm.bcast(nccl_id, root=0)
+        nccl_id = self._mpi_comm.bcast(nccl_id, root=0) # TODO pass use_roce
         # Initialize devices
-        self._comm = nccl.NcclCommunicator(n_devices, nccl_id, rank)
+        self._comm = nccl.NcclCommunicator(n_devices, nccl_id, rank, use_roce)
 
     def _check_contiguous(self, array):
         if not array.is_contiguous():
