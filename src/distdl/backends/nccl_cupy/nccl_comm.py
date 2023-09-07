@@ -136,7 +136,7 @@ class NCCLBackend(_Backend):
             server for initialization & synchronization. Defaults to `False`.
     """
 
-    def __init__(self, mpi_comm, n_devices, rank, use_roce=0):
+    def __init__(self, mpi_comm, n_devices, rank, use_roce=1):
         # MPI is used only for management purposes
         # so the rank may be different than the one specified
         self._mpi_comm = mpi_comm
