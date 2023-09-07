@@ -30,7 +30,7 @@ for i in range(in_shape[1]):
 
     # If I am a worker belonging to this partition, create the communicator
     if P_inter_dc_base.active:
-        P_inter_dc = P_inter_dc_base.create_cartesian_topology_partition((2, 1))
+        P_inter_dc = P_inter_dc_base.create_cartesian_topology_partition((4, 1))
         P_inter_dc.set_frontend_network(True)
     P_inter_dc_base.deactivate()
 
@@ -41,7 +41,7 @@ for i in range(in_shape[0]):
 
     # If I am a worker belonging to this partition, create the communicator
     if P_intra_dc_base.active:
-        P_intra_dc = P_intra_dc_base.create_cartesian_topology_partition((1, 4))
+        P_intra_dc = P_intra_dc_base.create_cartesian_topology_partition((1, 8))
         P_intra_dc.set_frontend_network(False)
     P_intra_dc_base.deactivate()
 
