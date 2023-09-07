@@ -57,7 +57,7 @@ intra_dc_all_gather = AllGather(P_intra_dc, axes_all_gather=(1,))
 
 
 # Create some weights
-x_global_shape = np.array([6, 8])
+x_global_shape = np.array([32, 64])
 x = zero_volume_tensor(device=P_x.device)
 
 if P_x.active:
