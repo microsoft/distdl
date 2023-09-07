@@ -79,11 +79,12 @@ class MPIPartition:
     """
 
     def __init__(self, comm=MPI.COMM_NULL, group=MPI.GROUP_NULL, root=None, device=None, 
-        requested_device=None, initialize_backend_comm=False):
+        requested_device=None, initialize_backend_comm=False, use_frontend=False):
 
         # MPI communicator to communicate within
         self._comm = comm
         self._nccl = None
+        self.use_frontend = use_frontend
 
         # root tracks a root communicator: any subpartition from this one
         # will have the same root as this one.
@@ -135,14 +136,28 @@ class MPIPartition:
                 hash_comm = hash(all_ranks)
 
                 # If not, create new NCCL comm and add to the store. Otherwise, use existing comm.
-                if hash_comm in backends.backend.comm_store.keys():
-                    self._nccl = backends.backend.comm_store[hash_comm]
+                if self.use_frontend:
+                    if hash_comm in backends.backend.comm_store_frontend.keys():
+                        self._nccl = backends.backend.comm_store_frontend[hash_comm]
+                    else:
+                        if self.active:
+                            print("Create frontend network communicator")
+                        self._nccl = backends.backend.nccl_comm.NCCLBackend(self._comm, self.size, self.rank, use_roce=1)
+                        backends.backend.comm_store_frontend.update({hash_comm: self._nccl})
                 else:
-                    self._nccl = backends.backend.nccl_comm.NCCLBackend(self._comm, self.size, self.rank)
-                    backends.backend.comm_store.update({hash_comm: self._nccl})
+                    if hash_comm in backends.backend.comm_store_backend.keys():
+                        self._nccl = backends.backend.comm_store_backend[hash_comm]
+                    else:
+                        if self.active:
+                            print("Create backend network communicator")
+                        self._nccl = backends.backend.nccl_comm.NCCLBackend(self._comm, self.size, self.rank, use_roce=0)
+                        backends.backend.comm_store_backend.update({hash_comm: self._nccl})     
 
     def set_device(self):
         self.device = backends.backend.set_device(rank=self.rank)
+
+    def set_frontend_network(self, flag):
+        self.use_frontend = flag
 
     def deactivate(self):
         r"""Deactivates this partition by releasing any resources and
@@ -281,6 +296,7 @@ class MPIPartition:
 
         P_union = MPIPartition(comm, group, root=self._root, device=self.device)
         if initialize_backend_comm:
+            P_union.set_frontend_network(self.use_frontend)
             P_union.initialize_backend_comm()
 
         return P_union
@@ -484,6 +500,8 @@ class MPIPartition:
             P_recv = P_send
 
         if initialize_backend_comm:
+            P_send.set_frontend_network(self.use_frontend)
+            P_recv.set_frontend_network(self.use_frontend)
             P_send.initialize_backend_comm()
             P_recv.initialize_backend_comm()
 
@@ -678,6 +696,7 @@ class MPIPartition:
 
         # Create backend communicator
         if initialize_backend_comm:
+            P_allreduce.set_frontend_network(self.use_frontend)
             P_allreduce.initialize_backend_comm()
 
         return P_allreduce

@@ -19,4 +19,5 @@ from .device import set_device, get_device
 __name__ = 'nccl_cupy'
 
 # Dictionary of active nccl communicators
-comm_store = {}
+comm_store_backend = {}
+comm_store_frontend = {}

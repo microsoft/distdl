@@ -34,7 +34,6 @@ mpiexec \
     -np $NP \
     --map-by ppr:8:node \
     --bind-to numa \
-    --hostfile $HOSTFILE \
     -mca coll_hcoll_enable 0 \
     -mca pml ob1 \
     -mca btl ^openib \
@@ -53,7 +52,7 @@ mpiexec \
     -x NCCL_VISIBLE_DEVICES=0,1,2,3,4,5,6,7 \
     -x NCCL_NCHANNELS_PER_NET_PEER=1 \
     -x NCCL_NET_GDR_LEVEL=SYS \
-    -x NCCL_DEBUG=INFO \
+    -x NCCL_DEBUG=ERROR \
     -x NCCL_ALGO=Ring \
     -x LD_LIBRARY_PATH=/opt/rocm-custom/lib/ \
     /home/pwitte/anaconda3/envs/pytorch/bin/python3 $FILE
