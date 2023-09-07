@@ -19,7 +19,7 @@ P_world = MPIPartition(MPI.COMM_WORLD)
 P_world._comm.Barrier()
 
 # Data partition corresponding to [ batch, ..., channel/embedding ]
-in_shape = (4, 1, 8)    # [ data-parallel workers, ..., model-parallel workers ]
+in_shape = (4, 1, 2)    # [ data-parallel workers, ..., model-parallel workers ]
 in_size = np.prod(in_shape)
 in_workers = np.arange(0, in_size)
 

@@ -27,6 +27,8 @@ IP=$(hostname -I | cut -d' ' -f1)
 #--hostfile $HOSTFILE \
 #    -x NCCL_DEBUG=INFO \
 #    -x LD_LIBRARY_PATH=/opt/rocm-custom/rccl/lib \
+#    -x NCCL_RINGS="N0 0 1 2 3 N1 N2 4 5 6 7 N3|N3 7 6 5 4 N2 N1 3 2 1 0 N0|N1 2 3 0 1 N0 N3 6 7 4 5 N2|N2 5 4 7 6 N3 N0 1 0 3 2 N1" \
+#    --hostfile $HOSTFILE \
 
 mpiexec \
     -np $NP \
@@ -48,9 +50,8 @@ mpiexec \
     -x NCCL_NCHANNELS_PER_NET_PEER=1 \
     -x NCCL_NET_GDR_LEVEL=SYS \
     -x NCCL_DEBUG=INFO \
-    -x LD_LIBRARY_PATH=/opt/rocm-custom/lib/ \
-    -x NCCL_RINGS="N0 0 1 2 3 N1 N2 4 5 6 7 N3|N3 7 6 5 4 N2 N1 3 2 1 0 N0|N1 2 3 0 1 N0 N3 6 7 4 5 N2|N2 5 4 7 6 N3 N0 1 0 3 2 N1" \
     -x NCCL_ALGO=Ring \
+    -x LD_LIBRARY_PATH=/opt/rocm-custom/lib/ \
     --map-by node \
     --bind-to numa \
     /home/pwitte/anaconda3/envs/pytorch/bin/python3 $FILE
