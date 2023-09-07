@@ -25,12 +25,12 @@ P_x = P_x_base.create_cartesian_topology_partition(in_shape)
 
 # Create inter DC communicators
 for i in range(in_shape[1]):
-    workers = np.arange(i, i + 2*in_shape[1], in_shape[1])
+    workers = np.arange(i, i + 4*in_shape[1], in_shape[1])
     P_inter_dc_base = P_world.create_partition_inclusive(workers)
 
     # If I am a worker belonging to this partition, create the communicator
     if P_inter_dc_base.active:
-        P_inter_dc = P_inter_dc_base.create_cartesian_topology_partition((2, 1))
+        P_inter_dc = P_inter_dc_base.create_cartesian_topology_partition((4, 1))
         P_inter_dc.set_frontend_network(True)
     P_inter_dc_base.deactivate()
 
@@ -41,7 +41,7 @@ for i in range(in_shape[0]):
 
     # If I am a worker belonging to this partition, create the communicator
     if P_intra_dc_base.active:
-        P_intra_dc = P_intra_dc_base.create_cartesian_topology_partition((1, 4))
+        P_intra_dc = P_intra_dc_base.create_cartesian_topology_partition((1, 8))
         P_intra_dc.set_frontend_network(False)
     P_intra_dc_base.deactivate()
 
@@ -57,7 +57,7 @@ intra_dc_reduce_scatter = ReduceScatter(P_intra_dc, axes_reduce_scatter=(1,))
 
 
 # Create some weights
-x_global_shape = np.array([6, 8])
+x_global_shape = np.array([32, 64])
 x = zero_volume_tensor(device=P_x.device)
 
 if P_x.active:
