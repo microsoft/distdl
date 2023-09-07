@@ -19,7 +19,7 @@ P_world = MPIPartition(MPI.COMM_WORLD)
 P_world._comm.Barrier()
 
 # Data partition corresponding to [ batch, ..., channel/embedding ]
-in_shape = (2, 1, 8)    # [ data-parallel workers, ..., model-parallel workers ]
+in_shape = (4, 1, 8)    # [ data-parallel workers, ..., model-parallel workers ]
 in_size = np.prod(in_shape)
 in_workers = np.arange(0, in_size)
 
@@ -30,11 +30,11 @@ P_x_base = P_world.create_partition_inclusive(in_workers)
 P_x = P_x_base.create_cartesian_topology_partition(in_shape)
 
 # Input/output data dimensions
-batch_size = 8
-num_tokens = 16
-in_channels = 64
-hidden_channels = 128
-out_channels = 32
+batch_size = 32
+num_tokens = 2048
+in_channels = 6144
+hidden_channels = int(6144*4)
+out_channels = 6144
 
 # Linear layers with 2D data- and weight partitioning (ZeRO-3, FDSP1)
 # The all-gather version is preferred if out_channels > in_channels. 
@@ -61,8 +61,9 @@ if P_root.active:
 x = scatter(x)
 
 # Forward pass
-y = linear_in(x)
-y = torch.nn.functional.relu(y)
-y = linear_out(y)
+for i in range(10000):
+    y = linear_in(x)
+    y = torch.nn.functional.relu(y)
+    y = linear_out(y)
 
 print("y.shape from rank {}: {}".format(P_x.rank, y.shape))
