@@ -25,7 +25,7 @@ P_x = P_x_base.create_cartesian_topology_partition(in_shape)
 
 # Create inter DC communicators
 for i in range(in_shape[1]):
-    workers = np.arange(i, i + 2*in_shape[1], in_shape[1])
+    workers = np.arange(i, i + 4*in_shape[1], in_shape[1])
     P_inter_dc_base = P_world.create_partition_inclusive(workers)
 
     # If I am a worker belonging to this partition, create the communicator
