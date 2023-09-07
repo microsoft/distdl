@@ -16,7 +16,7 @@ P_world = MPIPartition(MPI.COMM_WORLD)
 P_world._comm.Barrier()
 
 # Global cartesian communicator
-in_shape = (2, 4)           # (no. of data centers, no. of workers per data center)
+in_shape = (4, 8)           # (no. of data centers, no. of workers per data center)
 in_size = np.prod(in_shape)
 in_workers = np.arange(0, in_size)
 

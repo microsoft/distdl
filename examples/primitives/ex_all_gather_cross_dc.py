@@ -71,7 +71,6 @@ x = inter_dc_all_gather(x)
 
 print("Tensor shape after inter-cluster all-gather: {} on rank {}.".format(x.shape, P_x.rank))
 
-
 # 2nd do intra DC all-gather
 x = intra_dc_all_gather(x)
 

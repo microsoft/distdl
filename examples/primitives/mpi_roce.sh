@@ -34,6 +34,7 @@ mpiexec \
     -np $NP \
     --map-by ppr:8:node \
     --bind-to numa \
+    --hostfile $HOSTFILE \
     -mca coll_hcoll_enable 0 \
     -mca pml ob1 \
     -mca btl ^openib \
