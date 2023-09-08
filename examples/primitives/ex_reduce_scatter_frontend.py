@@ -5,7 +5,7 @@ from distdl.config import set_backend
 
 import distdl.utilities.slicing as slicing
 from distdl.backends.common.partition import MPIPartition
-from distdl.nn.all_gather import AllGather
+from distdl.nn.reduce_scatter import ReduceScatter
 from distdl.utilities.torch import zero_volume_tensor
 
 # Set backend
@@ -24,21 +24,20 @@ P_x_base = P_world.create_partition_inclusive(in_workers)
 P_x = P_x_base.create_cartesian_topology_partition(in_shape)
 P_x.set_frontend_network(True)
 
-# Inter DC all-gather
-all_gather = AllGather(P_x, axes_all_gather=(1,))
+# Inter DC reduce-scatter
+reduce_scatter = ReduceScatter(P_x, axes_reduce_scatter=(1,))
 
 # Create some weights
 x_global_shape = np.array([1, 12288, 49152])
 x = zero_volume_tensor(device=P_x.device)
 
 if P_x.active:
-    x_local_shape = slicing.compute_subshape(P_x.shape, P_x.index, x_global_shape)
-    x = torch.zeros(*x_local_shape, device=x.device) + (P_x.rank + 1)
+    x = torch.zeros(*x_global_shape, device=x.device) + (P_x.rank + 1)
 
 print("Initial tensor shape: {} on rank {}.".format(x.shape, P_x.rank))
 
 # Burn in
-y = all_gather(x)
+y = reduce_scatter(x)
 
 # Timings
 num_runs = 500
@@ -50,7 +49,7 @@ for i in range(num_runs):
     end = torch.cuda.Event(enable_timing=True)
 
     start.record()
-    y = all_gather(x)    
+    y = reduce_scatter(x)    
     end.record()
 
     # Waits for everything to finish running
@@ -61,5 +60,5 @@ for i in range(num_runs):
         print("Iteration {}: {} ms.".format(i, t[i]))
 
 if P_world.rank == 0:
-    print("All-gather time: {} +- {} ms.".format(t.mean(), t.std()))
-    torch.save(t, "all_gather_frontend.pt")
+    print("Reduce-scatter time: {} +- {} ms.".format(t.mean(), t.std()))
+    torch.save(t, "reduce_scatter_frontend.pt")

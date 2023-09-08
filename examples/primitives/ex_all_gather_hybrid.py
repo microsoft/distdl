@@ -19,7 +19,7 @@ num_cluster = 2
 num_nodes = 16
 
 # Global cartesian communicator
-in_shape = (num_cluster, num_nodes)           # (no. of data centers, no. of workers per data center)
+in_shape = (num_cluster, num_nodes, 1)           # (no. of data centers, no. of workers per data center)
 in_size = np.prod(in_shape)
 in_workers = np.arange(0, in_size)
 
@@ -33,8 +33,8 @@ for i in range(in_shape[1]):
 
     # If I am a worker belonging to this partition, create the communicator
     if P_inter_dc_base.active:
-        P_inter_dc = P_inter_dc_base.create_cartesian_topology_partition((num_cluster, 1))
-        P_inter_dc.set_frontend_network(True)
+        P_inter_dc = P_inter_dc_base.create_cartesian_topology_partition((num_cluster, 1, 1))
+        P_inter_dc.set_frontend_network(True)  # Set to True for hybrid
     P_inter_dc_base.deactivate()
 
 # Create intra DC communicators
@@ -44,8 +44,8 @@ for i in range(in_shape[0]):
 
     # If I am a worker belonging to this partition, create the communicator
     if P_intra_dc_base.active:
-        P_intra_dc = P_intra_dc_base.create_cartesian_topology_partition((1, num_nodes))
-        P_intra_dc.set_frontend_network(False)
+        P_intra_dc = P_intra_dc_base.create_cartesian_topology_partition((1, num_nodes, 1))
+        P_intra_dc.set_frontend_network(False)  # Set to False for hybrid
     P_intra_dc_base.deactivate()
 
 
@@ -60,7 +60,7 @@ intra_dc_all_gather = AllGather(P_intra_dc, axes_all_gather=(1,))
 
 
 # Create some weights
-x_global_shape = np.array([12288, 12288])
+x_global_shape = np.array([2, 6144, 49152])
 x = zero_volume_tensor(device=P_x.device)
 
 if P_x.active:
@@ -70,9 +70,8 @@ if P_x.active:
 print("Initial tensor shape: {} on rank {}.".format(x.shape, P_x.rank))
 
 # Burn in
-with torch.no_grad():
-    y = inter_dc_all_gather(x)
-    z = intra_dc_all_gather(y)
+y = inter_dc_all_gather(x)
+z = intra_dc_all_gather(y)
 
 # Timings
 num_runs = 500
@@ -84,9 +83,8 @@ for i in range(num_runs):
     end = torch.cuda.Event(enable_timing=True)
 
     start.record()
-    with torch.no_grad():
-        y = inter_dc_all_gather(x)
-        z = intra_dc_all_gather(y)    
+    y = inter_dc_all_gather(x)
+    z = intra_dc_all_gather(y)    
     end.record()
 
     # Waits for everything to finish running

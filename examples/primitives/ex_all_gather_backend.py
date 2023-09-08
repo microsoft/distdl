@@ -22,7 +22,7 @@ in_workers = np.arange(0, in_size)
 
 P_x_base = P_world.create_partition_inclusive(in_workers)
 P_x = P_x_base.create_cartesian_topology_partition(in_shape)
-P_x.set_frontend_network(True)
+P_x.set_frontend_network(False)
 
 # Inter DC all-gather
 all_gather = AllGather(P_x, axes_all_gather=(1,))
@@ -62,4 +62,4 @@ for i in range(num_runs):
 
 if P_world.rank == 0:
     print("All-gather time: {} +- {} ms.".format(t.mean(), t.std()))
-    torch.save(t, "all_gather_frontend.pt")
+    torch.save(t, "all_gather_backend.pt")
