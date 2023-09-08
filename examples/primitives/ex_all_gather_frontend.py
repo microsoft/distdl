@@ -15,7 +15,6 @@ set_backend(backend_comm="nccl", backend_array="cupy")
 P_world = MPIPartition(MPI.COMM_WORLD)
 P_world._comm.Barrier()
 
-
 # Global cartesian communicator
 in_shape = (32, 1)           # (servers, 1)
 in_size = np.prod(in_shape)
@@ -23,7 +22,7 @@ in_workers = np.arange(0, in_size)
 
 P_x_base = P_world.create_partition_inclusive(in_workers)
 P_x = P_x_base.create_cartesian_topology_partition(in_shape)
-P_x.set_frontend_network(True)
+P_x.set_frontend_network(False)
 
 # Inter DC all-gather
 all_gather = AllGather(P_x, axes_all_gather=(0,))
@@ -38,8 +37,29 @@ if P_x.active:
 
 print("Initial tensor shape: {} on rank {}.".format(x.shape, P_x.rank))
 
-# 1st do inter DC all-gather
-x = all_gather(x)
+# Burn in
+y = all_gather(x)
 
-print("Tensor shape after all-gather: {} on rank {}.".format(x.shape, P_x.rank))
+# Timings
+num_runs = 500
+t = torch.zeros(num_runs)
 
+for i in range(num_runs):
+
+    start = torch.cuda.Event(enable_timing=True)
+    end = torch.cuda.Event(enable_timing=True)
+
+    start.record()
+    y = all_gather(x)    
+    end.record()
+
+    # Waits for everything to finish running
+    torch.cuda.synchronize()
+
+    t[i] = start.elapsed_time(end)
+    if P_world.rank == 0:
+        print("Iteration {}: {} ms.".format(i, t[i]))
+
+if P_world.rank == 0:
+    print("All-gather time: {} +- {} ms.".format(t.mean(), t.std()))
+    torch.save(t, "all_gather_frontend.pt")

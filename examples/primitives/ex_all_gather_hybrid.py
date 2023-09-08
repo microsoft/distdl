@@ -69,12 +69,33 @@ if P_x.active:
 
 print("Initial tensor shape: {} on rank {}.".format(x.shape, P_x.rank))
 
-# 1st do inter DC all-gather
-x = inter_dc_all_gather(x)
+# Burn in
+with torch.no_grad():
+    y = inter_dc_all_gather(x)
+    z = intra_dc_all_gather(y)
 
-print("Tensor shape after inter-cluster all-gather: {} on rank {}.".format(x.shape, P_x.rank))
+# Timings
+num_runs = 500
+t = torch.zeros(num_runs)
 
-# 2nd do intra DC all-gather
-x = intra_dc_all_gather(x)
+for i in range(num_runs):
 
-print("Tensor shape after intra-cluster all-gather: {} on rank {}.".format(x.shape, P_x.rank))
+    start = torch.cuda.Event(enable_timing=True)
+    end = torch.cuda.Event(enable_timing=True)
+
+    start.record()
+    with torch.no_grad():
+        y = inter_dc_all_gather(x)
+        z = intra_dc_all_gather(y)    
+    end.record()
+
+    # Waits for everything to finish running
+    torch.cuda.synchronize()
+
+    t[i] = start.elapsed_time(end)
+    if P_world.rank == 0:
+        print("Iteration {}: {} ms.".format(i, t[i]))
+        
+if P_world.rank == 0:
+    print("All-gather time: {} +- {} ms.".format(t.mean(), t.std()))
+    torch.save(t, "all_gather_hybrid.pt")
