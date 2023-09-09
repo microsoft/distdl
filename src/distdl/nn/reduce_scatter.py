@@ -35,7 +35,7 @@ class ReduceScatter(Module):
 
     """
 
-    def __init__(self, P_x, axes_reduce_scatter=None, axes_keep=None):
+    def __init__(self, P_x, axes_reduce_scatter=None, axes_keep=None, use_frontend=False):
 
         super(ReduceScatter, self).__init__()
 
@@ -57,6 +57,9 @@ class ReduceScatter(Module):
 
         # Indicates if broadcast requires any data movement.
         self.identity = False
+
+        # Use frontend?
+        self.use_frontend = use_frontend
 
         # Partition for performing reduce-scatter.
         self.P_reducescatter = self._distdl_backend.Partition()
@@ -128,7 +131,7 @@ class ReduceScatter(Module):
         if not self.identity:
 
             self.P_reducescatter = self.P_x.create_allreduction_partition(self.axes_reduce_scatter,
-                initialize_backend_comm=True)
+                initialize_backend_comm=True, use_frontend=self.use_frontend)
             self.input_tensor_structure = TensorStructure(input[0])
             self.output_tensor_structure = TensorStructure(input[0])
 

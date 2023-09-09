@@ -26,38 +26,11 @@ in_workers = np.arange(0, in_size)
 P_x_base = P_world.create_partition_inclusive(in_workers)
 P_x = P_x_base.create_cartesian_topology_partition(in_shape)
 
-# Create inter DC communicators
-for i in range(in_shape[1]):
-    workers = np.arange(i, i + num_cluster*in_shape[1], in_shape[1])
-    P_inter_dc_base = P_world.create_partition_inclusive(workers)
-
-    # If I am a worker belonging to this partition, create the communicator
-    if P_inter_dc_base.active:
-        P_inter_dc = P_inter_dc_base.create_cartesian_topology_partition((num_cluster, 1, 1))
-        P_inter_dc.set_frontend_network(True)  # Set to True for hybrid
-    P_inter_dc_base.deactivate()
-
-# Create intra DC communicators
-for i in range(in_shape[0]):
-    workers = np.arange(i*in_shape[1], (i+1)*in_shape[1])
-    P_intra_dc_base = P_world.create_partition_inclusive(workers)
-
-    # If I am a worker belonging to this partition, create the communicator
-    if P_intra_dc_base.active:
-        P_intra_dc = P_intra_dc_base.create_cartesian_topology_partition((1, num_nodes, 1))
-        P_intra_dc.set_frontend_network(False)  # Set to False for hybrid
-    P_intra_dc_base.deactivate()
-
-
-# Every worker should be part of one intra- and one inter-DC communicator
-print("Communicators on rank {}: {}, {}".format(P_world.rank, P_inter_dc, P_intra_dc))
-
 # Inter DC all-gather
-inter_dc_all_gather = AllGather(P_inter_dc, axes_all_gather=(0,))
+inter_dc_all_gather = AllGather(P_x, axes_all_gather=(0,), use_frontend=True)
 
 # Intra DC all-gather
-intra_dc_all_gather = AllGather(P_intra_dc, axes_all_gather=(1,))
-
+intra_dc_all_gather = AllGather(P_x, axes_all_gather=(1,), use_frontend=False)
 
 # Create some weights
 x_global_shape = np.array([2, 6144, 49152])

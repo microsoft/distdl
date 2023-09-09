@@ -261,7 +261,7 @@ class MPIPartition:
 
         return MPIPartition(comm, group, root=self._root, device=self.device)
 
-    def create_partition_union(self, other, initialize_backend_comm=False):
+    def create_partition_union(self, other, initialize_backend_comm=False, use_frontend=False):
         r"""Creates new partition from the union of two partitions.
 
         The new partition is the union of the current and ``other`` partitions.
@@ -296,7 +296,7 @@ class MPIPartition:
 
         P_union = MPIPartition(comm, group, root=self._root, device=self.device)
         if initialize_backend_comm:
-            P_union.set_frontend_network(self.use_frontend)
+            P_union.set_frontend_network(use_frontend)
             P_union.initialize_backend_comm()
 
         return P_union
@@ -415,7 +415,8 @@ class MPIPartition:
     def _create_send_recv_partitions(self, P_union,
                                      send_ranks, group_send,
                                      recv_ranks, group_recv,
-                                     initialize_backend_comm=False):
+                                     initialize_backend_comm=False,
+                                     use_frontend=False):
         r"""Creates the send and receive partitions for broadcasts and reductions.
 
         Uses ``MPI_Comm_create_group`` which is only collective across the
@@ -500,8 +501,8 @@ class MPIPartition:
             P_recv = P_send
 
         if initialize_backend_comm:
-            P_send.set_frontend_network(self.use_frontend)
-            P_recv.set_frontend_network(self.use_frontend)
+            P_send.set_frontend_network(use_frontend)
+            P_recv.set_frontend_network(use_frontend)
             P_send.initialize_backend_comm()
             P_recv.initialize_backend_comm()
 
@@ -651,7 +652,7 @@ class MPIPartition:
 
         return P_send, P_recv
 
-    def create_allreduction_partition(self, axes_reduce, initialize_backend_comm=False):
+    def create_allreduction_partition(self, axes_reduce, initialize_backend_comm=False, use_frontend=False):
         r"""Creates the partitions for all-reductions.
 
         Parameters
@@ -696,7 +697,7 @@ class MPIPartition:
 
         # Create backend communicator
         if initialize_backend_comm:
-            P_allreduce.set_frontend_network(self.use_frontend)
+            P_allreduce.set_frontend_network(use_frontend)
             P_allreduce.initialize_backend_comm()
 
         return P_allreduce

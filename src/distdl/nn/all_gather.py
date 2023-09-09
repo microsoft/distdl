@@ -34,7 +34,7 @@ class AllGather(Module):
 
     """
 
-    def __init__(self, P_x, axes_all_gather=None, axes_keep=None):
+    def __init__(self, P_x, axes_all_gather=None, axes_keep=None, use_frontend=False):
 
         super(AllGather, self).__init__()
 
@@ -56,6 +56,9 @@ class AllGather(Module):
 
         # Indicates if broadcast requires any data movement.
         self.identity = False
+
+        # Use frontend?
+        self.use_frontend = use_frontend
 
         # Partition for performing reduce-scatter.
         self.P_allgather = self._distdl_backend.Partition()
@@ -126,17 +129,13 @@ class AllGather(Module):
         # If it is not an identity, we need actual Partitions to do the work.
         if not self.identity:
 
-            self.P_allgather = self.P_x.create_allreduction_partition(self.axes_all_gather,
-                initialize_backend_comm=True)
-
+            self.P_allgather = self.P_x.create_allreduction_partition(self.axes_all_gather, 
+                initialize_backend_comm=True, use_frontend=self.use_frontend)
             self.input_tensor_structure = TensorStructure(input[0])
-
-
-            self.output_tensor_structure = \
+            self.output_tensor_structure = TensorStructure(input[0])
             self._distdl_backend.assemble_global_tensor_structure_along_axis(self.input_tensor_structure,
                                                                              self.P_x,
                                                                              self.axes_all_gather)
-
             self.slices = self._assemble_slices(self.input_tensor_structure.shape, 
                 self.P_x, self.axes_all_gather)
 
