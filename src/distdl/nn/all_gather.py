@@ -132,7 +132,7 @@ class AllGather(Module):
             self.P_allgather = self.P_x.create_allreduction_partition(self.axes_all_gather, 
                 initialize_backend_comm=True, use_frontend=self.use_frontend)
             self.input_tensor_structure = TensorStructure(input[0])
-            self.output_tensor_structure = TensorStructure(input[0])
+            self.output_tensor_structure = \
             self._distdl_backend.assemble_global_tensor_structure_along_axis(self.input_tensor_structure,
                                                                              self.P_x,
                                                                              self.axes_all_gather)
