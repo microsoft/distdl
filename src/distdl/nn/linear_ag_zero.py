@@ -239,7 +239,7 @@ class DistributedLinearAllGatherZero(Module):
             self.allgather_weight_inter = AllGather(P_weight_4d, axes_all_gather=(0,), use_frontend=True)
             self.allgather_weight_intra = AllGather(P_weight_4d, axes_all_gather=(1,), use_frontend=False)
         else:
-            self.allgather_weight = AllGather(P_weight, axes_all_gather=(0,))
+            self.allgather_weight = AllGather(P_weight, axes_all_gather=(0,), use_frontend=False)
         #self.reduce_scatter_weight = ReduceScatter(P_weight, axes_reduce_scatter=(0,))
         
         if bias:
@@ -247,7 +247,7 @@ class DistributedLinearAllGatherZero(Module):
                 self.allgather_bias_inter = AllGather(P_weight_4d, axes_all_gather=(0,), use_frontend=True)
                 self.allgather_bias_intra = AllGather(P_weight_4d, axes_all_gather=(1,), use_frontend=False)
             else:
-                self.allgather_bias = AllGather(P_weight, axes_all_gather=(0,))
+                self.allgather_bias = AllGather(P_weight, axes_all_gather=(0,), use_frontend=False)
             #self.reducescatter_bias = ReduceScatter(P_weight, axes_reduce_scatter=(0,))
 
         # Create weights
