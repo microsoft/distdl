@@ -43,6 +43,7 @@ P_y = P_y_base.create_cartesian_topology_partition(out_shape)
 
 # This global tensor shape is among the smallest useful shapes for an example
 x_global_shape = np.array([7, 5])
+x_dtype = torch.float16
 
 # Create the transpose layer
 layer = Repartition(P_x, P_y, preserve_batch=False)
@@ -61,12 +62,12 @@ layer = Repartition(P_x, P_y, preserve_batch=False)
 #   [ 3 3 3 | 4 4 ] ]
 # print("From P_world.rank ", P_world.rank, ": ", P_x.shape)
 
-x = zero_volume_tensor(device=P_x.device)
+x = zero_volume_tensor(device=P_x.device, dtype=x_dtype)
 if P_x.active:
     x_local_shape = slicing.compute_subshape(P_x.shape,
                                              P_x.index,
                                              x_global_shape)
-    x = torch.zeros(*x_local_shape, device=x.device) + (P_x.rank + 1)
+    x = torch.zeros(*x_local_shape, device=x.device, dtype=x_dtype) + (P_x.rank + 1)
 
 x.requires_grad = True
 print(f"P_world.rank {P_world.rank}; P_x.index {P_x.index}; x value: \n{x}\n")
@@ -97,12 +98,12 @@ print(f"P_world.rank {P_world.rank}; P_y.index {P_y.index}; y value: \n{y}\n")
 #   [ 1 1 1 1 1 ]
 #   [ 1 1 1 1 1 ]
 #   [ 1 1 1 1 1 ] ]
-dy = zero_volume_tensor(device=P_y.device)
+dy = zero_volume_tensor(device=P_y.device, dtype=x_dtype)
 if P_y.active:
     y_local_shape = slicing.compute_subshape(P_y.shape,
                                              P_y.index,
                                              x_global_shape)
-    dy = torch.zeros(*y_local_shape, device=dy.device) + (P_y.rank + 1)
+    dy = torch.zeros(*y_local_shape, device=dy.device, dtype=x_dtype) + (P_y.rank + 1)
 
 print(f"P_world.rank {P_world.rank}; P_y.index {P_y.index}; dy value: \n{dy}\n")
 
