@@ -4,7 +4,7 @@ import numpy as np
 import torch
 from mpi4py import MPI
 
-from distdl.utilities.dtype import torch_to_numpy_dtype_dict
+from distdl.utilities.dtype import torch_to_numpy_dtype_dict, torch_to_mpi_dtype_dict
 from distdl.utilities.torch import zero_volume_tensor
 
 
@@ -144,7 +144,8 @@ class RepartitionFunction(torch.autograd.Function):
             for (sl, sh, partner), buff in zip(P_y_to_x_overlaps, P_y_to_x_buffers):
                 if buff is not None:
                     xfer_buff = buff.get_view(sh)
-                    req = P_union._comm.Irecv(xfer_buff, source=partner, tag=111)
+                    output_dtype = torch_to_mpi_dtype_dict[x_global_structure.dtype]
+                    req = P_union._comm.Irecv((xfer_buff, output_dtype), source=partner, tag=111)
                     requests.append(req)
                 else:
                     # We add this if there is no recv so that the indices of
@@ -160,7 +161,8 @@ class RepartitionFunction(torch.autograd.Function):
                 if buff is not None:
                     xfer_buff = buff.get_view(sh)
                     np.copyto(xfer_buff, input.detach()[sl].cpu().numpy())
-                    req = P_union._comm.Isend(xfer_buff, dest=partner, tag=111)
+                    input_dtype = torch_to_mpi_dtype_dict[x_global_structure.dtype]
+                    req = P_union._comm.Isend((xfer_buff, input_dtype), dest=partner, tag=111)
                     requests.append(req)
                 else:
                     # We add this for symmetry, but don't really need it.
@@ -282,7 +284,8 @@ class RepartitionFunction(torch.autograd.Function):
             for (sl, sh, partner), buff in zip(P_x_to_y_overlaps, P_x_to_y_buffers):
                 if buff is not None:
                     xfer_buff = buff.get_view(sh)
-                    req = P_union._comm.Irecv(xfer_buff, source=partner, tag=113)
+                    output_dtype = torch_to_mpi_dtype_dict[x_global_structure.dtype]
+                    req = P_union._comm.Irecv((xfer_buff, output_dtype), source=partner, tag=113)
                     requests.append(req)
                 else:
                     # We add this if there is no recv so that the indices of
@@ -298,7 +301,8 @@ class RepartitionFunction(torch.autograd.Function):
                 if buff is not None:
                     xfer_buff = buff.get_view(sh)
                     np.copyto(xfer_buff, grad_output.detach()[sl].cpu().numpy())
-                    req = P_union._comm.Isend(xfer_buff, dest=partner, tag=113)
+                    input_dtype = torch_to_mpi_dtype_dict[x_global_structure.dtype]
+                    req = P_union._comm.Isend((xfer_buff, input_dtype), dest=partner, tag=113)
                     requests.append(req)
                 else:
                     # We add this for symmetry, but don't really need it.

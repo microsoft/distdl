@@ -1,6 +1,7 @@
 import numpy as np
 import torch
 import distdl.logger as logger
+from mpi4py import MPI
 
 # -----------------------Extended From Pytorch -------------------------------
 # https://github.com/pytorch/pytorch/blob/e180ca652f8a38c479a3eff1080efe69cbc11621/torch/testing/_internal/common_utils.py#L349
@@ -57,6 +58,21 @@ numpy_to_torch_dtype_dict = {
 # Dict of torch dtype -> NumPy dtype
 torch_to_numpy_dtype_dict = {value: key for (key, value) in numpy_to_torch_dtype_dict.items()}
 
+# Dict of torch dtype -> MPI dtype
+torch_to_mpi_dtype_dict = {
+    torch.bool: MPI.BOOL,  # noqa E203
+    torch.uint8: MPI.UINT8_T,  # noqa E203
+    torch.int8: MPI.INT8_T,  # noqa E203
+    torch.int16: MPI.INT16_T,  # noqa E203
+    torch.int32: MPI.INT32_T,  # noqa E203
+    torch.int64: MPI.INT64_T,  # noqa E203
+    torch.float16: MPI.SHORT,  # noqa E203
+    torch.float32: MPI.FLOAT,  # noqa E203
+    torch.float64: MPI.DOUBLE,  # noqa E203
+    torch.complex64: MPI.COMPLEX,  # noqa E203
+    torch.complex128: MPI.DOUBLE_COMPLEX,  # noqa E203
+}
+
 # -----------------------------End Extended From PyTorch ---------------------
 
 # Get NumPy's unique numerical id numbers and map back to dtypes
@@ -67,8 +83,6 @@ intID_to_numpy_dtype_dict = {value: key for (key, value) in numpy_to_intID_dtype
 torch_to_intID_dtype_dict = {value: numpy_to_intID_dtype_dict[key] for (key, value) in numpy_to_torch_dtype_dict.items()}
 intID_to_torch_dtype_dict = {value: key for (key, value) in torch_to_intID_dtype_dict.items()}
 
-
-# TODO: where should we put this??
 try:
     import cupy as cp
     from cupy.cuda import nccl
