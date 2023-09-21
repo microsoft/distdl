@@ -43,7 +43,7 @@ class DistributedLayerNormZero(Module):
     """
 
     def __init__(self, P_x, normalized_shape, elementwise_affine=True, eps=1e-5, 
-        collect_state=False, device=None, dtype=None):
+        collect_state=False, device=None, dtype=None, num_cluster=1):
         super(DistributedLayerNormZero, self).__init__()
         
         self.P_x = P_x
@@ -56,6 +56,7 @@ class DistributedLayerNormZero(Module):
         self.collect_state = collect_state
         factory_kwargs = {'device': device, 'dtype': dtype}
         self.dtype = dtype
+        self.num_cluster = num_cluster
 
         if isinstance(normalized_shape, numbers.Integral):
             normalized_shape = (normalized_shape,)
@@ -94,9 +95,25 @@ class DistributedLayerNormZero(Module):
             P_w = P_w_base.create_cartesian_topology_partition(weight_partition_shape)
             P_w_base.deactivate()
             self.P_w = P_w
+            
+            # Hybrid network partition
+            if self.num_cluster > 1:
+                weight_partition_shape_multi = list(P_x.shape.copy())
+                weight_partition_shape_multi.insert(0, num_cluster)
+                weight_partition_shape_multi[1] = weight_partition_shape_multi[1] // num_cluster
+                P_x_base = P_x.create_partition_inclusive(range(P_x.size))
+                P_x_multi = P_x_base.create_cartesian_topology_partition(weight_partition_shape_multi)
+                P_x_base.deactivate()
+            else:
+                P_x_multi = None
+            self.P_x_multi = P_x_multi    
 
             # Allgather for collecting weights from data-parallel workers
-            self.allgather = AllGather(P_x, axes_all_gather=(0,))
+            if self.num_cluster == 1:
+                self.allgather = AllGather(P_x, axes_all_gather=(0,))
+            else:
+                self.allgather_inter = AllGather(P_x_multi, axes_all_gather=(0,), use_frontend=True)
+                self.allgather_intra = AllGather(P_x_multi, axes_all_gather=(1,), use_frontend=False)
 
             # Split normalized work along model-parallel workers
             normalized_shape_mp = [1] * P_x.dim
@@ -125,80 +142,11 @@ class DistributedLayerNormZero(Module):
             self.register_parameter('bias', None)
         self.reset_parameters()
 
-        # # State dict hooks for gather/scattering distributed weights
-        # self._register_state_dict_hook(self.gather_state_dict)
-        # self._register_load_state_dict_pre_hook(self.scatter_state_dict)
-
-        # # Partition for collecting weights/biases for saving the state dict
-        # if self.elementwise_affine:
-        #     P_root_base = P_x.create_partition_inclusive([0])
-        #     self.P_root = P_root_base.create_cartesian_topology_partition([1]*P_x.dim)
-        #     self.gather = Repartition(self.P_w, self.P_root, preserve_batch=False)
-        #     self.scatter_mp = Repartition(self.P_root, self.P_w, preserve_batch=False)
-        #     self.scatter_dp = Repartition(self.P_w, self.P_x, preserve_batch=False)
-
     # Initializer for parameters
     def reset_parameters(self):
         if self.elementwise_affine and self.P_x.active:
             torch.nn.init.ones_(self.weight)
             torch.nn.init.zeros_(self.bias)
-
-    # def gather_state_dict(self, module, destination, prefix, *args):
-    #     if self.collect_state and self.elementwise_affine and self.P_x.active:
- 
-    #         # Pop bias from state dict and serialize it
-    #         bias_key = next(reversed(destination))
-    #         bias = self.allgather(destination.pop(bias_key).transpose(0,-1)).transpose(0,-1)
-    #         bias = self.gather(bias)
-
-    #         # Pop weight from state dict and serialize it
-    #         weight_key = next(reversed(destination))
-    #         weight = self.allgather(destination.pop(weight_key).transpose(0, -1)).transpose(0,-1)
-    #         weight = self.gather(weight)
-
-    #         # Serialize weights
-    #         if self.P_root.active:
-
-    #             # Bring into same shape as the serial torch version
-    #             weight = weight.view(weight.shape[self.dim_reduce_slice])
-    #             bias = bias.view(bias.shape[self.dim_reduce_slice])
-
-    #             # Add filenames back to state dict
-    #             destination[weight_key] = weight
-    #             destination[bias_key] = bias
-
-    #     return destination
-
-    # def scatter_state_dict(self, destination, prefix, *args):
-    #     if self.collect_state and self.elementwise_affine and self.P_x.active:
-            
-    #         # Pop entries from state dict
-    #         weight_key = next(iter(destination))
-    #         weight = destination.pop(weight_key)
-    #         bias_key = next(iter(destination))
-    #         bias = destination.pop(bias_key)
-
-    #         # Load states
-    #         if self.P_root.active:                
-    #             # Bring from PyTorch into DistDL shape (add dimensions for broadcasting)
-    #             weight = weight.view(*self.weight.shape[self.dim_bcast_slice], -1)
-    #             bias = bias.view(*self.bias.shape[self.dim_bcast_slice], -1)
-
-    #         else:
-    #             weight = zero_volume_tensor(device=self.P_x.device, requires_grad=True, dtype=weight.dtype)
-    #             bias = zero_volume_tensor(device=self.P_x.device, requires_grad=True, dtype=bias.dtype)
-            
-    #         # Scatter states
-    #         weight = self.scatter_mp(weight)
-    #         bias = self.scatter_mp(bias)
-    #         weight = self.scatter_dp(weight.transpose(0,-1)).transpose(0,-1)
-    #         bias = self.scatter_dp(bias.transpose(0,-1)).transpose(0,-1)
-
-    #         # Add data back to state dict
-    #         destination[weight_key] = weight
-    #         destination[bias_key] = bias
-
-    #     return destination
 
     def _compute_mean(self, input):
         r"""
@@ -258,10 +206,25 @@ class DistributedLayerNormZero(Module):
             input = (input - mean) / torch.sqrt(var + self.eps)
 
             if self.elementwise_affine:
-                weight = self.allgather(self.weight.transpose(0, -1)).transpose(0, -1)
-                bias = self.allgather(self.bias.transpose(0, -1)).transpose(0, -1)
-                input = weight*input + bias
+                if self.num_cluster == 1:
+                    weight = self.allgather(self.weight.transpose(0, -1)).transpose(0, -1)
+                    bias = self.allgather(self.bias.transpose(0, -1)).transpose(0, -1)
+                else:
+                    weight = self.weight.transpose(0, -1)
+                    weight = weight.view(self.num_cluster, -1, *weight.shape[1:])
+                    weight = self.allgather_inter(weight)
+                    weight = weight.view(1, -1, *weight.shape[2:])
+                    weight = self.allgather_intra(weight)
+                    weight = weight.view(-1, *weight.shape[2:]).transpose(0, -1)
 
+                    bias = self.bias.transpose(0, -1)
+                    bias = bias.view(self.num_cluster, -1, *bias.shape[1:])
+                    bias = self.allgather_inter(bias)
+                    bias = bias.view(1, -1, *bias.shape[2:])
+                    bias = self.allgather_intra(bias)
+                    bias = bias.view(-1, *bias.shape[2:]).transpose(0, -1)
+
+                input = weight*input + bias
         else:
             if self.elementwise_affine:
                 weight = self.allgather(self.weight.transpose(0, -1)).transpose(0, -1).squeeze()
