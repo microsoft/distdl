@@ -50,7 +50,8 @@ class SumReduce(Module):
 
     def __init__(self, P_x, P_y,
                  transpose_src=False, transpose_dest=False,
-                 preserve_batch=True):
+                 preserve_batch=True,
+                 use_frontend=False):
 
         super(SumReduce, self).__init__()
 
@@ -71,6 +72,9 @@ class SumReduce(Module):
 
         # Indicates if broadcast requires any data movement.
         self.identity = False
+
+        # Indicates if the frontend should be used.
+        self.use_frontend = use_frontend
 
         # Partition for sharing copy of local data.
         self.P_send = self._distdl_backend.Partition()
@@ -125,7 +129,8 @@ class SumReduce(Module):
             reduce_partitions = self.P_x.create_reduction_partition_to(self.P_y,
                                                                        self.transpose_src,
                                                                        self.transpose_dest,
-                                                                       initialize_backend_comm=True)
+                                                                       initialize_backend_comm=True,
+                                                                       use_frontend=self.use_frontend)
             self.P_send = reduce_partitions[0]
             self.P_recv = reduce_partitions[1]
 

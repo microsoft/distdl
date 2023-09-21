@@ -51,7 +51,8 @@ class Broadcast(Module):
 
     def __init__(self, P_x, P_y,
                  transpose_src=False, transpose_dest=False,
-                 preserve_batch=True):
+                 preserve_batch=True,
+                 use_frontend=False):
 
         super(Broadcast, self).__init__()
 
@@ -72,6 +73,9 @@ class Broadcast(Module):
 
         # Indicates if broadcast requires any data movement.
         self.identity = False
+
+        # Use frontend?
+        self.use_frontend = use_frontend
 
         # Partition for sharing copy of local data.
         self.P_send = self._distdl_backend.Partition()  # None?
@@ -126,7 +130,8 @@ class Broadcast(Module):
             bcast_partitions = self.P_x.create_broadcast_partition_to(self.P_y,
                                                                       self.transpose_src,
                                                                       self.transpose_dest,
-                                                                      initialize_backend_comm=True)
+                                                                      initialize_backend_comm=True,
+                                                                      use_frontend=self.use_frontend)
             self.P_send = bcast_partitions[0]
             self.P_recv = bcast_partitions[1]
 

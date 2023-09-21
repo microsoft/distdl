@@ -42,7 +42,7 @@ class Repartition(Module):
 
     """
 
-    def __init__(self, P_x, P_y, preserve_batch=True, buffer_manager=None):
+    def __init__(self, P_x, P_y, preserve_batch=True, buffer_manager=None, use_frontend=False):
         super(Repartition, self).__init__()
 
         # Global structure of the input tensor, assembled when layer is called
@@ -60,6 +60,9 @@ class Repartition(Module):
 
         # Indicates if batch size should be preserved for zero-volume outputs.
         self.preserve_batch = preserve_batch
+
+        # Whether to use the frontend network
+        self.use_frontend = use_frontend
 
         # List of meta data describing copies of subvolumes of input tensor
         # out of the current worker
@@ -90,7 +93,8 @@ class Repartition(Module):
         # so that data can be copied across them.
         P_union = self._distdl_backend.Partition()
         if P_x.active or P_y.active:
-            P_union = P_x.create_partition_union(P_y, initialize_backend_comm=True)
+            P_union = P_x.create_partition_union(P_y, initialize_backend_comm=True, 
+                use_frontend=use_frontend)
         self.P_union = P_union
 
         # Setup these variables incase the current worker is inactive in

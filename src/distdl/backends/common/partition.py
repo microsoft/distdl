@@ -511,7 +511,8 @@ class MPIPartition:
     def create_broadcast_partition_to(self, P_dest,
                                       transpose_src=False,
                                       transpose_dest=False,
-                                      initialize_backend_comm=False):
+                                      initialize_backend_comm=False,
+                                      use_frontend=False):
         r"""Creates the send and receive partitions for broadcasts.
 
         Creates the send and receive partitions from the current partition to
@@ -545,7 +546,8 @@ class MPIPartition:
 
         P_union = MPIPartition()
         if P_src.active or P_dest.active:
-            P_union = P_src.create_partition_union(P_dest, initialize_backend_comm=False)
+            P_union = P_src.create_partition_union(P_dest, initialize_backend_comm=False,
+                use_frontend=False)
 
         # If we are not active in one of the two partitions, return null
         # partitions
@@ -645,7 +647,8 @@ class MPIPartition:
         P_send, P_recv = self._create_send_recv_partitions(P_union,
                                                            send_ranks, group_send,
                                                            recv_ranks, group_recv,
-                                                           initialize_backend_comm)
+                                                           initialize_backend_comm,
+                                                           use_frontend)
 
         # Release temporary resources
         P_union.deactivate()
@@ -705,7 +708,8 @@ class MPIPartition:
     def create_reduction_partition_to(self, P_dest,
                                       transpose_src=False,
                                       transpose_dest=False,
-                                      initialize_backend_comm=False):
+                                      initialize_backend_comm=False,
+                                      use_frontend=False):
         r"""Creates the send and receive partitions for reductions.
 
         Creates the send and receive partitions from the current partition to
@@ -739,7 +743,8 @@ class MPIPartition:
 
         P_union = MPIPartition()
         if P_src.active or P_dest.active:
-            P_union = P_src.create_partition_union(P_dest, initialize_backend_comm=False)
+            P_union = P_src.create_partition_union(P_dest, initialize_backend_comm=False,
+                use_frontend=False)
 
         # If we are not active in one of the two partitions, return null
         # partitions
@@ -837,7 +842,8 @@ class MPIPartition:
         P_send, P_recv = self._create_send_recv_partitions(P_union,
                                                            send_ranks, group_send,
                                                            recv_ranks, group_recv,
-                                                           initialize_backend_comm)
+                                                           initialize_backend_comm,
+                                                           use_frontend)
 
         # Release temporary resources
         P_union.deactivate()

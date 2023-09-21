@@ -31,7 +31,7 @@ class AllSumReduce(Module):
 
     """
 
-    def __init__(self, P_x, axes_reduce=None, axes_keep=None):
+    def __init__(self, P_x, axes_reduce=None, axes_keep=None, use_frontend=False):
 
         super(AllSumReduce, self).__init__()
 
@@ -53,6 +53,9 @@ class AllSumReduce(Module):
 
         # Indicates if broadcast requires any data movement.
         self.identity = False
+
+        # Use frontend?
+        self.use_frontend = use_frontend
 
         # Partition for performing all-reduction.
         self.P_allreduce = self._distdl_backend.Partition()
@@ -95,7 +98,7 @@ class AllSumReduce(Module):
         if not self.identity:
 
             self.P_allreduce = self.P_x.create_allreduction_partition(self.axes_reduce,
-                initialize_backend_comm=True)
+                initialize_backend_comm=True, use_frontend=self.use_frontend)
             self.input_tensor_structure = TensorStructure(input[0])
             self.output_tensor_structure = self.input_tensor_structure
 

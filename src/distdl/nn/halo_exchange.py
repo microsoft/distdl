@@ -4,7 +4,7 @@ from distdl.utilities.torch import TensorStructure
 
 class HaloExchange(Module):
 
-    def __init__(self, P_x, halo_shape, recv_buffer_shape, send_buffer_shape, buffer_manager=None):
+    def __init__(self, P_x, halo_shape, recv_buffer_shape, send_buffer_shape, buffer_manager=None, use_frontend=False):
 
         super(HaloExchange, self).__init__()
 
@@ -19,6 +19,8 @@ class HaloExchange(Module):
 
         self.slices = None
         self.buffers = None
+
+        self.use_frontend = use_frontend
 
         # Back-end specific buffer manager for economic buffer allocation
         if buffer_manager is None:
@@ -108,6 +110,7 @@ class HaloExchange(Module):
                                                                self.recv_buffer_shape,
                                                                self.send_buffer_shape,
                                                                input[0].dtype)
+            self.P_x.set_frontend_network(self.use_frontend)
             self.P_x.initialize_backend_comm()
         self._distdl_is_setup = True
         self._input_tensor_structure = TensorStructure(input[0])
