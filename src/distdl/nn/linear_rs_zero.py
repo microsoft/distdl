@@ -135,8 +135,10 @@ class DistributedLinearReduceScatterZero(Module):
             weight_partition_shape_multi[1] = weight_partition_shape_multi[1] // num_cluster
             P_x_base = P_x.create_partition_inclusive(range(P_x.size))
             P_x_multi = P_x_base.create_cartesian_topology_partition(weight_partition_shape_multi)
+            P_x_base.deactivate()
         else:
             P_x_multi = None
+            
         self.P_x_multi = P_x_multi
 
         # Function to broadcast weights and biases

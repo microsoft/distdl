@@ -58,7 +58,7 @@ class DistributedEmbeddingZero(Module):
     def __init__(self, P_x, num_embeddings, embedding_dim, padding_idx=None,
         max_norm=None, norm_type=2., scale_grad_by_freq=False, sparse=False,
         _weight=None, _freeze=False, collect_state=False, device=None, 
-        dtype=None):
+        dtype=None, num_cluster=1):
 
         factory_kwargs = {'device': P_x.device, 'dtype': dtype}
         super(DistributedEmbeddingZero, self).__init__()
@@ -79,6 +79,7 @@ class DistributedEmbeddingZero(Module):
         self.sparse = sparse
         self.collect_state = collect_state
         self.dtype = dtype
+        self.num_cluster = num_cluster
 
         self.P_x = P_x
         if not self.P_x.active:
@@ -89,8 +90,25 @@ class DistributedEmbeddingZero(Module):
         self.P_root = P_root_base.create_cartesian_topology_partition([1]*self.P_x.dim)
         P_root_base.deactivate()
 
+        # Hybrid network partition
+        if num_cluster > 1:
+            weight_partition_shape_multi = list(P_x.shape.copy())
+            weight_partition_shape_multi.insert(0, num_cluster)
+            weight_partition_shape_multi[1] = weight_partition_shape_multi[1] // num_cluster
+            P_x_base = P_x.create_partition_inclusive(range(P_x.size))
+            P_x_multi = P_x_base.create_cartesian_topology_partition(weight_partition_shape_multi)
+            P_x_base.deactivate()
+        else:
+            P_x_multi = None
+        self.P_x_multi = P_x_multi            
+
         # Allgather
-        self.allgather = AllGather(self.P_x, axes_all_gather=(0,))
+        if num_cluster == 1:
+            self.allgather = AllGather(self.P_x, axes_all_gather=(0,))
+        else:
+            self.allgather_inter = AllGather(self.P_x_multi, axes_all_gather=(0,), use_frontend=True)
+            self.allgather_intra = AllGather(self.P_x_multi, axes_all_gather=(1,), use_frontend=False)
+
         self.init_scatter = Repartition(self.P_root, self.P_x)
 
         # Local embedding size
@@ -115,26 +133,27 @@ class DistributedEmbeddingZero(Module):
                 requires_grad=True, dtype=self.dtype))
 
         # State dict hooks for gather/scattering distributed weights
-        self._register_state_dict_hook(self.gather_state_dict)
-        self._register_load_state_dict_pre_hook(self.scatter_state_dict)
+        # self._register_state_dict_hook(self.gather_state_dict)
+        # self._register_load_state_dict_pre_hook(self.scatter_state_dict)
 
         # Gather/collect weights for saving/setting state dict
-        P_root_base = P_x.create_partition_inclusive([0])
-        self.P_root = P_root_base.create_cartesian_topology_partition([1]*P_x.dim)
-        self.gather_weight = Repartition(P_x, self.P_root, preserve_batch=False)
-        self.scatter_weight = Repartition(self.P_root, P_x, preserve_batch=False)
+        # P_root_base = P_x.create_partition_inclusive([0])
+        # self.P_root = P_root_base.create_cartesian_topology_partition([1]*P_x.dim)
+        # self.gather_weight = Repartition(P_x, self.P_root, preserve_batch=False)
+        # self.scatter_weight = Repartition(self.P_root, P_x, preserve_batch=False)
 
     def reset_parameters(self, init=init.normal_, mean=0.0, std=1.0):
         if self.P_x.active:
-            weight_shape = [1] * self.P_x.dim
-            weight_shape[0] = self.num_embeddings
-            weight_shape[-1] = self.embedding_dim
-            weight = torch.empty(weight_shape, device=self.P_x.device)
-            init(weight, mean=mean, std=std)
-            weight = self.init_scatter(weight)
-            weight = weight.view(weight.shape[0], weight.shape[-1])
-            with torch.no_grad():
-                self.weight[:] = weight
+            # weight_shape = [1] * self.P_x.dim
+            # weight_shape[0] = self.num_embeddings
+            # weight_shape[-1] = self.embedding_dim
+            # weight = torch.empty(weight_shape, device=self.P_x.device)
+            # init(weight, mean=mean, std=std)
+            # weight = self.init_scatter(weight)
+            # weight = weight.view(weight.shape[0], weight.shape[-1])
+            # with torch.no_grad():
+            #     self.weight[:] = weight
+            init(self.weight, mean=mean, std=std)   # TODO make consistent for multi-dc
         self._fill_padding_idx_with_zero()
 
     def _fill_padding_idx_with_zero(self):
@@ -155,38 +174,38 @@ class DistributedEmbeddingZero(Module):
         weight = weight.view(weight.shape[0], weight.shape[-1])        
         return weight
 
-    def gather_state_dict(self, module, destination, prefix, *args):
-        if self.collect_state and self.P_x.active:
+    # def gather_state_dict(self, module, destination, prefix, *args):
+    #     if self.collect_state and self.P_x.active:
 
-            # Collect weights (second last entry added to dict)
-            weight_key = next(reversed(destination))
-            weight = self._squeeze(self.gather_weight(self._expand(destination.pop(weight_key))))
+    #         # Collect weights (second last entry added to dict)
+    #         weight_key = next(reversed(destination))
+    #         weight = self._squeeze(self.gather_weight(self._expand(destination.pop(weight_key))))
 
-            # Serialize weights
-            if self.P_root.active:
+    #         # Serialize weights
+    #         if self.P_root.active:
 
-                # Add filenames back to state dict
-                destination[weight_key] = weight#weight_key
+    #             # Add filenames back to state dict
+    #             destination[weight_key] = weight#weight_key
 
-        return destination
+    #     return destination
 
-    def scatter_state_dict(self, destination, prefix, *args):
-        if self.collect_state and self.P_x.active:
+    # def scatter_state_dict(self, destination, prefix, *args):
+    #     if self.collect_state and self.P_x.active:
 
-            # Scatter weights
-            weight_key = next(iter(destination))
-            if self.P_root.active:
-                weight = destination.pop(weight_key)
-                weight = self._expand(weight)
-            else:
-                destination.pop(weight_key)
-                weight = zero_volume_tensor(device=self.P_x.device, requires_grad=True, dtype=self.dtype)
-            if self.P_x.active:
-                weight = self._squeeze(self.scatter_weight(weight))
+    #         # Scatter weights
+    #         weight_key = next(iter(destination))
+    #         if self.P_root.active:
+    #             weight = destination.pop(weight_key)
+    #             weight = self._expand(weight)
+    #         else:
+    #             destination.pop(weight_key)
+    #             weight = zero_volume_tensor(device=self.P_x.device, requires_grad=True, dtype=self.dtype)
+    #         if self.P_x.active:
+    #             weight = self._squeeze(self.scatter_weight(weight))
 
-            destination[weight_key] = weight
+    #         destination[weight_key] = weight
 
-        return destination
+    #     return destination
 
     def forward(self, input):
         r"""Forward function interface.
@@ -201,7 +220,15 @@ class DistributedEmbeddingZero(Module):
             return zero_volume_tensor(device=self.P_x.device, dtype=self.dtype)
 
         # Gather weights from data-parallel workers (FSDP/ZeRO-3)
-        weight = self._squeeze(self.allgather(self._expand(self.weight)))
+        if self.num_cluster == 1:
+            weight = self._squeeze(self.allgather(self._expand(self.weight)))
+        else:
+            weight = self._expand(self.weight)
+            weight = weight.view(self.num_cluster, -1, weight.shape[-1])
+            weight = self.allgather_inter(weight)
+            weight = weight.view(1, -1, weight.shape[-1])
+            weight = self.allgather_intra(weight)
+            weight = self._squeeze(weight.view(-1, weight.shape[-1]))
 
         return torch.nn.functional.embedding(input, weight, self.padding_idx, self.max_norm,
             self.norm_type, self.scale_grad_by_freq, self.sparse)
