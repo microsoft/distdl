@@ -93,7 +93,8 @@ class DistributedFeatureConvBase(Module, HaloMixin, ConvMixin):
                  dilation=1,
                  groups=1,
                  bias=True,
-                 buffer_manager=None):
+                 buffer_manager=None,
+                 collect_state=False):
 
         super(DistributedFeatureConvBase, self).__init__()
 
@@ -119,6 +120,7 @@ class DistributedFeatureConvBase(Module, HaloMixin, ConvMixin):
         self.dilation = self._expand_parameter(dilation)
         self.groups = groups
         self.use_bias = bias
+        self.collect_state = collect_state
 
         self.serial = self.P_x.size == 1
 
@@ -224,6 +226,45 @@ class DistributedFeatureConvBase(Module, HaloMixin, ConvMixin):
         # Variables for tracking input changes and buffer construction
         self._distdl_is_setup = False
         self._input_tensor_structure = TensorStructure()
+
+        # State dict hooks for gather/scattering distributed weights
+        self._register_state_dict_hook(self.gather_state_dict)
+        self._register_load_state_dict_pre_hook(self.scatter_state_dict)
+
+    def gather_state_dict(self, module, destination, prefix, *args):
+        if self.collect_state and not self.P_wb_cart.active:
+
+            # Remove entries from state dict on all ranks except root
+            if self.conv_layer.bias is not None:
+                bias_key = next(reversed(destination))
+                bias = destination.pop(bias_key)
+
+            weight_key = next(reversed(destination))
+            weight = destination.pop(weight_key)
+
+        return destination
+
+    def scatter_state_dict(self, destination, prefix, *args):
+        if self.collect_state and not self.P_wb_cart.active:
+
+            # Remove entries from state dict on all ranks except root
+            weight_key = next(iter(destination))
+            weight = destination.pop(weight_key)
+
+            if self.conv_layer.bias is not None:
+                bias_key = next(iter(destination))
+                bias = destination.pop(bias_key)
+
+            # Replace bias with zero-volume tensors
+            if self.conv_layer.bias is not None:
+                bias = zero_volume_tensor(dtype=bias.dtype, device=self.P_x.device)
+                destination[bias_key] = bias
+
+            # Replace weight with zero-volume tensors
+            weight = zero_volume_tensor(dtype=weight.dtype, device=self.P_x.device)
+            destination[weight_key] = weight
+
+        return destination
 
     def _expand_parameter(self, param):
         # If the given input is not of size num_dimensions, expand it so.
