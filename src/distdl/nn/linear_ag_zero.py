@@ -19,12 +19,12 @@ from einops import rearrange
 class LinearAllGatherZeROFunc(torch.autograd.Function):
 
     @staticmethod
-    def forward(input, weight, bias, ag_input, rs_input, ag_weight, rs_weight, ag_bias, rs_bias):
+    def forward(input, weight, bias, ag_input, rs_input, ag_weight, rs_weight, ag_bias, rs_bias, scale_backward):
 
         # Gather inputs
         input = ag_input(input)
         weight = ag_weight(weight).squeeze(2)
-        
+
         # Broadcast bias
         if bias is not None:
             bias = ag_bias(bias.transpose(0, -2)).transpose(0, -2).view(1, 1, -1)
@@ -34,21 +34,23 @@ class LinearAllGatherZeROFunc(torch.autograd.Function):
 
     @staticmethod
     def setup_context(ctx, inputs, output):
-        input, weight, bias, ag_input, rs_input, ag_weight, rs_weight, ag_bias, rs_bias = inputs
+        input, weight, bias, ag_input, rs_input, ag_weight, rs_weight, ag_bias, rs_bias, scale_backward = inputs
         ctx.save_for_backward(input, weight, bias)
-        ctx.constant = (ag_input, rs_input, ag_weight, rs_weight, rs_bias)
+        ctx.constant = (ag_input, rs_input, ag_weight, rs_weight, rs_bias, scale_backward)
 
     @staticmethod
     def backward(ctx, grad_output):
 
         # Load saved tensors and operators
         input, weight, bias  = ctx.saved_tensors
-        ag_input, rs_input, ag_weight, rs_weight, rs_bias = ctx.constant
+        ag_input, rs_input, ag_weight, rs_weight, rs_bias, scale_backward = ctx.constant
 
         # Input gradient
         if ctx.needs_input_grad[0]:
             weight = ag_weight(weight).squeeze(2)
             grad_input = torch.einsum('bij,kj->bik', grad_output, weight)
+            if scale_backward is not None:
+                grad_input.div_(np.prod(rs_input.P_reducescatter.shape[scale_backward]))
             grad_input = rs_input(grad_input)
         else:
             grad_input = None
@@ -57,6 +59,8 @@ class LinearAllGatherZeROFunc(torch.autograd.Function):
         if ctx.needs_input_grad[1]:
             input = ag_input(input)
             grad_weight = torch.einsum('bij,bik->jk', input, grad_output).unsqueeze(2)
+            if scale_backward is not None:
+                grad_weight.div_(np.prod(rs_weight.P_reducescatter.shape[scale_backward]))
             grad_weight = rs_weight(grad_weight)
         else:
             grad_weight = None
@@ -64,26 +68,28 @@ class LinearAllGatherZeROFunc(torch.autograd.Function):
         # Bias gradient
         if bias is not None and ctx.needs_input_grad[2]:
             grad_bias = grad_output.sum((0,1)).view(1, -1, 1)
+            if scale_backward is not None:
+                grad_bias.div_(np.prod(rs_bias.P_reducescatter.shape[scale_backward]))
             grad_bias = rs_bias(grad_bias.transpose(0, -2)).transpose(0, -2)
         else:
             grad_bias = None
 
-        return grad_input, grad_weight, grad_bias, None, None, None, None, None, None
+        return grad_input, grad_weight, grad_bias, None, None, None, None, None, None, None
 
 
 class DistributedLinearAllGatherZero(Module):
-    r"""A distributed linear or affine layer with 2D parallelism for weights 
+    r"""A distributed linear or affine layer with 2D parallelism for weights
     and input/outputs (also called ZeRO-3 or FSDP).
-    
+
     This class provides the user interface to a distributed linear layer
-    with 2D partitioning of input/output data and 2D partitioning of weights 
-    and biases. Outputs can be partitioned along the batch dimension (dimension 0) 
+    with 2D partitioning of input/output data and 2D partitioning of weights
+    and biases. Outputs can be partitioned along the batch dimension (dimension 0)
     and/or the last dimension, as specified by the output partition P_y.
 
     Inputs can be partitioned along the batch dimension (dimension 0) plus either
-    the last dimension or second last dimension. If inputs are partitioned along 
+    the last dimension or second last dimension. If inputs are partitioned along
     the second last dimension, an additional input partition P_x must be specified.
-    If P_x is not supplied, the input partitoning is assumed to be the same as the 
+    If P_x is not supplied, the input partitoning is assumed to be the same as the
     output partitioning.
 
     Weights and biases are partitoned along both the input and output feature dimension.
@@ -94,18 +100,18 @@ class DistributedLinearAllGatherZero(Module):
     This version is preferred when the input feature dimension is smaller than the output
     feature dimension. For the reverse case, see DistributedLinearReduceScatterZero.
 
-    This class supports computing QKV tensors for multi-head attention. If 
-    collect_state is set to true, the number of attention heads must be specified, 
-    as well as the number of output variables (3 for QKV, 2 for QK, 1 for Q only). 
+    This class supports computing QKV tensors for multi-head attention. If
+    collect_state is set to true, the number of attention heads must be specified,
+    as well as the number of output variables (3 for QKV, 2 for QK, 1 for Q only).
     Supplying the no. of heads and output variables is required to rearrange
-    the weights and biases such that they yield the same result if the layer is 
-    called for a different number of (model-parallel) workers (e.g., if we load 
+    the weights and biases such that they yield the same result if the layer is
+    called for a different number of (model-parallel) workers (e.g., if we load
     trained weights on a single GPU for inference).
 
     Parameters
     ----------
     P_y :
-        Partition of input/output tensor with shape [ D, ..., 1, M ], where D is 
+        Partition of input/output tensor with shape [ D, ..., 1, M ], where D is
         the no. of data parallel workers and M is the no. of model parallel workers.
     in_features :
         Number of features in the *global* input tensor.
@@ -114,7 +120,7 @@ class DistributedLinearAllGatherZero(Module):
     bias : bool
         Indicates if a bias term should be used.
     P_x : optional
-        Partition of the input tensor if input is partitioned along the second 
+        Partition of the input tensor if input is partitioned along the second
         last dimension. Must have shape of form [ D, ..., M, 1 ].
     P_weight : optional
         Partition for storing weights and biases with shape [ D, ..., M, 1 ].
@@ -123,10 +129,10 @@ class DistributedLinearAllGatherZero(Module):
     collect_state: bool, optional
         If true, collects the weights and biases to the root worker and
         serializes them to disk when the state_dict() function is called.
-        Instead of the weights and biases, the state dictionary contains 
+        Instead of the weights and biases, the state dictionary contains
         paths to those files. Default is false.
     num_heads: int, optional
-        Total number of attention heads across all workers for multi-head attention. 
+        Total number of attention heads across all workers for multi-head attention.
         Only required if collect_state=True. Default is 0.
     num_vars: int, optional
         Number of output variables if used as a linear layer for QKV computations.
@@ -138,12 +144,15 @@ class DistributedLinearAllGatherZero(Module):
     checkpoint : bool, optional
         If true, use custom backward implementation that recomputes the
         all-gathers in the backward pass.
+    scale_backward : Union[int, slice], optional
+        Scale backward pass for AllGather operation by no. of workers along the given
+        dimension. Default is None.
     """
 
 
-    def __init__(self, P_y, in_features, out_features, bias=True, device=None, dtype=None, 
-        P_x=None, P_store_bias=None, P_weight=None, collect_state=False, num_heads=None, 
-        num_vars=3, geglu=False, checkpoint=False):
+    def __init__(self, P_y, in_features, out_features, bias=True, device=None, dtype=None,
+        P_x=None, P_store_bias=None, P_weight=None, collect_state=False, num_heads=None,
+        num_vars=3, geglu=False, checkpoint=False, scale_backward=None):
 
         super(DistributedLinearAllGatherZero, self).__init__()
 
@@ -152,7 +161,7 @@ class DistributedLinearAllGatherZero(Module):
         self.P_y = P_y
         if not self.P_y.active:
             return
-        else:        
+        else:
             assert P_y.shape[-2] == 1
 
         # Input partition can be different than output partition
@@ -177,6 +186,7 @@ class DistributedLinearAllGatherZero(Module):
         self.use_bias = bias
         self.dtype = dtype
         self.checkpoint = checkpoint
+        self.scale_backward = scale_backward
 
         # Partition for storing weights & biases
         if P_store_bias is not None:
@@ -221,11 +231,11 @@ class DistributedLinearAllGatherZero(Module):
         self.P_store_bias = P_store_bias
         self.P_weight = P_weight
 
-        # Function to broadcast weights and biases
-        self.allgather_weight = AllGather(P_weight, axes_all_gather=(0,))
+        # Function to gather weights and biases
+        self.allgather_weight = AllGather(P_weight, axes_all_gather=(0,), scale_backward=scale_backward)
         self.reduce_scatter_weight = ReduceScatter(P_weight, axes_reduce_scatter=(0,))
         if bias:
-            self.allgather_bias = AllGather(P_weight, axes_all_gather=(0,))
+            self.allgather_bias = AllGather(P_weight, axes_all_gather=(0,), scale_backward=scale_backward)
             self.reducescatter_bias = ReduceScatter(P_weight, axes_reduce_scatter=(0,))
 
         # Create weights
@@ -265,8 +275,8 @@ class DistributedLinearAllGatherZero(Module):
 
         # All-gather operation
         gather_dim = torch.argmax(torch.tensor(self.P_x.shape[-2:])) + self.P_x.dim - 2
-        self.all_gather = AllGather(self.P_x, axes_all_gather=(gather_dim,))
-        self.reduce_scatter = ReduceScatter(self.P_x, axes_reduce_scatter=(gather_dim,))
+        self.all_gather = AllGather(self.P_x, axes_all_gather=(gather_dim,), scale_backward=scale_backward)
+        self.reduce_scatter = ReduceScatter(self.P_x, axes_reduce_scatter=(gather_dim,), scale_backward=scale_backward)
 
         # State dict hooks for gather/scattering distributed weights
         self._register_state_dict_hook(self.gather_state_dict)
@@ -314,24 +324,24 @@ class DistributedLinearAllGatherZero(Module):
         c_out = bias.shape[-2]
         return bias.view(c_out)
 
-    # If we collect the weights on the root worker, we need to rearrange the weights, 
-    # such that the split into QKV occurs in the 2nd slowest dimension (dim 1). This 
-    # enables us to load weights for a different partitioning scheme than they were 
+    # If we collect the weights on the root worker, we need to rearrange the weights,
+    # such that the split into QKV occurs in the 2nd slowest dimension (dim 1). This
+    # enables us to load weights for a different partitioning scheme than they were
     # saved in.
     def qkv_weight_to_serial(self, weight):
         head_size = weight.shape[-2] // self.num_vars // self.num_heads
         num_gpu = self.P_weight.shape[-2]
-        weight = rearrange(self._squeeze_weight(weight), "n (p v h) -> n (v p h)", 
+        weight = rearrange(self._squeeze_weight(weight), "n (p v h) -> n (v p h)",
             p=num_gpu, v=self.num_vars, h=self.num_heads//num_gpu*head_size)
         return self._unsqueeze_weight(weight)
 
-    # Similarly, if we want to load weights from a serial partitioning scheme and 
-    # use them in a parallel scheme, we need to rearrange the weights to move the 
+    # Similarly, if we want to load weights from a serial partitioning scheme and
+    # use them in a parallel scheme, we need to rearrange the weights to move the
     # QKV/QK split into the 3rd slowest dimension (dim 2).
     def qkv_weight_to_parallel(self, weight):
         head_size = weight.shape[-2] // self.num_vars // self.num_heads
         num_gpu = self.P_weight.shape[-2]
-        weight = rearrange(self._squeeze_weight(weight), "n (v p h) -> n (p v h)", 
+        weight = rearrange(self._squeeze_weight(weight), "n (v p h) -> n (p v h)",
             p=num_gpu, v=self.num_vars, h=self.num_heads//num_gpu*head_size)
         return self._unsqueeze_weight(weight)
 
@@ -341,7 +351,7 @@ class DistributedLinearAllGatherZero(Module):
     def geglu_weight_to_serial(self, weight):
         num_gpu = self.P_weight.shape[-2]
         weight_size = weight.shape[-2] // 2 // num_gpu
-        weight = rearrange(self._squeeze_weight(weight), "n (p v h) -> n (v p h)", 
+        weight = rearrange(self._squeeze_weight(weight), "n (p v h) -> n (v p h)",
             p=num_gpu, v=2, h=weight_size)
         return self._unsqueeze_weight(weight)
 
@@ -350,21 +360,21 @@ class DistributedLinearAllGatherZero(Module):
     def geglu_weight_to_parallel(self, weight):
         num_gpu = self.P_weight.shape[-2]
         weight_size = weight.shape[-2] // 2 // num_gpu
-        weight = rearrange(self._squeeze_weight(weight), "n (v p h) -> n (p v h)", 
+        weight = rearrange(self._squeeze_weight(weight), "n (v p h) -> n (p v h)",
             p=num_gpu, v=2, h=weight_size)
         return self._unsqueeze_weight(weight)
-        
+
     def gather_state_dict(self, module, destination, prefix, *args):
 
         if self.collect_state and self.P_y.active:
             if self.use_bias:
-                
+
                 # Collect bias and serialize (last entry added to dict).
                 # All workers should pop their bias from the state dict.
                 bias_key = next(reversed(destination))
                 bias = self.allgather_bias(destination.pop(bias_key).transpose(0, -2)).transpose(0, -2)
                 bias = self.gather_bias(bias)
-            
+
                 if self.P_root.active:
                     if self.num_heads is not None: bias = self.qkv_weight_to_serial(bias)
                     if self.geglu: bias = self.geglu_weight_to_serial(bias)
@@ -419,11 +429,11 @@ class DistributedLinearAllGatherZero(Module):
                     bias = self.scatter_bias_dp(bias).transpose(0, -2)
                 if self.P_weight.active:
                     destination[bias_key] = bias
-            
+
             # Add scattered weight to state dict
             if self.P_y.active:
                 destination[weight_key] = weight
-                
+
         return destination
 
     def forward(self, input):
@@ -449,7 +459,8 @@ class DistributedLinearAllGatherZero(Module):
                 self.allgather_weight,
                 self.reduce_scatter_weight,
                 self.allgather_bias,
-                self.reducescatter_bias
+                self.reducescatter_bias,
+                self.scale_backward
             )
         else:
             # All-gather input

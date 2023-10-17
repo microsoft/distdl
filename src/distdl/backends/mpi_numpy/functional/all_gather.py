@@ -34,7 +34,7 @@ class AllGatherFunction(torch.autograd.Function):
 
     @staticmethod
     def forward(ctx, input, P_allgather,
-                input_tensor_structure, output_tensor_structure, axes):
+                input_tensor_structure, output_tensor_structure, axes, scale_backward):
         r"""Forward function of distributed all-gather layer.
 
         This method implements the forward all-gather operation using the
@@ -59,6 +59,9 @@ class AllGatherFunction(torch.autograd.Function):
             requires_grad).
         axes : tuple
             Axes along which to all-gather.
+        scale_backward : Union[int, slice]
+            Scale the backward pass by the number of workers along the given dimension(s).
+
         Returns
         -------
         output :
@@ -72,6 +75,7 @@ class AllGatherFunction(torch.autograd.Function):
         ctx.output_tensor_structure = output_tensor_structure
         ctx.device = device
         ctx.axes = axes
+        ctx.scale_backward = scale_backward
         ctx.remainder = 0
 
         output = zero_volume_tensor(device=device, dtype=output_tensor_structure.dtype)
@@ -181,6 +185,10 @@ class AllGatherFunction(torch.autograd.Function):
         grad_input = zero_volume_tensor(device=device, dtype=input_tensor_structure.dtype)
         input_tensor_shape = np.array(input_tensor_structure.shape)
 
+        # Scale by number of workers along the given dimension(s)
+        if ctx.scale_backward is not None:
+            grad_output.div_(np.prod(P_allgather.shape[ctx.scale_backward]))
+
         requests = []
 
         # All-gather operation
@@ -246,4 +254,4 @@ class AllGatherFunction(torch.autograd.Function):
                 s[axes[0]] = slice(0, -1)
                 grad_input = grad_input[s]
 
-        return grad_input, None, None, None, None
+        return grad_input, None, None, None, None, None

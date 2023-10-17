@@ -31,11 +31,11 @@ class AllGatherFunction(torch.autograd.Function):
     -------
     The ``mpi4py`` interface currently used requires NumPy views of the tensors.
 
-    """    
+    """
 
     @staticmethod
     def forward(ctx, input, P_allgather,
-                input_tensor_structure, output_tensor_structure, axes):
+                input_tensor_structure, output_tensor_structure, axes, scale_backward):
         r"""Forward function of distributed all-gather layer.
 
         This method implements the forward all-gather operation using the
@@ -60,7 +60,9 @@ class AllGatherFunction(torch.autograd.Function):
             requires_grad).
         axes : tuple
             Axes along which to all-gather.
-            
+        scale_backward : Union[int, slice]
+            Scale the backward pass by the number of workers along the given dimension(s).
+
         Returns
         -------
         output :
@@ -74,6 +76,7 @@ class AllGatherFunction(torch.autograd.Function):
         ctx.output_tensor_structure = output_tensor_structure
         ctx.device = device
         ctx.axes = axes
+        ctx.scale_backward = scale_backward
         ctx.remainder = 0
 
         output = zero_volume_tensor(device=device, dtype=output_tensor_structure.dtype)
@@ -108,7 +111,7 @@ class AllGatherFunction(torch.autograd.Function):
 
         # If we had to receive data, we need to tensorify it.
         if P_allgather.active:
-            
+
             # Re-order flat output array from all-gather to correct cartesian shape
             gathered_cart_shape = [P_allgather.shape[axes[0]]] + list(input_tensor_shape)
             output = torch.tensor(gathered_data, device=device).reshape(gathered_cart_shape)
@@ -128,7 +131,7 @@ class AllGatherFunction(torch.autograd.Function):
                 s[axes[0]+1] = slice(0, -1)
                 for i in range(ctx.remainder, P_allgather.shape[axes[0]]):
                     output_list[i] = output_list[i][s]
-            
+
                 # Rearrange
                 for i in range(P_allgather.shape[axes[0]]):
                     output_list[i] = rearrange(output_list[i], in_shape_char + ' -> ' + out_shape_char)
@@ -176,6 +179,10 @@ class AllGatherFunction(torch.autograd.Function):
         grad_input = zero_volume_tensor(device=device, dtype=input_tensor_structure.dtype)
         input_tensor_shape = np.array(input_tensor_structure.shape)
 
+        # Scale by number of workers along the given dimension(s)
+        if ctx.scale_backward is not None:
+            grad_output.div_(np.prod(P_allgather.shape[ctx.scale_backward]))
+
         # All-gather operation
         if P_allgather.active:
 
@@ -206,7 +213,7 @@ class AllGatherFunction(torch.autograd.Function):
 
                 # Concatenate and flatten
                 grad_output_flat = torch.cat(grad_output_list, dim=0).reshape(-1)
-                
+
                 # Update output shape for ranks that received zero-padded data
                 if P_allgather.rank >= ctx.remainder:
                     input_tensor_shape[axes[0]] += 1
@@ -233,4 +240,4 @@ class AllGatherFunction(torch.autograd.Function):
                 s[axes[0]] = slice(0, -1)
                 grad_input = grad_input[s]
 
-        return grad_input, None, None, None, None
+        return grad_input, None, None, None, None, None
