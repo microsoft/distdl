@@ -17,14 +17,14 @@ class DistributedExpertAllGather(Module):
     r"""A distributed linear for mixture of experts (MoE) with column parallelism.
 
     This class provides the user interface to a distributed linear layer for
-    Mixture of Experts. In contrast to the standard (distributed) linear layer, 
+    Mixture of Experts. In contrast to the standard (distributed) linear layer,
     weights and biases of this layer contain an additional expert dimension.
-    Supported partitionings for the input/output are along the expert dimension 
-    (dimension 0) and/or the feature/embedding dimension (dimension 2). 
+    Supported partitionings for the input/output are along the expert dimension
+    (dimension 0) and/or the feature/embedding dimension (dimension 2).
 
-    Weights are partitoned along the expert and output feature dimension. Therefore, 
-    the forward pass calls an AllGather on the input prior to the matrix multiplication. 
-    For this reason, the column-parallel version is preferrable when the input feature 
+    Weights are partitoned along the expert and output feature dimension. Therefore,
+    the forward pass calls an AllGather on the input prior to the matrix multiplication.
+    For this reason, the column-parallel version is preferrable when the input feature
     dimension is smaller than the output feature dimension. For the reverse case, see
     DistributedExpertReduceScatter.
 
@@ -34,7 +34,7 @@ class DistributedExpertAllGather(Module):
     Parameters
     ----------
     P_x :
-        3D Partition of input/output tensor with shape [ E, 1, M ], where E is the no. 
+        3D Partition of input/output tensor with shape [ E, 1, M ], where E is the no.
         of expert-parallel workers and M is the no. of model parallel workers.
     num_experts :
         Number of experts in the *global* input tensor.
@@ -49,19 +49,22 @@ class DistributedExpertAllGather(Module):
     collect_state: bool, optional
         If true, collects the weights and biases to the root worker and
         serializes them to disk when the state_dict() function is called.
-        Instead of the weights and biases, the state dictionary contains 
+        Instead of the weights and biases, the state dictionary contains
         paths to those files. Default is false.
+    scale_backward : Union[int, slice], optional
+        Scale backward pass for AllGather operation by no. of workers along the given
+        dimension. Default is None.
     """
 
-    def __init__(self, P_x, num_experts, in_features, out_features, bias=True, device=None, dtype=None, 
-        P_weight=None, collect_state=False):
+    def __init__(self, P_x, num_experts, in_features, out_features, bias=True, device=None, dtype=None,
+        P_weight=None, collect_state=False, scale_backward=None):
 
         super(DistributedExpertAllGather, self).__init__()
 
         self.P_x = P_x
         if not self.P_x.active:
             return
-        else:        
+        else:
             assert P_x.shape[-2] == 1 or P_x.shape[-1] == 1
 
         if device is None: device = P_x.device
@@ -127,7 +130,7 @@ class DistributedExpertAllGather(Module):
         self.reset_parameters()
 
         # All-gather operation
-        self.all_gather = AllGather(self.P_x, axes_all_gather=(2,))
+        self.all_gather = AllGather(self.P_x, axes_all_gather=(2,), scale_backward=scale_backward)
 
         # State dict hooks for gather/scattering distributed weights
         self._register_state_dict_hook(self.gather_state_dict)
@@ -154,12 +157,12 @@ class DistributedExpertAllGather(Module):
                 fan_in, _ = init._calculate_fan_in_and_fan_out(weight_global_shape)
                 bound = 1 / math.sqrt(fan_in) if fan_in > 0 else 0
                 init.uniform_(self.bias, -bound, bound)
-        
+
     def gather_state_dict(self, module, destination, prefix, *args):
 
         if self.collect_state and self.P_x.active:
             if self.use_bias:
-                
+
                 # Collect bias and serialize (last entry added to dict).
                 # All workers should pop their bias from the state dict.
                 bias_key = next(reversed(destination))
@@ -208,11 +211,11 @@ class DistributedExpertAllGather(Module):
                 if self.P_weight.active:
                     bias = self.scatter_bias(bias)
                     destination[bias_key] = bias
-            
+
             # Add scattered weight to state dict
             if self.P_x.active:
                 destination[weight_key] = weight
-                
+
         return destination
 
     def forward(self, input):
