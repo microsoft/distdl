@@ -19,7 +19,7 @@ from einops import rearrange
 class LinearAllGatherZeROFunc(torch.autograd.Function):
 
     @staticmethod
-    def forward(input, weight, bias, ag_input, rs_input, ag_weight, rs_weight, ag_bias, rs_bias):
+    def forward(input, weight, bias, ag_input, rs_input, ag_weight, rs_weight, ag_bias, rs_bias, scale_backward):
 
         # Gather inputs
         input = ag_input(input)
@@ -34,21 +34,23 @@ class LinearAllGatherZeROFunc(torch.autograd.Function):
 
     @staticmethod
     def setup_context(ctx, inputs, output):
-        input, weight, bias, ag_input, rs_input, ag_weight, rs_weight, ag_bias, rs_bias = inputs
+        input, weight, bias, ag_input, rs_input, ag_weight, rs_weight, ag_bias, rs_bias, scale_backward = inputs
         ctx.save_for_backward(input, weight, bias)
-        ctx.constant = (ag_input, rs_input, ag_weight, rs_weight, rs_bias)
+        ctx.constant = (ag_input, rs_input, ag_weight, rs_weight, rs_bias, scale_backward)
 
     @staticmethod
     def backward(ctx, grad_output):
 
         # Load saved tensors and operators
         input, weight, bias  = ctx.saved_tensors
-        ag_input, rs_input, ag_weight, rs_weight, rs_bias = ctx.constant
+        ag_input, rs_input, ag_weight, rs_weight, rs_bias, scale_backward = ctx.constant
 
         # Input gradient
         if ctx.needs_input_grad[0]:
             weight = ag_weight(weight).squeeze(2)
             grad_input = torch.einsum('bij,kj->bik', grad_output, weight)
+            if scale_backward is not None:
+                grad_input.div_(np.prod(rs_input.P_reducescatter.shape[scale_backward]))
             grad_input = rs_input(grad_input)
         else:
             grad_input = None
@@ -57,6 +59,8 @@ class LinearAllGatherZeROFunc(torch.autograd.Function):
         if ctx.needs_input_grad[1]:
             input = ag_input(input)
             grad_weight = torch.einsum('bij,bik->jk', input, grad_output).unsqueeze(2)
+            if scale_backward is not None:
+                grad_weight.div_(np.prod(rs_weight.P_reducescatter.shape[scale_backward]))
             grad_weight = rs_weight(grad_weight)
         else:
             grad_weight = None
@@ -64,11 +68,13 @@ class LinearAllGatherZeROFunc(torch.autograd.Function):
         # Bias gradient
         if bias is not None and ctx.needs_input_grad[2]:
             grad_bias = grad_output.sum((0,1)).view(1, -1, 1)
+            if scale_backward is not None:
+                grad_bias.div_(np.prod(rs_bias.P_reducescatter.shape[scale_backward]))
             grad_bias = rs_bias(grad_bias.transpose(0, -2)).transpose(0, -2)
         else:
             grad_bias = None
 
-        return grad_input, grad_weight, grad_bias, None, None, None, None, None, None
+        return grad_input, grad_weight, grad_bias, None, None, None, None, None, None, None
 
 
 class DistributedLinearAllGatherZero(Module):
@@ -180,6 +186,7 @@ class DistributedLinearAllGatherZero(Module):
         self.use_bias = bias
         self.dtype = dtype
         self.checkpoint = checkpoint
+        self.scale_backward = scale_backward
 
         # Partition for storing weights & biases
         if P_store_bias is not None:
@@ -226,10 +233,10 @@ class DistributedLinearAllGatherZero(Module):
 
         # Function to gather weights and biases
         self.allgather_weight = AllGather(P_weight, axes_all_gather=(0,), scale_backward=scale_backward)
-        self.reduce_scatter_weight = ReduceScatter(P_weight, axes_reduce_scatter=(0,), scale_backward=scale_backward)
+        self.reduce_scatter_weight = ReduceScatter(P_weight, axes_reduce_scatter=(0,))
         if bias:
             self.allgather_bias = AllGather(P_weight, axes_all_gather=(0,), scale_backward=scale_backward)
-            self.reducescatter_bias = ReduceScatter(P_weight, axes_reduce_scatter=(0,), scale_backward=scale_backward)
+            self.reducescatter_bias = ReduceScatter(P_weight, axes_reduce_scatter=(0,))
 
         # Create weights
         if P_weight.active:
@@ -452,7 +459,8 @@ class DistributedLinearAllGatherZero(Module):
                 self.allgather_weight,
                 self.reduce_scatter_weight,
                 self.allgather_bias,
-                self.reducescatter_bias
+                self.reducescatter_bias,
+                self.scale_backward
             )
         else:
             # All-gather input
