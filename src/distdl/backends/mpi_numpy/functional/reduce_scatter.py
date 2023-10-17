@@ -32,7 +32,8 @@ class ReduceScatterFunction(torch.autograd.Function):
 
     @staticmethod
     def forward(ctx, input, P_reducescatter,
-                input_tensor_structure, output_tensor_structure, axes):
+                input_tensor_structure, output_tensor_structure, axes,
+                scale_backward):
         r"""Forward function of distributed reduce-scatter layer.
 
         This method implements the forward reduce-scatter operation using the
@@ -57,6 +58,9 @@ class ReduceScatterFunction(torch.autograd.Function):
             requires_grad).
         axes : tuple
             Axes along which to reduce-scatter.
+        scale_backward : Union[int, slice]
+            Scale the backward pass by the number of workers along the given dimension(s).
+
         Returns
         -------
         output :
@@ -70,6 +74,7 @@ class ReduceScatterFunction(torch.autograd.Function):
         ctx.output_tensor_structure = output_tensor_structure
         ctx.device = device
         ctx.axes = axes
+        ctx.scale_backward = scale_backward
         ctx.remainder = 0
 
         output = zero_volume_tensor(device=device, dtype=output_tensor_structure.dtype)
@@ -79,7 +84,7 @@ class ReduceScatterFunction(torch.autograd.Function):
 
         # There is no need to specificy a root.
         if P_reducescatter.active:
-            
+
             # Get operator to rearrange tensor to be contiguous along the reduce-scatter axis
             expanded_order, new_order = get_rearrange_ordering(len(input.shape), axes[0])
             operation = new_order + ' -> ' + expanded_order
@@ -87,7 +92,7 @@ class ReduceScatterFunction(torch.autograd.Function):
             # If input shape does not split evenly along no. of partitions, we need to zero-pad
             ctx.remainder = input_tensor_structure.shape[axes[0]] % P_reducescatter.shape[axes[0]]
             if ctx.remainder > 0:
-                
+
                 # Split tensor along reduce-scatter axis
                 local_shapes = [input_tensor_structure.shape[axes[0]] // P_reducescatter.shape[axes[0]]] * \
                     P_reducescatter.shape[axes[0]]
@@ -108,7 +113,7 @@ class ReduceScatterFunction(torch.autograd.Function):
 
                 # Concatenate and flatten
                 input_flat = torch.cat(input_list, dim=0).reshape(-1)
-                
+
                 # Update output shape for ranks that received zero-padded data
                 if P_reducescatter.rank >= ctx.remainder:
                     output_tensor_shape[axes[0]] += 1
@@ -175,6 +180,10 @@ class ReduceScatterFunction(torch.autograd.Function):
         input_tensor_shape = np.array(input_tensor_structure.shape)
         output_tensor_shape = np.array(output_tensor_structure.shape)
 
+        # Scale by number of workers along the given dimension(s)
+        if ctx.scale_backward is not None:
+            grad_output.div_(P_reducescatter.shape[ctx.scale_backward])
+
         requests = []
 
         # All-gather operation
@@ -227,7 +236,7 @@ class ReduceScatterFunction(torch.autograd.Function):
                 s[axes[0]+1] = slice(0, -1)
                 for i in range(remainder, P_reducescatter.shape[axes[0]]):
                     grad_input_list[i] = grad_input_list[i][s]
-            
+
                 # Rearrange and undo splitting
                 for i in range(P_reducescatter.shape[axes[0]]):
                     grad_input_list[i] = rearrange(grad_input_list[i], in_shape_char + ' -> ' + out_shape_char)
@@ -235,4 +244,4 @@ class ReduceScatterFunction(torch.autograd.Function):
             else:
                 grad_input = rearrange(grad_input, in_shape_char + ' -> ' + out_shape_char)
 
-        return grad_input, None, None, None, None
+        return grad_input, None, None, None, None, None
