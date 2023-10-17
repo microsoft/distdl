@@ -113,7 +113,7 @@ class _DistributedChannelAllGatherConvNd(Module):
         self.P_x = P_x
         if not self.P_x.active:
             return
-        
+
         # Weight partition [ 1 M 1 ...]
         weight_partition_shape = [1] * P_x.dim
         weight_partition_shape[1] = P_x.shape[1]
@@ -250,7 +250,7 @@ class _DistributedChannelAllGatherConvNd(Module):
 
         if self.collect_state and self.P_x.active:
             if self.use_bias:
-                
+
                 # Collect bias and serialize (last entry added to dict).
                 # All workers should pop their bias from the state dict.
                 bias_key = next(reversed(destination))
@@ -315,11 +315,11 @@ class _DistributedChannelAllGatherConvNd(Module):
 
                 if self.P_x.active:
                     destination[bias_key] = bias
-            
+
             # Add scattered weight to state dict
             if self.P_x.active:
                 destination[weight_key] = weight
-                
+
         return destination
 
 
@@ -328,17 +328,17 @@ class DistributedChannelAllGatherConv1d(_DistributedChannelAllGatherConvNd):
 
     This class provides the user interface to a distributed convolutional
     layer, where the input (and output) tensors are partitioned in the
-    channel-dimension and optionally in the batch-dimension. 
-    
-    This version of the layer uses an all-gather operation to collect the 
-    distributed input prior to the convolution operation.  This approach is 
-    preferable when the number of input channels is smaller than the number 
+    channel-dimension and optionally in the batch-dimension.
+
+    This version of the layer uses an all-gather operation to collect the
+    distributed input prior to the convolution operation.  This approach is
+    preferable when the number of input channels is smaller than the number
     of output channels. For the opposite case, see the equivalent
     DistributedChannelReduceScatterConv1d layer.
 
-    This class requires a single tensor partition of the following shape: 
+    This class requires a single tensor partition of the following shape:
 
-    1. :math:`P_x` over input tensor :math:`x` has shape :math:`P_{\text{data}} 
+    1. :math:`P_x` over input tensor :math:`x` has shape :math:`P_{\text{data}}
         \times P_{\text{c_in}} \times 1`.
 
     The first dimension of the input and output partitions is the batch
@@ -445,17 +445,17 @@ class DistributedChannelAllGatherConv2d(_DistributedChannelAllGatherConvNd):
 
     This class provides the user interface to a distributed convolutional
     layer, where the input (and output) tensors are partitioned in the
-    channel-dimension and optionally in the batch-dimension. 
-    
-    This version of the layer uses an all-gather operation to collect the 
-    distributed input prior to the convolution operation.  This approach is 
-    preferable when the number of input channels is smaller than the number 
+    channel-dimension and optionally in the batch-dimension.
+
+    This version of the layer uses an all-gather operation to collect the
+    distributed input prior to the convolution operation.  This approach is
+    preferable when the number of input channels is smaller than the number
     of output channels. For the opposite case, see the equivalent
     DistributedChannelReduceScatterConv2d layer.
 
-    This class requires a single tensor partition of the following shape: 
+    This class requires a single tensor partition of the following shape:
 
-    1. :math:`P_x` over input tensor :math:`x` has shape :math:`P_{\text{data}} 
+    1. :math:`P_x` over input tensor :math:`x` has shape :math:`P_{\text{data}}
         \times P_{\text{c_in}} \times 1 \times 1`.
 
     The first dimension of the input and output partitions is the batch
@@ -468,7 +468,7 @@ class DistributedChannelAllGatherConv2d(_DistributedChannelAllGatherConvNd):
     Parameters
     ----------
     P_x :
-        Partition of input tensor of shape [ D, M, 1, 1 ], where D is the number 
+        Partition of input tensor of shape [ D, M, 1, 1 ], where D is the number
         of data-parallel workers and M is the number of model-parallel workers.
     in_channels :
         Number of channels in the *global* input tensor.
@@ -560,17 +560,17 @@ class DistributedChannelAllGatherConv3d(_DistributedChannelAllGatherConvNd):
 
     This class provides the user interface to a distributed convolutional
     layer, where the input (and output) tensors are partitioned in the
-    channel-dimension and optionally in the batch-dimension. 
-    
-    This version of the layer uses an all-gather operation to collect the 
-    distributed input prior to the convolution operation.  This approach is 
-    preferable when the number of input channels is smaller than the number 
+    channel-dimension and optionally in the batch-dimension.
+
+    This version of the layer uses an all-gather operation to collect the
+    distributed input prior to the convolution operation.  This approach is
+    preferable when the number of input channels is smaller than the number
     of output channels. For the opposite case, see the equivalent
     DistributedChannelReduceScatterConv3d layer.
 
-    This class requires a single tensor partition of the following shape: 
+    This class requires a single tensor partition of the following shape:
 
-    1. :math:`P_x` over input tensor :math:`x` has shape :math:`P_{\text{data}} 
+    1. :math:`P_x` over input tensor :math:`x` has shape :math:`P_{\text{data}}
         \times P_{\text{c_in}} \times 1 \times 1 \times 1`.
 
     The first dimension of the input and output partitions is the batch
@@ -583,7 +583,7 @@ class DistributedChannelAllGatherConv3d(_DistributedChannelAllGatherConvNd):
     Parameters
     ----------
     P_x :
-        Partition of input tensor of shape [ D, M, 1, 1, 1 ], where D is the number 
+        Partition of input tensor of shape [ D, M, 1, 1, 1 ], where D is the number
         of data-parallel workers and M is the number of model-parallel workers.
     in_channels :
         Number of channels in the *global* input tensor.
@@ -740,19 +740,19 @@ class _DistributedChannelAllGatherConvTransposeNd(_DistributedChannelAllGatherCo
 class DistributedChannelAllGatherConvTranspose1d(_DistributedChannelAllGatherConvTransposeNd):
     r"""A channel-space partitioned 1D transposed convolutional layer.
 
-    This class provides the user interface to a distributed transpose 
-    convolutional layer, where the input (and output) tensors are partitioned 
-    in the channel-dimension and optionally in the batch-dimension. 
-    
-    This version of the layer uses an all-gather operation to collect the 
-    distributed input prior to the convolution operation.  This approach is 
-    preferable when the number of input channels is smaller than the number 
+    This class provides the user interface to a distributed transpose
+    convolutional layer, where the input (and output) tensors are partitioned
+    in the channel-dimension and optionally in the batch-dimension.
+
+    This version of the layer uses an all-gather operation to collect the
+    distributed input prior to the convolution operation.  This approach is
+    preferable when the number of input channels is smaller than the number
     of output channels. For the opposite case, see the equivalent
     DistributedChannelReduceScatterConvTranspose1d layer.
 
-    This class requires a single tensor partition of the following shape: 
+    This class requires a single tensor partition of the following shape:
 
-    1. :math:`P_x` over input tensor :math:`x` has shape :math:`P_{\text{data}} 
+    1. :math:`P_x` over input tensor :math:`x` has shape :math:`P_{\text{data}}
         \times P_{\text{c_in}} \times 1`.
 
     The first dimension of the input and output partitions is the batch
@@ -858,29 +858,29 @@ class DistributedChannelAllGatherConvTranspose1d(_DistributedChannelAllGatherCon
 
         # All-gather input
         input = self.all_gather(input)
-        
+
         # Transpose convolution
         return torch.nn.functional.conv_transpose1d(
             input, weight, bias, self.stride, self.padding,
             output_padding, self.groups, self.dilation)
-            
+
 
 class DistributedChannelAllGatherConvTranspose2d(_DistributedChannelAllGatherConvTransposeNd):
     r"""A channel-space partitioned 2D transposed convolutional layer.
 
-    This class provides the user interface to a distributed transpose 
-    convolutional layer, where the input (and output) tensors are partitioned 
-    in the channel-dimension and optionally in the batch-dimension. 
-    
-    This version of the layer uses an all-gather operation to collect the 
-    distributed input prior to the convolution operation.  This approach is 
-    preferable when the number of input channels is smaller than the number 
+    This class provides the user interface to a distributed transpose
+    convolutional layer, where the input (and output) tensors are partitioned
+    in the channel-dimension and optionally in the batch-dimension.
+
+    This version of the layer uses an all-gather operation to collect the
+    distributed input prior to the convolution operation.  This approach is
+    preferable when the number of input channels is smaller than the number
     of output channels. For the opposite case, see the equivalent
     DistributedChannelReduceScatterConvTranspose2d layer.
 
-    This class requires a single tensor partition of the following shape: 
+    This class requires a single tensor partition of the following shape:
 
-    1. :math:`P_x` over input tensor :math:`x` has shape :math:`P_{\text{data}} 
+    1. :math:`P_x` over input tensor :math:`x` has shape :math:`P_{\text{data}}
         \times P_{\text{c_in}} \times 1 \times 1`.
 
     The first dimension of the input and output partitions is the batch
@@ -983,7 +983,7 @@ class DistributedChannelAllGatherConvTranspose2d(_DistributedChannelAllGatherCon
 
         # All-gather input
         input = self.all_gather(input)
-        
+
         # Transpose convolution
         return torch.nn.functional.conv_transpose2d(
             input, weight, bias, self.stride, self.padding,
@@ -993,19 +993,19 @@ class DistributedChannelAllGatherConvTranspose2d(_DistributedChannelAllGatherCon
 class DistributedChannelAllGatherConvTranspose3d(_DistributedChannelAllGatherConvTransposeNd):
     r"""A channel-space partitioned 3D transposed convolutional layer.
 
-    This class provides the user interface to a distributed transpose 
-    convolutional layer, where the input (and output) tensors are partitioned 
-    in the channel-dimension and optionally in the batch-dimension. 
-    
-    This version of the layer uses an all-gather operation to collect the 
-    distributed input prior to the convolution operation.  This approach is 
-    preferable when the number of input channels is smaller than the number 
+    This class provides the user interface to a distributed transpose
+    convolutional layer, where the input (and output) tensors are partitioned
+    in the channel-dimension and optionally in the batch-dimension.
+
+    This version of the layer uses an all-gather operation to collect the
+    distributed input prior to the convolution operation.  This approach is
+    preferable when the number of input channels is smaller than the number
     of output channels. For the opposite case, see the equivalent
     DistributedChannelReduceScatterConvTranspose2d layer.
 
-    This class requires a single tensor partition of the following shape: 
+    This class requires a single tensor partition of the following shape:
 
-    1. :math:`P_x` over input tensor :math:`x` has shape :math:`P_{\text{data}} 
+    1. :math:`P_x` over input tensor :math:`x` has shape :math:`P_{\text{data}}
         \times P_{\text{c_in}} \times 1 \times 1 \times 1`.
 
     The first dimension of the input and output partitions is the batch
@@ -1107,7 +1107,7 @@ class DistributedChannelAllGatherConvTranspose3d(_DistributedChannelAllGatherCon
 
         # All-gather input
         input = self.all_gather(input)
-        
+
         # Transpose convolution
         return torch.nn.functional.conv_transpose3d(
             input, weight, bias, self.stride, self.padding,
