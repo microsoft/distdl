@@ -134,6 +134,9 @@ class DistributedLinearAllGatherZero(Module):
     num_heads: int, optional
         Total number of attention heads across all workers for multi-head attention.
         Only required if collect_state=True. Default is 0.
+    num_heads_kv: int, optional
+        Number of attention heads for key and value tensors. Only required if
+        collect_state=True. Default is 0.
     num_vars: int, optional
         Number of output variables if used as a linear layer for QKV computations.
         Set to 3 for QKV, 2 for KV, and 1 for Q. Only required if collect_state=True.
