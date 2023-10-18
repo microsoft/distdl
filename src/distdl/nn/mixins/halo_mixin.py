@@ -115,7 +115,7 @@ class HaloMixin:
                                    subtensor_shapes,
                                    x_local_shape):
 
-        x_local_start_index = np.zeros_like(x_local_shape, dtype=np.int)
+        x_local_start_index = np.zeros_like(x_local_shape, dtype=int)
         dims = len(x_local_shape)
         for dim in range(dims):
             for i in range(index[dim]):

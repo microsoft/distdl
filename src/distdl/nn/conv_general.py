@@ -142,7 +142,7 @@ class DistributedGeneralConvBase(Module, HaloMixin, ConvMixin):
         # Ensure that all workers have the full size and structure of P_w
         P_w_shape = None
         if self.P_union.rank == 0:
-            P_w_shape = np.array(P_w.shape, dtype=np.int)
+            P_w_shape = np.array(P_w.shape, dtype=int)
         P_w_shape = self.P_union.broadcast_data(P_w_shape, root=0)
 
         P_co = P_w_shape[0]
@@ -222,7 +222,7 @@ class DistributedGeneralConvBase(Module, HaloMixin, ConvMixin):
                                     constant_values=0)
             self.global_padding = global_padding
 
-            pad_left_right = self.global_padding.reshape((dims, 1)) + np.zeros((dims, 2), dtype=np.int)
+            pad_left_right = self.global_padding.reshape((dims, 1)) + np.zeros((dims, 2), dtype=int)
             self.local_padding = self._compute_local_padding(pad_left_right)
 
         # Workers can either store the learnable weights and bias, or they
@@ -360,10 +360,10 @@ class DistributedGeneralConvBase(Module, HaloMixin, ConvMixin):
         # input and output partitions because it is needed to construct the
         # halos.  Rank 0 in the union shares it with everyone.
         if self.P_union.rank == 0:
-            self.conv_kernel_size = np.array(self.conv_layer.kernel_size, dtype=np.int)
-            self.conv_stride = np.array(self.conv_layer.stride, dtype=np.int)
-            self.conv_padding = np.array(self.conv_layer.padding, dtype=np.int)
-            self.conv_dilation = np.array(self.conv_layer.dilation, dtype=np.int)
+            self.conv_kernel_size = np.array(self.conv_layer.kernel_size, dtype=int)
+            self.conv_stride = np.array(self.conv_layer.stride, dtype=int)
+            self.conv_padding = np.array(self.conv_layer.padding, dtype=int)
+            self.conv_dilation = np.array(self.conv_layer.dilation, dtype=int)
         self.conv_kernel_size = self.P_union.broadcast_data(self.conv_kernel_size, root=0)
         self.conv_stride = self.P_union.broadcast_data(self.conv_stride, root=0)
         self.conv_padding = self.P_union.broadcast_data(self.conv_padding, root=0)

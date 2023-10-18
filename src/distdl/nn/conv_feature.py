@@ -143,7 +143,7 @@ class DistributedFeatureConvBase(Module, HaloMixin, ConvMixin):
                                 constant_values=0)
         self.global_padding = global_padding
 
-        pad_left_right = self.global_padding.reshape((dims, 1)) + np.zeros((dims, 2), dtype=np.int)
+        pad_left_right = self.global_padding.reshape((dims, 1)) + np.zeros((dims, 2), dtype=int)
         self.local_padding = self._compute_local_padding(pad_left_right)
 
         # Weights and biases partition

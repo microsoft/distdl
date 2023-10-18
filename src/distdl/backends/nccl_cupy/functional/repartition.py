@@ -122,7 +122,7 @@ class RepartitionFunction(torch.autograd.Function):
                 P_union._comm.Bcast(np.array([1 if input_requires_grad else 0]),
                                     root=0)
             else:
-                irg = np.array([0], dtype=np.int)
+                irg = np.array([0], dtype=int)
                 P_union._comm.Bcast(irg, root=0)
                 input_requires_grad = bool(irg[0] == 1)
 
