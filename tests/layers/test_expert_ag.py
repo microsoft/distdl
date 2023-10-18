@@ -7,8 +7,8 @@ from adjoint_test import check_adjoint_test_tight
 torch.set_printoptions(precision=8)
 torch.manual_seed(0)
 
-BACKEND_COMM = "nccl"
-BACKEND_ARRAY = "cupy"
+BACKEND_COMM = "mpi"
+BACKEND_ARRAY = "numpy"
 
 adjoint_parametrizations = []
 

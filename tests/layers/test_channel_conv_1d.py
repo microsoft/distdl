@@ -3,7 +3,7 @@ from adjoint_test import check_adjoint_test_tight
 import numpy as np
 
 BACKEND_COMM = "mpi"
-BACKEND_ARRAY = "cupy"
+BACKEND_ARRAY = "numpy"
 
 adjoint_parametrizations = []
 

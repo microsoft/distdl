@@ -154,7 +154,6 @@ def test_all_sum_reduce_adjoint(barrier_fence_fixture,
         x = 10*torch.ones(*x_local_shape, device=P_x.device)
     x.requires_grad = True
 
-    print('P_x.shape: ', P_x.shape)
     dy = zero_volume_tensor(device=P_x.device)
     if P_x.active:
         # Adjoint Input

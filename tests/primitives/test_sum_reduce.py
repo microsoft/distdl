@@ -6,7 +6,7 @@ import torch
 from adjoint_test import check_adjoint_test_tight
 
 BACKEND_COMM = "mpi"
-BACKEND_ARRAY = "cupy"
+BACKEND_ARRAY = "numpy"
 
 adjoint_parametrizations = []
 

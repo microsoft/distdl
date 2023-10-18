@@ -4,8 +4,8 @@ import numpy as np
 import pytest
 from adjoint_test import check_adjoint_test_tight
 
-BACKEND_COMM = "nccl"
-BACKEND_ARRAY = "cupy"
+BACKEND_COMM = "mpi"
+BACKEND_ARRAY = "numpy"
 
 adjoint_parametrizations = []
 
