@@ -104,7 +104,6 @@ class MPIExpandableBuffer(ABC):
             self.expand(view_volume)
 
         # Create the new view and return it
-        # TODO: ask from Russel
         self.views[view_shape] = self.raw_buffer[:view_volume].reshape(view_shape)
 
         return self.views[view_shape]
