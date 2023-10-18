@@ -566,7 +566,7 @@ class DistributedChannelReduceScatterConv3d(_DistributedChannelReduceScatterConv
     partition the output across workers after  the convolution operation. This
     approach is preferable when the number of output channels is smaller than 
     the number of input channels. For the opposite case, see the equivalent
-    DistributedChannelAllGatherConv1d layer.
+    DistributedChannelAllGatherConv3d layer.
 
     This class requires a single tensor partition of the following shape: 
 
@@ -649,10 +649,10 @@ class DistributedChannelReduceScatterConv3d(_DistributedChannelReduceScatterConv
 
     def _conv_forward(self, input: Tensor, weight: Tensor, bias: Optional[Tensor]):
         if self.padding_mode != 'zeros':
-            return torch.nn.functional.conv1d(torch.nn.functional.pad(input, self._reversed_padding_repeated_twice, mode=self.padding_mode),
+            return torch.nn.functional.conv3d(torch.nn.functional.pad(input, self._reversed_padding_repeated_twice, mode=self.padding_mode),
                             weight, bias, self.stride,
                             _single(0), self.dilation, self.groups)
-        return torch.nn.functional.conv1d(input, weight, bias, self.stride,
+        return torch.nn.functional.conv3d(input, weight, bias, self.stride,
                         self.padding, self.dilation, self.groups)
 
     def forward(self, input: Tensor) -> Tensor:

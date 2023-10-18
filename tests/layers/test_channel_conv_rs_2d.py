@@ -13,7 +13,6 @@ adjoint_parametrizations.append(
         np.arange(0, 4), [1, 4, 1, 1],  # P_x_ranks, P_x_shape
         [1, 8, 10, 10],     # x_global_shape
         [1, 12, 10, 10],    # y_global_shape
-        False,  # checkpointing
         4,  # passed to comm_split_fixture, required MPI ranks
         id="distributed-co3_ci2",
         marks=[pytest.mark.mpi(min_size=4)]
@@ -25,31 +24,6 @@ adjoint_parametrizations.append(
         np.arange(0, 4), [1, 4, 1, 1],  # P_x_ranks, P_x_shape
         [1, 12, 10, 10],     # x_global_shape
         [1, 8, 10, 10],    # y_global_shape
-        False,  # checkpointing
-        4,  # passed to comm_split_fixture, required MPI ranks
-        id="distributed-co2_ci3",
-        marks=[pytest.mark.mpi(min_size=4)]
-        )
-    )
-
-adjoint_parametrizations.append(
-    pytest.param(
-        np.arange(0, 4), [1, 4, 1, 1],  # P_x_ranks, P_x_shape
-        [1, 8, 10, 10],     # x_global_shape
-        [1, 12, 10, 10],    # y_global_shape
-        True,  # checkpointing
-        4,  # passed to comm_split_fixture, required MPI ranks
-        id="distributed-co3_ci2",
-        marks=[pytest.mark.mpi(min_size=4)]
-        )
-    )
-
-adjoint_parametrizations.append(
-    pytest.param(
-        np.arange(0, 4), [1, 4, 1, 1],  # P_x_ranks, P_x_shape
-        [1, 12, 10, 10],     # x_global_shape
-        [1, 8, 10, 10],    # y_global_shape
-        True,  # checkpointing
         4,  # passed to comm_split_fixture, required MPI ranks
         id="distributed-co2_ci3",
         marks=[pytest.mark.mpi(min_size=4)]
@@ -60,7 +34,6 @@ adjoint_parametrizations.append(
 @pytest.mark.parametrize("P_x_ranks, P_x_shape,"
                          "x_global_shape,"
                          "y_global_shape,"
-                         "checkpointing,"
                          "comm_split_fixture",
                          adjoint_parametrizations,
                          indirect=["comm_split_fixture"])
@@ -69,7 +42,7 @@ def test_channel_conv2d_adjoint_input(barrier_fence_fixture,
                                       P_x_ranks, P_x_shape,
                                       x_global_shape,
                                       y_global_shape,
-                                      checkpointing):
+                                      ):
 
     import numpy as np
     import torch
@@ -95,13 +68,12 @@ def test_channel_conv2d_adjoint_input(barrier_fence_fixture,
 
     x_global_shape = np.asarray(x_global_shape)
 
-    layer = DistributedChannelReduceScatterConv2d(P_x, 
+    layer = DistributedChannelReduceScatterConv2d(P_x,
         x_global_shape[1],
         y_global_shape[1],
-        kernel_size=[3], 
-        padding=[1], 
+        kernel_size=3,
+        padding=1,
         device=P_x.device,
-        checkpointing=checkpointing,
         bias=False).to(P_world.device)
 
     x = zero_volume_tensor(x_global_shape[0], device=P_world.device)
@@ -136,7 +108,6 @@ def test_channel_conv2d_adjoint_input(barrier_fence_fixture,
 @pytest.mark.parametrize("P_x_ranks, P_x_shape,"
                          "x_global_shape,"
                          "y_global_shape,"
-                         "checkpointing,"
                          "comm_split_fixture",
                          adjoint_parametrizations,
                          indirect=["comm_split_fixture"])
@@ -145,7 +116,7 @@ def test_channel_conv2d_adjoint_weight(barrier_fence_fixture,
                                        P_x_ranks, P_x_shape,
                                        x_global_shape,
                                        y_global_shape,
-                                       checkpointing):
+                                       ):
 
     import numpy as np
     import torch
@@ -171,13 +142,12 @@ def test_channel_conv2d_adjoint_weight(barrier_fence_fixture,
 
     x_global_shape = np.asarray(x_global_shape)
 
-    layer = DistributedChannelReduceScatterConv2d(P_x, 
+    layer = DistributedChannelReduceScatterConv2d(P_x,
         x_global_shape[1],
         y_global_shape[1],
-        kernel_size=[3], 
-        padding=[1], 
+        kernel_size=3,
+        padding=1,
         device=P_x.device,
-        checkpointing=checkpointing,
         bias=False).to(P_world.device)
 
     x = zero_volume_tensor(x_global_shape[0], device=P_world.device)
@@ -198,8 +168,8 @@ def test_channel_conv2d_adjoint_weight(barrier_fence_fixture,
     W = zero_volume_tensor()
     dW = zero_volume_tensor()
     if P_x.active:
-        W = layer.conv_layer[0].weight.detach()
-        dW = layer.conv_layer[0].weight.grad.detach()
+        W = layer.weight.detach()
+        dW = layer.weight.grad.detach()
 
     dy = dy.detach()
     y = y.detach()
@@ -216,7 +186,6 @@ def test_channel_conv2d_adjoint_weight(barrier_fence_fixture,
 @pytest.mark.parametrize("P_x_ranks, P_x_shape,"
                          "x_global_shape,"
                          "y_global_shape,"
-                         "checkpointing,"
                          "comm_split_fixture",
                          adjoint_parametrizations,
                          indirect=["comm_split_fixture"])
@@ -225,7 +194,7 @@ def test_channel_conv2d_adjoint_bias(barrier_fence_fixture,
                                      P_x_ranks, P_x_shape,
                                      x_global_shape,
                                      y_global_shape,
-                                     checkpointing):
+                                     ):
 
     import numpy as np
     import torch
@@ -251,15 +220,14 @@ def test_channel_conv2d_adjoint_bias(barrier_fence_fixture,
 
     x_global_shape = np.asarray(x_global_shape)
 
-    layer = DistributedChannelReduceScatterConv2d(P_x, 
+    layer = DistributedChannelReduceScatterConv2d(P_x,
         x_global_shape[1],
         y_global_shape[1],
-        kernel_size=[3], 
-        padding=[1], 
+        kernel_size=3,
+        padding=1,
         device=P_x.device,
-        checkpointing=checkpointing,
         bias=True).to(P_world.device)
-    layer.conv_layer[0].weight.data.fill_(0)
+    layer.weight.data.fill_(0)
 
     x = zero_volume_tensor(x_global_shape[0], device=P_world.device)
     if P_x.active:
@@ -278,9 +246,9 @@ def test_channel_conv2d_adjoint_bias(barrier_fence_fixture,
 
     b = zero_volume_tensor()
     db = zero_volume_tensor()
-    if P_x.active and layer.conv_layer[0].bias is not None:
-        b = layer.conv_layer[0].bias.detach()
-        db = layer.conv_layer[0].bias.grad.detach()
+    if layer.use_bias and layer.P_store_bias.active:
+        b = layer.bias.detach()
+        db = layer.bias.grad.detach()
 
     dy = dy.detach()
     y = y.detach()
