@@ -37,7 +37,7 @@ hidden_channels = 36
 out_channels = 28
 
 # Distributed linear layer with an additional expert dimension for weights and biases. These layers assume that
-# inputs/outputs are 3D tensors of shape [ experts, capacity, embedding/channel ]. The all-gather version is 
+# inputs/outputs are 3D tensors of shape [ experts, capacity, embedding/channel ]. The all-gather version is
 # preferrable if out_channels > in_channels. Otherwise, the reduce-scatter version is preferred.
 experts_in = DistributedExpertAllGather(P_x, num_experts, in_channels, hidden_channels, collect_state=True).to(P_x.device)
 experts_out = DistributedExpertReduceScatter(P_x, num_experts, hidden_channels, out_channels, collect_state=True).to(P_x.device)

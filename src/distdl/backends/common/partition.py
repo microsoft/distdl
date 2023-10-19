@@ -232,7 +232,7 @@ class MPIPartition:
         ----------
         ranks : iterable
             The ranks of the workers in this partition.
-            
+
         Returns
         -------
         A new :any:`MPIPartition` instance.
@@ -457,29 +457,29 @@ class MPIPartition:
             # setup phase anyway.
             if recv_ranks[0] < send_ranks[0]:
                 comm_recv = P_union._comm.Create_group(group_recv, tag=recv_ranks[0])
-                P_recv = MPIPartition(comm_recv, group_recv, root=P_union._root, 
+                P_recv = MPIPartition(comm_recv, group_recv, root=P_union._root,
                     device=P_union.device)
                 comm_send = P_union._comm.Create_group(group_send, tag=send_ranks[0])
-                P_send = MPIPartition(comm_send, group_send, root=P_union._root, 
+                P_send = MPIPartition(comm_send, group_send, root=P_union._root,
                     device=P_union.device)
             else:
                 comm_send = P_union._comm.Create_group(group_send, tag=send_ranks[0])
-                P_send = MPIPartition(comm_send, group_send, root=P_union._root, 
+                P_send = MPIPartition(comm_send, group_send, root=P_union._root,
                     device=P_union.device)
                 comm_recv = P_union._comm.Create_group(group_recv, tag=recv_ranks[0])
-                P_recv = MPIPartition(comm_recv, group_recv, root=P_union._root, 
+                P_recv = MPIPartition(comm_recv, group_recv, root=P_union._root,
                     device=P_union.device)
         elif has_send_group and not has_recv_group and not same_send_recv_group:
             comm_send = P_union._comm.Create_group(group_send, tag=send_ranks[0])
-            P_send = MPIPartition(comm_send, group_send, root=P_union._root, 
+            P_send = MPIPartition(comm_send, group_send, root=P_union._root,
                 device=P_union.device)
         elif not has_send_group and has_recv_group and not same_send_recv_group:
             comm_recv = P_union._comm.Create_group(group_recv, tag=recv_ranks[0])
-            P_recv = MPIPartition(comm_recv, group_recv, root=P_union._root, 
+            P_recv = MPIPartition(comm_recv, group_recv, root=P_union._root,
                 device=P_union.device)
         else:  # if has_send_group and has_recv_group and same_send_recv_group
             comm_send = P_union._comm.Create_group(group_send, tag=send_ranks[0])
-            P_send = MPIPartition(comm_send, group_send, root=P_union._root, 
+            P_send = MPIPartition(comm_send, group_send, root=P_union._root,
                 device=P_union.device)
             P_recv = P_send
 

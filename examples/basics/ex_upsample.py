@@ -8,7 +8,7 @@ from distdl.backends.common.partition import MPIPartition
 from distdl.nn.upsampling import DistributedUpsample
 from distdl.utilities.torch import zero_volume_tensor
 
-# Set backend. The GPU backend is currently supported. For upsampling 
+# Set backend. The GPU backend is currently supported. For upsampling
 # on GPUs, use the distdl.nn.ConvTranspose layer.
 set_backend(backend_comm="mpi", backend_array="numpy")
 

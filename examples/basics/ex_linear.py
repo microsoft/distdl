@@ -36,7 +36,7 @@ in_channels = 24
 hidden_channels = 36
 out_channels = 28
 
-# Linear layers: The all-gather version is preferred if out_channels > in_channels. 
+# Linear layers: The all-gather version is preferred if out_channels > in_channels.
 # Otherwise, the reduce-scatter version is preferred.
 linear_in = DistributedLinearAllGather(P_x, in_channels, hidden_channels)
 linear_out = DistributedLinearReduceScatter(P_x, hidden_channels, out_channels)

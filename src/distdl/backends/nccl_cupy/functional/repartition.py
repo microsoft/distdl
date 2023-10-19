@@ -92,7 +92,7 @@ class RepartitionFunction(torch.autograd.Function):
             Output tensor.
 
         """
-        
+
         ctx.P_union = P_union
         ctx.x_global_structure = x_global_structure
         ctx.x_local_structure = x_local_structure

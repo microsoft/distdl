@@ -113,7 +113,7 @@ class _DistributedChannelReduceScatterConvNd(Module):
         self.P_x = P_x
         if not self.P_x.active:
             return
-        
+
         # Weight partition [ 1 M 1 ...]
         weight_partition_shape = [1] * P_x.dim
         weight_partition_shape[1] = P_x.shape[1]
@@ -268,7 +268,7 @@ class _DistributedChannelReduceScatterConvNd(Module):
 
         if self.collect_state and self.P_x.active:
             if self.bias is not None:
-                
+
                 # Pop bias from state dict and serialize it
                 bias_key = next(reversed(destination))
                 bias = destination.pop(bias_key)
@@ -290,7 +290,7 @@ class _DistributedChannelReduceScatterConvNd(Module):
 
                 if self.use_bias:
                     destination[bias_key] = bias
-                
+
         return destination
 
     def scatter_state_dict(self, destination, prefix, *args):
@@ -329,17 +329,17 @@ class DistributedChannelReduceScatterConv1d(_DistributedChannelReduceScatterConv
 
     This class provides the user interface to a distributed convolutional
     layer, where the input (and output) tensors are partitioned in the
-    channel-dimension and optionally in the batch-dimension. 
-    
+    channel-dimension and optionally in the batch-dimension.
+
     This version of the layer uses a reduce-scatter operation to average and
     partition the output across workers after  the convolution operation. This
-    approach is preferable when the number of output channels is smaller than 
+    approach is preferable when the number of output channels is smaller than
     the number of input channels. For the opposite case, see the equivalent
     DistributedChannelAllGatherConv1d layer.
 
-    This class requires a single tensor partition of the following shape: 
+    This class requires a single tensor partition of the following shape:
 
-    1. :math:`P_x` over input tensor :math:`x` has shape :math:`P_{\text{data}} 
+    1. :math:`P_x` over input tensor :math:`x` has shape :math:`P_{\text{data}}
         \times P_{\text{c_in}} \times 1`.
 
     The first dimension of the input and output partitions is the batch
@@ -446,17 +446,17 @@ class DistributedChannelReduceScatterConv2d(_DistributedChannelReduceScatterConv
 
     This class provides the user interface to a distributed convolutional
     layer, where the input (and output) tensors are partitioned in the
-    channel-dimension and optionally in the batch-dimension. 
-    
+    channel-dimension and optionally in the batch-dimension.
+
     This version of the layer uses a reduce-scatter operation to average and
     partition the output across workers after  the convolution operation. This
-    approach is preferable when the number of output channels is smaller than 
+    approach is preferable when the number of output channels is smaller than
     the number of input channels. For the opposite case, see the equivalent
     DistributedChannelAllGatherConv2d layer.
 
-    This class requires a single tensor partition of the following shape: 
+    This class requires a single tensor partition of the following shape:
 
-    1. :math:`P_x` over input tensor :math:`x` has shape :math:`P_{\text{data}} 
+    1. :math:`P_x` over input tensor :math:`x` has shape :math:`P_{\text{data}}
         \times P_{\text{c_in}} \times 1 \times 1`.
 
     The first dimension of the input and output partitions is the batch
@@ -560,17 +560,17 @@ class DistributedChannelReduceScatterConv3d(_DistributedChannelReduceScatterConv
 
     This class provides the user interface to a distributed convolutional
     layer, where the input (and output) tensors are partitioned in the
-    channel-dimension and optionally in the batch-dimension. 
-    
+    channel-dimension and optionally in the batch-dimension.
+
     This version of the layer uses a reduce-scatter operation to average and
     partition the output across workers after  the convolution operation. This
-    approach is preferable when the number of output channels is smaller than 
+    approach is preferable when the number of output channels is smaller than
     the number of input channels. For the opposite case, see the equivalent
     DistributedChannelAllGatherConv3d layer.
 
-    This class requires a single tensor partition of the following shape: 
+    This class requires a single tensor partition of the following shape:
 
-    1. :math:`P_x` over input tensor :math:`x` has shape :math:`P_{\text{data}} 
+    1. :math:`P_x` over input tensor :math:`x` has shape :math:`P_{\text{data}}
         \times P_{\text{c_in}} \times 1`.
 
     The first dimension of the input and output partitions is the batch
@@ -734,18 +734,18 @@ class DistributedChannelReduceScatterConvTranspose1d(_DistributedChannelReduceSc
     r"""A channel-space partitioned 1D transpose convolutional layer.
 
     This class provides the user interface to a distributed transpose
-    convolutional layer, where the input (and output) tensors are partitioned 
-    in the channel-dimension and optionally in the batch-dimension. 
-    
+    convolutional layer, where the input (and output) tensors are partitioned
+    in the channel-dimension and optionally in the batch-dimension.
+
     This version of the layer uses a reduce-scatter operation to average and
     partition the output across workers after  the convolution operation. This
-    approach is preferable when the number of output channels is smaller than 
+    approach is preferable when the number of output channels is smaller than
     the number of input channels. For the opposite case, see the equivalent
     DistributedChannelAllGatherConvTranspose1d layer.
 
-    This class requires a single tensor partition of the following shape: 
+    This class requires a single tensor partition of the following shape:
 
-    1. :math:`P_x` over input tensor :math:`x` has shape :math:`P_{\text{data}} 
+    1. :math:`P_x` over input tensor :math:`x` has shape :math:`P_{\text{data}}
         \times P_{\text{c_in}} \times 1`.
 
     The first dimension of the input and output partitions is the batch
@@ -825,7 +825,7 @@ class DistributedChannelReduceScatterConvTranspose1d(_DistributedChannelReduceSc
     def forward(self, input: Tensor, output_size: Optional[List[int]] = None) -> Tensor:
         if not self.P_x.active:
             return input#.clone()
-            
+
         if self.padding_mode != 'zeros':
             raise ValueError('Only `zeros` padding mode is supported for ConvTranspose1d')
 
@@ -861,18 +861,18 @@ class DistributedChannelReduceScatterConvTranspose2d(_DistributedChannelReduceSc
     r"""A channel-space partitioned 2D transpose convolutional layer.
 
     This class provides the user interface to a distributed transpose
-    convolutional layer, where the input (and output) tensors are partitioned 
-    in the channel-dimension and optionally in the batch-dimension. 
-    
+    convolutional layer, where the input (and output) tensors are partitioned
+    in the channel-dimension and optionally in the batch-dimension.
+
     This version of the layer uses a reduce-scatter operation to average and
     partition the output across workers after  the convolution operation. This
-    approach is preferable when the number of output channels is smaller than 
+    approach is preferable when the number of output channels is smaller than
     the number of input channels. For the opposite case, see the equivalent
     DistributedChannelAllGatherConvTranspose2d layer.
 
-    This class requires a single tensor partition of the following shape: 
+    This class requires a single tensor partition of the following shape:
 
-    1. :math:`P_x` over input tensor :math:`x` has shape :math:`P_{\text{data}} 
+    1. :math:`P_x` over input tensor :math:`x` has shape :math:`P_{\text{data}}
         \times P_{\text{c_in}} \times 1 \times 1`.
 
     The first dimension of the input and output partitions is the batch
@@ -986,18 +986,18 @@ class DistributedChannelReduceScatterConvTranspose3d(_DistributedChannelReduceSc
     r"""A channel-space partitioned 3D transpose convolutional layer.
 
     This class provides the user interface to a distributed transpose
-    convolutional layer, where the input (and output) tensors are partitioned 
-    in the channel-dimension and optionally in the batch-dimension. 
-    
+    convolutional layer, where the input (and output) tensors are partitioned
+    in the channel-dimension and optionally in the batch-dimension.
+
     This version of the layer uses a reduce-scatter operation to average and
     partition the output across workers after  the convolution operation. This
-    approach is preferable when the number of output channels is smaller than 
+    approach is preferable when the number of output channels is smaller than
     the number of input channels. For the opposite case, see the equivalent
     DistributedChannelAllGatherConvTranspose3d layer.
 
-    This class requires a single tensor partition of the following shape: 
+    This class requires a single tensor partition of the following shape:
 
-    1. :math:`P_x` over input tensor :math:`x` has shape :math:`P_{\text{data}} 
+    1. :math:`P_x` over input tensor :math:`x` has shape :math:`P_{\text{data}}
         \times P_{\text{c_in}} \times 1 \times 1` \times 1.
 
     The first dimension of the input and output partitions is the batch

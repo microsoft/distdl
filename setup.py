@@ -106,7 +106,7 @@ setup(
     ),
     author='Russell J. Hewett',
     author_email='rjh@rjh.io',
-    url='https://github.com/distdl/distdl',
+    url='https://github.com/microsoft/distdl',
     packages=find_packages('src'),
     package_dir={'': 'src'},
     py_modules=[splitext(basename(path))[0] for path in glob('src/*.py')],
@@ -122,8 +122,6 @@ setup(
         'Operating System :: Microsoft :: Windows',
         'Programming Language :: Python',
         'Programming Language :: Python :: 3',
-        'Programming Language :: Python :: 3.6',
-        'Programming Language :: Python :: 3.7',
         'Programming Language :: Python :: 3.8',
         'Programming Language :: Python :: Implementation :: CPython',
         # uncomment if you test on these interpreters:

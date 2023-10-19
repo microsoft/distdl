@@ -35,7 +35,7 @@ if P_x.active:
 x.requires_grad = True
 
 # Distributed conv layers: The all-gather version is preferrable to the reduce-scatter version when the
-# number of input channels is smaller than the number of output channels. 
+# number of input channels is smaller than the number of output channels.
 conv2d_in = DistributedChannelAllGatherConv2d(P_x, 16, 24, (3, 3), padding=(1, 1))
 conv2d_out = DistributedChannelReduceScatterConv2d(P_x, 24, 8, (3, 3), padding=(1, 1))
 

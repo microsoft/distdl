@@ -11,9 +11,13 @@ include .editorconfig
 include AUTHORS.rst
 include CHANGELOG.rst
 include CONTRIBUTING.rst
+include CODE_OF_CONDUCT.md
+include SECURITY.md
+include SUPPORT.md
 include LICENSE
 include other_licenses/*
 include README.rst
+include install.sh
 
 include tox.ini .travis.yml .appveyor.yml .readthedocs.yml .pre-commit-config.yaml
 
