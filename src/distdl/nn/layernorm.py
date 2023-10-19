@@ -139,7 +139,7 @@ class DistributedLayerNorm(Module):
 
     def gather_state_dict(self, module, destination, prefix, *args):
         if self.collect_state and self.elementwise_affine and self.P_x.active:
- 
+
             # Pop bias from state dict and serialize it
             bias_key = next(reversed(destination))
             bias = self.gather(destination.pop(bias_key))
@@ -173,8 +173,10 @@ class DistributedLayerNorm(Module):
             # Load states
             if self.P_root.active:
                 # Bring from PyTorch into DistDL shape (add dimensions for broadcasting)
-                weight = weight.view(*self.weight.shape[self.dim_bcast_slice], -1)
-                bias = bias.view(*self.bias.shape[self.dim_bcast_slice], -1)
+                shape_expanded = [1] * self.P_x.dim
+                shape_expanded[self.dim_reduce_slice] = weight.shape
+                weight = weight.view(shape_expanded)
+                bias = bias.view(shape_expanded)
 
             else:
                 weight = zero_volume_tensor(device=self.P_x.device, requires_grad=True, dtype=self.dtype)
