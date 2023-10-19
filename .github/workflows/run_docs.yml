@@ -34,4 +34,5 @@ jobs:
         tox --version
     - name: Build docs
       run: |
+        pip list
         tox -v -e docs
