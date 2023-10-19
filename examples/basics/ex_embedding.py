@@ -3,15 +3,9 @@ import torch
 from mpi4py import MPI
 from distdl.config import set_backend
 
-import distdl.utilities.slicing as slicing
 from distdl.backends.common.partition import MPIPartition
-from distdl.nn.linear_rs import DistributedLinearReduceScatter
-from distdl.nn.linear_ag import DistributedLinearAllGather
 from distdl.nn.repartition import Repartition
 from distdl.nn.embedding import DistributedEmbedding
-from distdl.utilities.slicing import compute_subshape
-from distdl.utilities.torch import zero_volume_tensor
-from distdl.nn.repartition import Repartition
 
 # Set backend
 set_backend(backend_comm="mpi", backend_array="numpy")

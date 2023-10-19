@@ -22,12 +22,14 @@ from torch.utils import cpp_extension
 import multiprocessing
 import subprocess
 
+
 def read(*names, **kwargs):
     with io.open(
         join(dirname(__file__), *names),
         encoding=kwargs.get('encoding', 'utf8')
     ) as fh:
         return fh.read()
+
 
 # Check if we have GPUs available w/o using torch.cuda.is_available()
 def check_gpu(device_id):
@@ -37,6 +39,7 @@ def check_gpu(device_id):
         return True
     except (subprocess.CalledProcessError, FileNotFoundError):
         return False
+
 
 # Enable code coverage for C code: we can't use CFLAGS=-coverage in tox.ini, since that may mess with compiling
 # dependencies (e.g. numpy). Therefore we set SETUPPY_CFLAGS=-coverage in tox.ini and copy it to CFLAGS here (after

@@ -17,7 +17,7 @@ P_world = MPIPartition(MPI.COMM_WORLD)
 P_world._comm.Barrier()
 
 # Data partition
-in_shape = (2, 4, 1, 1) # [ batch, channel, height, width ]
+in_shape = (2, 4, 1, 1)  # [ batch, channel, height, width ]
 in_size = np.prod(in_shape)
 in_workers = np.arange(0, in_size)
 
@@ -40,12 +40,14 @@ conv2d_in = DistributedChannelAllGatherConv2d(P_x, 16, 24, (3, 3), padding=(1, 1
 conv2d_out = DistributedChannelReduceScatterConv2d(P_x, 24, 8, (3, 3), padding=(1, 1))
 
 # Forward pass
-if P_x.rank == 0: print("Forward")
+if P_x.rank == 0:
+    print("Forward")
 y = conv2d_in(x)
 y = conv2d_out(y)
 
 # Backward pass
-if P_x.rank == 0: print("Backward")
+if P_x.rank == 0:
+    print("Backward")
 y.sum().backward()
 
 print("y.shape from rank {}: {}".format(P_x.rank, y.shape))

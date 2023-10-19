@@ -62,7 +62,7 @@ if P_x.active:
 
 x.requires_grad = True
 
-#print(f"P_world.rank {P_world.rank}; P_x.index {P_x.index}; x value: \n{x}\n")
+print(f"P_world.rank {P_world.rank}; P_x.index {P_x.index}; x value: \n{x}\n")
 
 # Create the reduce-scatter layer.  Note, only one of the keep/reduce axes is
 # required.  If they are both specified they must be mutually coherent.

@@ -17,7 +17,7 @@ P_world = MPIPartition(MPI.COMM_WORLD)
 P_world._comm.Barrier()
 
 # Data partition
-in_shape = (1, 4, 1, 1) # [ batch, channel, height, width ]
+in_shape = (1, 4, 1, 1)  # [ batch, channel, height, width ]
 in_size = np.prod(in_shape)
 in_workers = np.arange(0, in_size)
 
@@ -35,7 +35,8 @@ if P_x.active:
 x.requires_grad = True
 
 # Distributed conv layer
-if P_x.rank == 0: print("Forward")
+if P_x.rank == 0:
+    print("Forward")
 
 # Distributed conv transpose layer: The reduce-scatter version is preferrable to the all-gather version when the
 # number of output channels is smaller than the number of input channels.
@@ -47,7 +48,8 @@ y = conv2d_in(x)
 y = conv2d_out(y)
 
 # Backward pass
-if P_x.rank == 0: print("Backward")
+if P_x.rank == 0:
+    print("Backward")
 y.sum().backward()
 
 print("x.shape: {}, y.shape: {} from rank {}".format(x.shape, y.shape, P_x.rank))

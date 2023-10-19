@@ -3,7 +3,6 @@ import torch
 from mpi4py import MPI
 from distdl.config import set_backend
 
-import distdl.utilities.slicing as slicing
 from distdl.backends.common.partition import MPIPartition
 from distdl.nn.repartition import Repartition
 from distdl.utilities.torch import zero_volume_tensor

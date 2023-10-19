@@ -89,7 +89,7 @@ if loss_args["reduction"] == "none":
     if P_0.active:
 
         print(seq_loss, "\n", dist_loss)
-        assert(torch.allclose(dist_loss, seq_loss))
+        assert torch.allclose(dist_loss, seq_loss)
 
 else:
     dist_loss.backward()
@@ -102,5 +102,5 @@ else:
         print(x.grad.shape, "\n", x.grad)
         print(dx.shape, "\n", dx)
 
-        assert(torch.allclose(dx, x.grad))
-        assert(torch.allclose(dist_loss, seq_loss))
+        assert torch.allclose(dx, x.grad)
+        assert torch.allclose(dist_loss, seq_loss)

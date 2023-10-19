@@ -22,6 +22,7 @@ from distdl.config import set_backend
 class MockConvLayer(HaloMixin, ConvMixin):
     pass
 
+
 # Set backend
 set_backend(backend_comm="mpi", backend_array="numpy")
 
