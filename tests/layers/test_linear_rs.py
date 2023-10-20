@@ -176,6 +176,7 @@ adjoint_parametrizations.append(
         )
     )
 
+
 # For example of indirect, see https://stackoverflow.com/a/28570677
 @pytest.mark.parametrize("P_x_ranks, P_x_shape,"
                          "x_global_shape,"

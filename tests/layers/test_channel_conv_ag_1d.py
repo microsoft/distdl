@@ -140,7 +140,6 @@ def test_channel_conv1d_adjoint_weight(barrier_fence_fixture,
     P_x_base = P_world.create_partition_inclusive(P_x_ranks)
     P_x = P_x_base.create_cartesian_topology_partition(P_x_shape)
 
-
     x_global_shape = np.asarray(x_global_shape)
 
     layer = DistributedChannelAllGatherConv1d(P_x,

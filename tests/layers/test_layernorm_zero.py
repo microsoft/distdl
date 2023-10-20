@@ -183,8 +183,8 @@ def test_batch_norm_with_training(barrier_fence_fixture,
     gather = Repartition(P_x, P_root)
 
     # Sequential layer
-    seq_ln = torch.nn.LayerNorm(normalized_shape, elementwise_affine=
-                                elementwise_affine
+    seq_ln = torch.nn.LayerNorm(normalized_shape,
+                                elementwise_affine=elementwise_affine
                                 ).to(P_x.device)
 
     # Train sequential layer
