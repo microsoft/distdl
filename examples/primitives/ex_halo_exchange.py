@@ -17,6 +17,7 @@ from distdl.nn.mixins.halo_mixin import HaloMixin
 from distdl.utilities.slicing import compute_subshape
 from distdl.config import set_backend
 
+
 # We need a layer to induce the halo size.  To make this convenient, we mock
 # a layer that has the right mixins to do the trick.
 class MockConvLayer(HaloMixin, ConvMixin):

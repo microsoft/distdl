@@ -1,6 +1,6 @@
-import torch, numbers
+import torch
+import numbers
 
-from distdl.backends.common.tensor_comm import assemble_global_tensor_structure
 from distdl.utilities.slicing import compute_subshape
 from distdl.utilities.slicing import worker_layout
 from distdl.utilities.torch import zero_volume_tensor
@@ -9,6 +9,7 @@ from distdl.nn.all_sum_reduce import AllSumReduce
 from distdl.nn.broadcast import Broadcast
 from distdl.nn.repartition import Repartition
 import numpy as np
+
 
 class DistributedLayerNorm(Module):
     r"""A distributed layer norm layer.
@@ -46,14 +47,16 @@ class DistributedLayerNorm(Module):
     """
 
     def __init__(self, P_x, normalized_shape, elementwise_affine=True, eps=1e-5,
-        collect_state=False, device=None, dtype=None, scale_backward=None):
+                 collect_state=False, device=None, dtype=None, scale_backward=None
+                 ):
         super(DistributedLayerNorm, self).__init__()
 
         self.P_x = P_x
         if not self.P_x.active:
             return
 
-        if device is None: device = P_x.device
+        if device is None:
+            device = P_x.device
         self.eps = eps
         self.elementwise_affine = elementwise_affine
         self.collect_state = collect_state
@@ -192,7 +195,6 @@ class DistributedLayerNorm(Module):
 
         return destination
 
-
     def _compute_mean(self, input):
         r"""
         Compute global feature mean (i.e., across the last d dimensions,
@@ -223,7 +225,6 @@ class DistributedLayerNorm(Module):
         """
         input = (input - mean)**2
         return self._compute_mean(input)
-
 
     def forward(self, input):
         r"""Forward function interface.

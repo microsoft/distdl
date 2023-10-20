@@ -1,15 +1,15 @@
-import torch, numbers
+import torch
+import numbers
 
-from distdl.backends.common.tensor_comm import assemble_global_tensor_structure
 from distdl.utilities.slicing import compute_subshape
 from distdl.utilities.slicing import worker_layout
 from distdl.utilities.torch import zero_volume_tensor
 from distdl.nn.module import Module
 from distdl.nn.all_sum_reduce import AllSumReduce
-#from distdl.nn.broadcast import Broadcast
 from distdl.nn.all_gather import AllGather
 from distdl.nn.repartition import Repartition
 import numpy as np
+
 
 class DistributedLayerNormZero(Module):
     r"""A distributed layer norm layer with FSDP.
@@ -47,14 +47,15 @@ class DistributedLayerNormZero(Module):
     """
 
     def __init__(self, P_x, normalized_shape, elementwise_affine=True, eps=1e-5,
-        collect_state=False, device=None, dtype=None, scale_backward=None):
+                 collect_state=False, device=None, dtype=None, scale_backward=None):
         super(DistributedLayerNormZero, self).__init__()
 
         self.P_x = P_x
         if not self.P_x.active:
             return
 
-        if device is None: device = P_x.device
+        if device is None:
+            device = P_x.device
         self.eps = eps
         self.elementwise_affine = elementwise_affine
         self.collect_state = collect_state
@@ -152,12 +153,12 @@ class DistributedLayerNormZero(Module):
 
             # Pop bias from state dict and serialize it
             bias_key = next(reversed(destination))
-            bias = self.allgather(destination.pop(bias_key).transpose(0,-1)).transpose(0,-1)
+            bias = self.allgather(destination.pop(bias_key).transpose(0, -1)).transpose(0, -1)
             bias = self.gather(bias)
 
             # Pop weight from state dict and serialize it
             weight_key = next(reversed(destination))
-            weight = self.allgather(destination.pop(weight_key).transpose(0, -1)).transpose(0,-1)
+            weight = self.allgather(destination.pop(weight_key).transpose(0, -1)).transpose(0, -1)
             weight = self.gather(weight)
 
             # Serialize weights
@@ -197,8 +198,8 @@ class DistributedLayerNormZero(Module):
             # Scatter states
             weight = self.scatter_mp(weight)
             bias = self.scatter_mp(bias)
-            weight = self.scatter_dp(weight.transpose(0,-1)).transpose(0,-1)
-            bias = self.scatter_dp(bias.transpose(0,-1)).transpose(0,-1)
+            weight = self.scatter_dp(weight.transpose(0, -1)).transpose(0, -1)
+            bias = self.scatter_dp(bias.transpose(0, -1)).transpose(0, -1)
 
             # Add data back to state dict
             destination[weight_key] = weight
@@ -236,7 +237,6 @@ class DistributedLayerNormZero(Module):
         """
         input = (input - mean)**2
         return self._compute_mean(input)
-
 
     def forward(self, input):
         r"""Forward function interface.

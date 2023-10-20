@@ -18,8 +18,6 @@ from setuptools import Extension
 from setuptools import find_packages
 from setuptools import setup
 from torch.utils import cpp_extension
-
-import multiprocessing
 import subprocess
 
 

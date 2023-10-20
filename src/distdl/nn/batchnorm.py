@@ -60,7 +60,8 @@ class DistributedBatchNorm(Module):
         self.track_running_stats = track_running_stats
         self.inputs_seen = 0
 
-        if device is None: device = P_x.device
+        if device is None:
+            device = P_x.device
         factory_kwargs = {'device': device, 'dtype': dtype}
 
         # Determine the size of the local trainable parameters (this is a bit of a hack)

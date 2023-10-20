@@ -1,10 +1,10 @@
-import numpy as np
-import torch, math, einops
+import torch
+import math
+import einops
 from typing import Optional, List, Tuple, Union
 
 from torch import Tensor
 from torch.nn.modules.utils import _single, _pair, _triple, _reverse_repeat_tuple
-from torch._torch_docs import reproducibility_notes
 from torch.nn.common_types import _size_1_t, _size_2_t, _size_3_t
 
 import distdl.nn.init as init
@@ -13,7 +13,6 @@ from distdl.nn.all_gather import AllGather
 from distdl.nn.broadcast import Broadcast
 from distdl.nn.repartition import Repartition
 from distdl.utilities.slicing import compute_subshape
-from distdl.utilities.torch import TensorStructure
 from distdl.utilities.slicing import worker_layout
 from distdl.backends.common.partition import MPIPartition
 from distdl.backends.common.tensor_comm import assemble_global_tensor_structure
@@ -44,7 +43,15 @@ from distdl.utilities.torch import zero_volume_tensor
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
-__all__ = ['Conv1d', 'Conv2d', 'Conv3d', 'ConvTranspose1d', 'ConvTranspose2d', 'ConvTranspose3d']
+__all__ = [
+    'DistributedChannelAllGatherConv1d',
+    'DistributedChannelAllGatherConv2d',
+    'DistributedChannelAllGatherConv3d',
+    'DistributedChannelAllGatherConvTranspose1d',
+    'DistributedChannelAllGatherConvTranspose2d',
+    'DistributedChannelAllGatherConvTranspose3d'
+]
+
 
 class _DistributedChannelAllGatherConvNd(Module):
 
@@ -168,7 +175,7 @@ class _DistributedChannelAllGatherConvNd(Module):
             if self.P_weight.active:
                 out_channels_local = compute_subshape(P_weight.shape[1],
                                                       P_weight.index[1],
-                                                     [out_channels])[0]
+                                                      [out_channels])[0]
                 self.weight = torch.nn.Parameter(torch.empty(
                     (in_channels, out_channels_local // groups, *kernel_size), **factory_kwargs))
             else:
@@ -178,7 +185,7 @@ class _DistributedChannelAllGatherConvNd(Module):
             if self.P_weight.active:
                 out_channels_local = compute_subshape(P_weight.shape[1],
                                                       P_weight.index[1],
-                                                     [out_channels])[0]
+                                                      [out_channels])[0]
                 self.weight = torch.nn.Parameter(torch.empty(
                     (out_channels_local, in_channels // groups, *kernel_size), **factory_kwargs))
             else:
@@ -187,7 +194,7 @@ class _DistributedChannelAllGatherConvNd(Module):
         if self.use_bias and self.P_weight.active:
             self.bias = torch.nn.Parameter(torch.empty(out_channels_local, **factory_kwargs))
         elif self.use_bias and self.P_x.active:
-            self.register_buffer('bias', zero_volume_tensor(device=P_x.device, requires_grad=True)) # receive bias
+            self.register_buffer('bias', zero_volume_tensor(device=P_x.device, requires_grad=True))  # receive bias
         else:
             self.register_parameter('bias', None)
 
@@ -418,14 +425,13 @@ class DistributedChannelAllGatherConv1d(_DistributedChannelAllGatherConvNd):
     def _conv_forward(self, input: Tensor, weight: Tensor, bias: Optional[Tensor]):
         if self.padding_mode != 'zeros':
             return torch.nn.functional.conv1d(torch.nn.functional.pad(input, self._reversed_padding_repeated_twice, mode=self.padding_mode),
-                            weight, bias, self.stride,
-                            _single(0), self.dilation, self.groups)
+                                              weight, bias, self.stride, _single(0), self.dilation, self.groups)
         return torch.nn.functional.conv1d(input, weight, bias, self.stride,
-                        self.padding, self.dilation, self.groups)
+                                          self.padding, self.dilation, self.groups)
 
     def forward(self, input: Tensor) -> Tensor:
         if not self.P_x.active:
-            return input#.clone()
+            return input
 
         # Broadcast weights
         weight = self.broadcast_weight(self.weight)
@@ -533,14 +539,13 @@ class DistributedChannelAllGatherConv2d(_DistributedChannelAllGatherConvNd):
     def _conv_forward(self, input: Tensor, weight: Tensor, bias: Optional[Tensor]):
         if self.padding_mode != 'zeros':
             return torch.nn.functional.conv2d(torch.nn.functional.pad(input, self._reversed_padding_repeated_twice, mode=self.padding_mode),
-                            weight, bias, self.stride,
-                            _pair(0), self.dilation, self.groups)
+                                              weight, bias, self.stride, _pair(0), self.dilation, self.groups)
         return torch.nn.functional.conv2d(input, weight, bias, self.stride,
-                        self.padding, self.dilation, self.groups)
+                                          self.padding, self.dilation, self.groups)
 
     def forward(self, input: Tensor) -> Tensor:
         if not self.P_x.active:
-            return input#.clone()
+            return input
 
         # Broadcast weights
         weight = self.broadcast_weight(self.weight)
@@ -664,7 +669,7 @@ class DistributedChannelAllGatherConv3d(_DistributedChannelAllGatherConvNd):
 
     def forward(self, input: Tensor) -> Tensor:
         if not self.P_x.active:
-            return input#.clone()
+            return input
 
         # Broadcast weights
         weight = self.broadcast_weight(self.weight)
@@ -831,13 +836,13 @@ class DistributedChannelAllGatherConvTranspose1d(_DistributedChannelAllGatherCon
 
     def forward(self, input: Tensor, output_size: Optional[List[int]] = None) -> Tensor:
         if not self.P_x.active:
-            return input#.clone()
+            return input
 
         if self.padding_mode != 'zeros':
             raise ValueError('Only `zeros` padding mode is supported for ConvTranspose1d')
 
         if not self.P_x.active:
-            return input#.clone()
+            return input
 
         assert isinstance(self.padding, tuple)
         # One cannot replace List by Tuple or Sequence in "_output_padding" because
@@ -959,7 +964,7 @@ class DistributedChannelAllGatherConvTranspose2d(_DistributedChannelAllGatherCon
 
     def forward(self, input: Tensor, output_size: Optional[List[int]] = None) -> Tensor:
         if not self.P_x.active:
-            return input#.clone()
+            return input
 
         if self.padding_mode != 'zeros':
             raise ValueError('Only `zeros` padding mode is supported for ConvTranspose2d')
@@ -1083,7 +1088,7 @@ class DistributedChannelAllGatherConvTranspose3d(_DistributedChannelAllGatherCon
 
     def forward(self, input: Tensor, output_size: Optional[List[int]] = None) -> Tensor:
         if not self.P_x.active:
-            return input#.clone()
+            return input
 
         if self.padding_mode != 'zeros':
             raise ValueError('Only `zeros` padding mode is supported for ConvTranspose3d')

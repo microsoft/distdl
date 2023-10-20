@@ -1,15 +1,12 @@
-import torch, numbers
+import torch
 
-from distdl.backends.common.tensor_comm import assemble_global_tensor_structure
 from distdl.utilities.slicing import compute_subshape
-from distdl.utilities.slicing import worker_layout
 from distdl.utilities.torch import zero_volume_tensor
 from distdl.nn.module import Module
-from distdl.nn.all_sum_reduce import AllSumReduce
 from distdl.nn.all_gather import AllGather
 from distdl.nn.repartition import Repartition
 import distdl.nn.init as init
-import numpy as np
+
 
 class DistributedEmbeddingZero(Module):
     r"""A distributed embedding layer with FSDP.
@@ -59,9 +56,9 @@ class DistributedEmbeddingZero(Module):
     """
 
     def __init__(self, P_x, num_embeddings, embedding_dim, padding_idx=None,
-        max_norm=None, norm_type=2., scale_grad_by_freq=False, sparse=False,
-        _weight=None, _freeze=False, collect_state=False, device=None,
-        dtype=None, scale_backward=None):
+                 max_norm=None, norm_type=2., scale_grad_by_freq=False, sparse=False,
+                 _weight=None, _freeze=False, collect_state=False, device=None,
+                 dtype=None, scale_backward=None):
 
         factory_kwargs = {'device': P_x.device, 'dtype': dtype}
         super(DistributedEmbeddingZero, self).__init__()
@@ -99,10 +96,10 @@ class DistributedEmbeddingZero(Module):
         # Local embedding size
         num_embeddings_local = compute_subshape(P_x.shape[0],
                                                 P_x.index[0],
-                                               [num_embeddings])[0]
+                                                [num_embeddings])[0]
         embedding_dim_local = compute_subshape(P_x.shape[-1],
                                                P_x.index[-1],
-                                              [embedding_dim])[0]
+                                               [embedding_dim])[0]
         # Weights
         if _weight is not None:
             assert _weight.shape[-1] == embedding_dim_local
@@ -110,12 +107,13 @@ class DistributedEmbeddingZero(Module):
             if self.P_x.active:
                 self.weight = torch.nn.Parameter(_weight, requires_grad=not _freeze)
         elif self.P_x.active:
-            self.weight = torch.nn.Parameter(torch.empty((num_embeddings_local,
-                embedding_dim_local), **factory_kwargs), requires_grad=not _freeze)
+            self.weight = torch.nn.Parameter(torch.empty((num_embeddings_local, embedding_dim_local),
+                                             **factory_kwargs), requires_grad=not _freeze
+                                             )
             self.reset_parameters()
         else:
             self.register_buffer('weight', zero_volume_tensor(device=P_x.device,
-                requires_grad=True, dtype=self.dtype))
+                                 requires_grad=True, dtype=self.dtype))
 
         # State dict hooks for gather/scattering distributed weights
         self._register_state_dict_hook(self.gather_state_dict)
@@ -169,7 +167,7 @@ class DistributedEmbeddingZero(Module):
             if self.P_root.active:
 
                 # Add filenames back to state dict
-                destination[weight_key] = weight#weight_key
+                destination[weight_key] = weight
 
         return destination
 
@@ -206,4 +204,5 @@ class DistributedEmbeddingZero(Module):
         weight = self._squeeze(self.allgather(self._expand(self.weight)))
 
         return torch.nn.functional.embedding(input, weight, self.padding_idx, self.max_norm,
-            self.norm_type, self.scale_grad_by_freq, self.sparse)
+                                             self.norm_type, self.scale_grad_by_freq, self.sparse
+                                             )
