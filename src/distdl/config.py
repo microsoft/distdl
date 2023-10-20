@@ -1,6 +1,7 @@
 import os
 import distdl.logger as logger
 import distdl.backends
+from distdl.backends import supported_backends
 
 # Environment variable names
 BACKEND_COMM_ENV = "DISTDL_BACKEND_COMM"
@@ -67,9 +68,8 @@ def set_backend(backend_comm=None, backend_array=None, check_input_changed=None)
 
     backend_config = '_'.join([backend_comm, backend_array])
 
-    if backend_config in distdl.backends.supported_backends and \
-                         distdl.backends.supported_backends[backend_config] is not None:
-        distdl.backends.backend = distdl.backends.supported_backends[backend_config]
+    if backend_config in supported_backends and supported_backends[backend_config] is not None:
+        distdl.backends.backend = supported_backends[backend_config]
     else:
         logger.warning("Selected backend not supported. Default to mpi-numpy.")
-        distdl.backends.backend = distdl.backends.supported_backends['mpi_numpy']
+        distdl.backends.backend = supported_backends['mpi_numpy']

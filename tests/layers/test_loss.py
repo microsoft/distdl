@@ -1,5 +1,3 @@
-import os
-
 import numpy as np
 import pytest
 import torch
@@ -161,7 +159,7 @@ def test_distributed_loss(barrier_fence_fixture,
             x_g.requires_grad = True
             sequential_loss = sequential_criterion(x_g, y_g)
 
-            assert(torch.allclose(distributed_loss, sequential_loss))
+            assert torch.allclose(distributed_loss, sequential_loss)
 
         # For any other reduction, we can compare the loss
         # value *and* backpropagate through the distributed loss to verify
@@ -174,7 +172,7 @@ def test_distributed_loss(barrier_fence_fixture,
                 sequential_loss.backward()
                 sequential_dx_g = x_g.grad
 
-                assert(torch.allclose(distributed_dx_g, sequential_dx_g))
+                assert torch.allclose(distributed_dx_g, sequential_dx_g)
 
     P_world.deactivate()
     P_x_base.deactivate()

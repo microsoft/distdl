@@ -1,10 +1,7 @@
-import os
-
 import numpy as np
 import pytest
 import torch
 
-import distdl
 from distdl.utilities.torch import zero_volume_tensor
 from distdl.nn.repartition import Repartition
 from distdl.nn.layernorm_zero import DistributedLayerNormZero
@@ -135,6 +132,7 @@ parametrizations_affine.append(
         )
     )
 
+
 # TODO This test is broken when normalized shape has more than 1 dimension
 @pytest.mark.parametrize("P_x_ranks, P_x_shape,"
                          "input_shape,"
@@ -185,8 +183,9 @@ def test_batch_norm_with_training(barrier_fence_fixture,
     gather = Repartition(P_x, P_root)
 
     # Sequential layer
-    seq_ln = torch.nn.LayerNorm(normalized_shape, elementwise_affine=\
-        elementwise_affine).to(P_x.device)
+    seq_ln = torch.nn.LayerNorm(normalized_shape, elementwise_affine=
+                                elementwise_affine
+                                ).to(P_x.device)
 
     # Train sequential layer
     if P_root.active:
@@ -194,7 +193,6 @@ def test_batch_norm_with_training(barrier_fence_fixture,
         seq_out1 = seq_ln(input_train)
         seq_loss = ((seq_out1 - output)**2).sum()
         seq_loss.backward()
-        seq_grads = [p.grad.detach().cpu() for p in seq_ln.parameters()]
 
         # Do a manual weight update (this is what optimizer does):
         with torch.no_grad():
@@ -211,7 +209,8 @@ def test_batch_norm_with_training(barrier_fence_fixture,
 
     # Create distributed network
     dist_ln = DistributedLayerNormZero(P_x, normalized_shape,
-        elementwise_affine=elementwise_affine).to(P_x.device)
+                                       elementwise_affine=elementwise_affine
+                                       ).to(P_x.device)
 
     # Train distributed network
     dist_ln.train()
@@ -219,7 +218,6 @@ def test_batch_norm_with_training(barrier_fence_fixture,
     dist_loss = ((dist_out1 - output)**2).sum()
     assert dist_loss.requires_grad
     dist_loss.backward()
-    dist_grads = [p.grad.detach().cpu() for p in dist_ln.parameters()]
 
     # Do a manual gradient update
     if P_x.active:
@@ -260,14 +258,13 @@ def test_batch_norm_with_training(barrier_fence_fixture,
         assert dist_loss.shape == seq_loss.shape
         assert torch.allclose(dist_loss, seq_loss, rtol=ERROR_THRESHOLD, atol=atol)
         assert dist_out2.shape == seq_out2.shape
-        #assert torch.allclose(dist_out2, seq_out2, rtol=ERROR_THRESHOLD, atol=atol)
+        # assert torch.allclose(dist_out2, seq_out2, rtol=ERROR_THRESHOLD, atol=atol)
 
     P_world.deactivate()
     P_root_base.deactivate()
     P_root.deactivate()
     P_x_base.deactivate()
     P_x.deactivate()
-
 
 
 @pytest.mark.parametrize("P_x_ranks, P_x_shape,"
@@ -327,7 +324,8 @@ def test_batch_norm_without_training(barrier_fence_fixture,
 
     # Create distributed network
     dist_ln = DistributedLayerNormZero(P_x, normalized_shape,
-        elementwise_affine=elementwise_affine).to(P_x.device)
+                                       elementwise_affine=elementwise_affine
+                                       ).to(P_x.device)
 
     # Train distributed network
     dist_ln.eval()

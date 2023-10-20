@@ -1,5 +1,3 @@
-import os
-
 import numpy as np
 import pytest
 from adjoint_test import check_adjoint_test_tight

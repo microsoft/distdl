@@ -1,6 +1,4 @@
-import os, sys, pytest
-sys.path.insert(1, os.path.join(sys.path[0], '..'))
-
+import pytest
 from adjoint_test import check_adjoint_test_tight
 import numpy as np
 import torch

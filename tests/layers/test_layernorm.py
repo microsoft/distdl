@@ -1,10 +1,7 @@
-import os
-
 import numpy as np
 import pytest
 import torch
 
-import distdl
 from distdl.utilities.torch import zero_volume_tensor
 from distdl.nn.repartition import Repartition
 from distdl.nn.layernorm import DistributedLayerNorm
@@ -135,6 +132,7 @@ parametrizations_affine.append(
         )
     )
 
+
 @pytest.mark.parametrize("P_x_ranks, P_x_shape,"
                          "input_shape,"
                          "normalized_shape,"
@@ -206,8 +204,9 @@ def test_batch_norm_with_training(barrier_fence_fixture,
         seq_out2 = seq_out2.detach()
 
     # Create distributed network
-    dist_ln = DistributedLayerNorm(P_x, normalized_shape, 
-        elementwise_affine=elementwise_affine).to(P_x.device)
+    dist_ln = DistributedLayerNorm(P_x, normalized_shape,
+                                   elementwise_affine=elementwise_affine
+                                   ).to(P_x.device)
 
     # Confirm shape of weight partition
     P_w_shape = np.array(P_x_shape.copy())
@@ -270,7 +269,6 @@ def test_batch_norm_with_training(barrier_fence_fixture,
     P_x.deactivate()
 
 
-
 @pytest.mark.parametrize("P_x_ranks, P_x_shape,"
                          "input_shape,"
                          "normalized_shape,"
@@ -327,8 +325,9 @@ def test_batch_norm_without_training(barrier_fence_fixture,
         seq_loss = ((seq_out - output)**2).sum()
 
     # Create distributed network
-    dist_ln = DistributedLayerNorm(P_x, normalized_shape, 
-        elementwise_affine=elementwise_affine).to(P_x.device)
+    dist_ln = DistributedLayerNorm(P_x, normalized_shape,
+                                   elementwise_affine=elementwise_affine
+                                   ).to(P_x.device)
 
     # Confirm shape of weight partition
     P_w_shape = np.array(P_x_shape.copy())

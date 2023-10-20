@@ -151,7 +151,6 @@ class DistributedLinearAllGatherZero(Module):
         dimension. Default is None.
     """
 
-
     def __init__(self, P_y, in_features, out_features, bias=True, device=None, dtype=None,
                  P_x=None, P_store_bias=None, P_weight=None, collect_state=False, num_heads=None,
                  num_heads_kv=None, num_vars=3, geglu=False, checkpoint=False, scale_backward=None):
@@ -176,7 +175,8 @@ class DistributedLinearAllGatherZero(Module):
             assert P_x.shape[-1] == 1
             self.P_x = P_x
 
-        if device is None: device = P_y.device
+        if device is None:
+            device = P_y.device
         factory_kwargs = {'device': device, 'dtype': dtype}
 
         self.in_features = in_features

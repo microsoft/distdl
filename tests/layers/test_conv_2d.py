@@ -311,7 +311,7 @@ def test_simple_conv2d_shape(barrier_fence_fixture,
     y = layer(x)
 
     if P_x.active:
-        assert(np.array_equal(np.array(y.shape), np.asarray(y_local_shape)))
+        assert np.array_equal(np.array(y.shape), np.asarray(y_local_shape))
 
     P_world.deactivate()
     P_x_base.deactivate()

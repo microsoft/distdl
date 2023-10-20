@@ -1,6 +1,4 @@
-import os, sys, pytest
-sys.path.insert(1, os.path.join(sys.path[0], '..'))
-
+import pytest
 from adjoint_test import check_adjoint_test_tight
 import numpy as np
 
@@ -176,8 +174,8 @@ def test_all_sum_reduce_adjoint(barrier_fence_fixture,
         if k in axes_reduce:
             reduced_entry_value *= P_x_shape[k]
 
-    assert(torch.all(y == 10*reduced_entry_value))
-    assert(torch.all(dx == 0.1*reduced_entry_value))
+    assert torch.all(y == 10*reduced_entry_value)
+    assert torch.all(dx == 0.1*reduced_entry_value)
 
     check_adjoint_test_tight(P_world, x, dx, y, dy)
 

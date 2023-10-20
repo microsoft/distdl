@@ -104,7 +104,7 @@ class ReduceScatter(Module):
         if not self.identity:
 
             self.P_reducescatter = self.P_x.create_allreduction_partition(self.axes_reduce_scatter,
-                initialize_backend_comm=True)
+                                                                          initialize_backend_comm=True)
             self.input_tensor_structure = TensorStructure(input[0])
             self.output_tensor_structure = TensorStructure(input[0])
 

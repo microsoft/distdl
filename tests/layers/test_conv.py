@@ -182,7 +182,7 @@ def test_conv_class_selection(barrier_fence_fixture,
                            in_channels=3, out_channels=3,
                            kernel_size=kernel_size)
 
-    assert type(layer) == OutputLayerType
+    assert isinstance(layer, OutputLayerType)
 
     P_world.deactivate()
     P_x_base.deactivate()

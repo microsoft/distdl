@@ -1,5 +1,4 @@
-import os, torch
-
+import torch
 import numpy as np
 import pytest
 from adjoint_test import check_adjoint_test_tight

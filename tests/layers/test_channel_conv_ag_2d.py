@@ -66,16 +66,16 @@ def test_channel_conv2d_adjoint_input(barrier_fence_fixture,
     P_x_base = P_world.create_partition_inclusive(P_x_ranks)
     P_x = P_x_base.create_cartesian_topology_partition(P_x_shape)
 
-
     x_global_shape = np.asarray(x_global_shape)
 
     layer = DistributedChannelAllGatherConv2d(P_x,
-        x_global_shape[1],
-        y_global_shape[1],
-        kernel_size=3,
-        padding=1,
-        device=P_x.device,
-        bias=False).to(P_world.device)
+                                              x_global_shape[1],
+                                              y_global_shape[1],
+                                              kernel_size=3,
+                                              padding=1,
+                                              device=P_x.device,
+                                              bias=False
+                                              ).to(P_world.device)
 
     x = zero_volume_tensor(x_global_shape[0], device=P_x.device)
     if P_x.active:
@@ -140,16 +140,16 @@ def test_channel_conv2d_adjoint_weight(barrier_fence_fixture,
     P_x_base = P_world.create_partition_inclusive(P_x_ranks)
     P_x = P_x_base.create_cartesian_topology_partition(P_x_shape)
 
-
     x_global_shape = np.asarray(x_global_shape)
 
     layer = DistributedChannelAllGatherConv2d(P_x,
-        x_global_shape[1],
-        y_global_shape[1],
-        kernel_size=3,
-        padding=1,
-        device=P_x.device,
-        bias=False).to(P_world.device)
+                                              x_global_shape[1],
+                                              y_global_shape[1],
+                                              kernel_size=3,
+                                              padding=1,
+                                              device=P_x.device,
+                                              bias=False
+                                              ).to(P_world.device)
 
     x = zero_volume_tensor(x_global_shape[0], device=P_world.device)
     if P_x.active:
@@ -180,7 +180,6 @@ def test_channel_conv2d_adjoint_weight(barrier_fence_fixture,
     P_world.deactivate()
     P_x_base.deactivate()
     P_x.deactivate()
-
 
 
 # For example of indirect, see https://stackoverflow.com/a/28570677
@@ -218,16 +217,16 @@ def test_channel_conv2d_adjoint_bias(barrier_fence_fixture,
     P_x_base = P_world.create_partition_inclusive(P_x_ranks)
     P_x = P_x_base.create_cartesian_topology_partition(P_x_shape)
 
-
     x_global_shape = np.asarray(x_global_shape)
 
     layer = DistributedChannelAllGatherConv2d(P_x,
-        x_global_shape[1],
-        y_global_shape[1],
-        kernel_size=3,
-        padding=1,
-        device=P_x.device,
-        bias=True).to(P_world.device)
+                                              x_global_shape[1],
+                                              y_global_shape[1],
+                                              kernel_size=3,
+                                              padding=1,
+                                              device=P_x.device,
+                                              bias=True
+                                              ).to(P_world.device)
     layer.weight.data.fill_(0)
 
     x = zero_volume_tensor(x_global_shape[0], device=P_world.device)
