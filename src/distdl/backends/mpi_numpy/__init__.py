@@ -10,6 +10,6 @@ from . import functional  # noqa: F401
 from .buffer_numpy import MPIExpandableNumpyBuffer as ExpandableBuffer  # noqa: F401
 from .buffer_numpy import MPINumpyBufferManager as BufferManager  # noqa: F401
 from .device import get_device  # noqa: F401
-from .device import set_device
+from .device import set_device  # noqa: F401
 
 __name__ = 'mpi_numpy'

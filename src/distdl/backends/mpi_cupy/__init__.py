@@ -10,6 +10,6 @@ from . import functional  # noqa: F401
 from .buffer_cupy import MPICupyBufferManager as BufferManager  # noqa: F401
 from .buffer_cupy import MPIExpandableCupyBuffer as ExpandableBuffer  # noqa: F401
 from .device import get_device  # noqa: F401
-from .device import set_device
+from .device import set_device  # noqa: F401
 
 __name__ = 'mpi_cupy'
