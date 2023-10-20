@@ -1,17 +1,14 @@
-import numpy as np
-import torch, math
+import torch
+import math
 
 from distdl.backends.common.tensor_comm import assemble_global_tensor_structure
 from distdl.nn.module import Module
 from distdl.nn.all_gather import AllGather
 from distdl.utilities.slicing import compute_subshape
-from distdl.utilities.torch import TensorStructure
-from distdl.utilities.slicing import worker_layout
 from distdl.nn.repartition import Repartition
-from distdl.nn.broadcast import Broadcast
 from distdl.utilities.torch import zero_volume_tensor
 import distdl.nn.init as init
-from einops import rearrange
+
 
 class DistributedExpertAllGather(Module):
     r"""A distributed linear for mixture of experts (MoE) with column parallelism.
@@ -57,7 +54,7 @@ class DistributedExpertAllGather(Module):
     """
 
     def __init__(self, P_x, num_experts, in_features, out_features, bias=True, device=None, dtype=None,
-        P_weight=None, collect_state=False, scale_backward=None):
+                 P_weight=None, collect_state=False, scale_backward=None):
 
         super(DistributedExpertAllGather, self).__init__()
 
@@ -67,7 +64,8 @@ class DistributedExpertAllGather(Module):
         else:
             assert P_x.shape[-2] == 1 or P_x.shape[-1] == 1
 
-        if device is None: device = P_x.device
+        if device is None:
+            device = P_x.device
         factory_kwargs = {'device': device, 'dtype': dtype}
 
         self.in_features = in_features
@@ -102,10 +100,10 @@ class DistributedExpertAllGather(Module):
             weight_shape = [1] * P_x.dim
             num_experts_local = compute_subshape(P_weight.shape[0],
                                                  P_weight.index[0],
-                                                [num_experts])[0]
+                                                 [num_experts])[0]
             out_features_local = compute_subshape(P_weight.shape[-2],
                                                   P_weight.index[-2],
-                                                 [out_features])[0]
+                                                  [out_features])[0]
             weight_shape[0] = num_experts_local
             weight_shape[-2] = out_features_local
             weight_shape[-1] = in_features
@@ -124,7 +122,7 @@ class DistributedExpertAllGather(Module):
         elif self.use_bias:
             self.register_buffer('bias', zero_volume_tensor(device=device, requires_grad=True))
         else:
-           self.register_parameter('bias', None)
+            self.register_parameter('bias', None)
 
         # Initialize parameters
         self.reset_parameters()
@@ -229,12 +227,12 @@ class DistributedExpertAllGather(Module):
         """
 
         if not self.P_x.active:
-            return input#.clone()
+            return input
 
         # All-gather input
         input = self.all_gather(input)
 
-         # Affine/linear transform
+        # Affine/linear transform
         if self.bias is not None:
             bias = self.bias.view(self.bias.shape[0], 1, self.bias.shape[-2])
             y = torch.einsum('ecm,enm->ecn', input, self.weight) + bias

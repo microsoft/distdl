@@ -108,10 +108,10 @@ class AllGather(Module):
             self.input_tensor_structure = TensorStructure(input[0])
 
             self.output_tensor_structure = \
-            self._distdl_backend.assemble_global_tensor_structure_along_axis(self.input_tensor_structure,
-                                                                             self.P_x,
-                                                                             self.axes_all_gather
-                                                                             )
+                self._distdl_backend.assemble_global_tensor_structure_along_axis(self.input_tensor_structure,
+                                                                                 self.P_x,
+                                                                                 self.axes_all_gather
+                                                                                 )
 
         self._distdl_is_setup = True
         self._input_tensor_structure = TensorStructure(input[0])

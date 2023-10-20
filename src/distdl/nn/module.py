@@ -1,6 +1,6 @@
 import torch
-from distdl.backends import backend
 import distdl.backends
+
 
 class Module(torch.nn.Module):
     r"""A DistDL wrapper around PyTorch module containers.

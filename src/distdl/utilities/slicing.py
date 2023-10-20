@@ -27,7 +27,7 @@ def compute_subshape_along_axis(P_shape, index, shape, axis):
     subshape[axis] = shape[axis] // P_shape[axis]
     if index[axis] < shape[axis] % P_shape[axis]:
         subshape[axis] += 1
-    
+
     return subshape
 
 
@@ -239,7 +239,7 @@ def assemble_index_filter(index, dims, invert=False):
 
 def get_rearrange_ordering(num_dims, axis):
     r"""Returns the original and new orderings of a tensor for the einops.rearrange
-    function. The new ordering is equal to the original ordering, but moves the 
+    function. The new ordering is equal to the original ordering, but moves the
     dimension specified by axis to the front.
 
     Parameters
@@ -255,7 +255,7 @@ def get_rearrange_ordering(num_dims, axis):
     expanded_order : str
         The original ordering of the tensor with the partition dimension prepended.
     new_order : str
-        The new ordering of the tensor in which the partition dimension is merged 
+        The new ordering of the tensor in which the partition dimension is merged
         with the dimension specified by axis.
     """
 

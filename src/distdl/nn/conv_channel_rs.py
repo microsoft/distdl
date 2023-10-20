@@ -426,8 +426,8 @@ class DistributedChannelReduceScatterConv1d(_DistributedChannelReduceScatterConv
     def _conv_forward(self, input: Tensor, weight: Tensor, bias: Optional[Tensor]):
         if self.padding_mode != 'zeros':
             return torch.nn.functional.conv1d(torch.nn.functional.pad(input, self._reversed_padding_repeated_twice, mode=self.padding_mode),
-                                                                      weight, bias, self.stride, _single(0), self.dilation, self.groups
-                                                                      )
+                                              weight, bias, self.stride, _single(0), self.dilation, self.groups
+                                              )
         return torch.nn.functional.conv1d(input, weight, bias, self.stride,
                                           self.padding, self.dilation, self.groups
                                           )

@@ -1,17 +1,17 @@
 import numpy as np
-import torch, math
+import torch
+import math
 
 from distdl.backends.common.tensor_comm import assemble_global_tensor_structure
 from distdl.nn.module import Module
 from distdl.nn.reduce_scatter import ReduceScatter
 from distdl.utilities.slicing import compute_subshape
-from distdl.utilities.torch import TensorStructure
 from distdl.utilities.slicing import worker_layout
 from distdl.nn.repartition import Repartition
 from distdl.nn.broadcast import Broadcast
 from distdl.utilities.torch import zero_volume_tensor
 import distdl.nn.init as init
-from einops import rearrange
+
 
 class DistributedLinearReduceScatter(Module):
     r"""A distributed linear or affine layer with weight row parallelism.
@@ -66,8 +66,8 @@ class DistributedLinearReduceScatter(Module):
     """
 
     def __init__(self, P_x, in_features, out_features, bias=True, device=None, dtype=None,
-        P_y=None, P_weight=None, P_store_bias=None, P_apply_bias=None,
-        collect_state=False, scale_backward=None):
+                 P_y=None, P_weight=None, P_store_bias=None, P_apply_bias=None,
+                 collect_state=False, scale_backward=None):
 
         super(DistributedLinearReduceScatter, self).__init__()
 
@@ -89,7 +89,8 @@ class DistributedLinearReduceScatter(Module):
             assert P_y.shape[-1] == 1
             self.P_y = P_y
 
-        if device is None: device = P_x.device
+        if device is None:
+            device = P_x.device
         factory_kwargs = {'device': device, 'dtype': dtype}
 
         self.in_features = in_features
@@ -160,7 +161,7 @@ class DistributedLinearReduceScatter(Module):
             weight_shape = [1] * P_x.dim
             in_features_local = compute_subshape(P_weight.shape[-1],
                                                  P_weight.index[-1],
-                                                [in_features])[0]
+                                                 [in_features])[0]
             weight_shape[-1] = in_features_local
             weight_shape[-2] = out_features
 
@@ -176,9 +177,9 @@ class DistributedLinearReduceScatter(Module):
             self.bias = torch.nn.Parameter(torch.empty(tuple(bias_shape), **factory_kwargs))    # store bias
 
         elif self.use_bias and self.P_apply_bias.active:
-            self.register_buffer('bias', zero_volume_tensor(device=device, requires_grad=True)) # receive bias
+            self.register_buffer('bias', zero_volume_tensor(device=device, requires_grad=True))  # receive bias
         else:
-           self.register_parameter('bias', None)    # don't receive bias
+            self.register_parameter('bias', None)
 
         # Initialize parameters
         self.reset_parameters()
@@ -294,16 +295,16 @@ class DistributedLinearReduceScatter(Module):
         """
 
         if not self.P_x.active:
-            return input#.clone()
+            return input
 
         # Broadcast weights to everyone
         weight = self.broadcast_weight(self.weight).view(self.out_features, -1)
 
         # Broadcast bias
         if self.bias is not None:
-           bias = self.broadcast_bias(self.bias).view(self.out_features)
+            bias = self.broadcast_bias(self.bias).view(self.out_features)
         else:
-           bias = self.bias
+            bias = self.bias
 
         # Affine/linear transform
         y = torch.nn.functional.linear(input, weight, bias)

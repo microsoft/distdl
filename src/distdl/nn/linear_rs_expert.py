@@ -1,17 +1,16 @@
 import numpy as np
-import torch, math
+import torch
+import math
 
 from distdl.backends.common.tensor_comm import assemble_global_tensor_structure
 from distdl.nn.module import Module
 from distdl.nn.reduce_scatter import ReduceScatter
 from distdl.utilities.slicing import compute_subshape
-from distdl.utilities.torch import TensorStructure
 from distdl.utilities.slicing import worker_layout
 from distdl.nn.repartition import Repartition
-from distdl.nn.broadcast import Broadcast
 from distdl.utilities.torch import zero_volume_tensor
 import distdl.nn.init as init
-from einops import rearrange
+
 
 class DistributedExpertReduceScatter(Module):
     r"""A distributed linear for mixture of experts (MoE) with row parallelism.
@@ -57,7 +56,7 @@ class DistributedExpertReduceScatter(Module):
     """
 
     def __init__(self, P_x, num_experts, in_features, out_features, bias=True, device=None, dtype=None,
-        P_bias=None, collect_state=False, scale_backward=None):
+                 P_bias=None, collect_state=False, scale_backward=None):
 
         super(DistributedExpertReduceScatter, self).__init__()
 
@@ -68,7 +67,8 @@ class DistributedExpertReduceScatter(Module):
         else:
             assert P_x.shape[-2] == 1 or P_x.shape[-1] == 1
 
-        if device is None: device = P_x.device
+        if device is None:
+            device = P_x.device
         factory_kwargs = {'device': device, 'dtype': dtype}
 
         self.num_experts = num_experts
@@ -106,13 +106,13 @@ class DistributedExpertReduceScatter(Module):
             # Local shape of weights, which must have the same no. of dimensions as P_x
             weight_shape = [1] * P_x.dim
 
-            num_experts_local  = compute_subshape(P_x.shape[0],
-                                                  P_x.index[0],
+            num_experts_local = compute_subshape(P_x.shape[0],
+                                                 P_x.index[0],
                                                  [num_experts])[0]
 
             in_features_local = compute_subshape(P_x.shape[-1],
                                                  P_x.index[-1],
-                                                [in_features])[0]
+                                                 [in_features])[0]
 
             weight_shape[0] = num_experts_local
             weight_shape[-2] = out_features
@@ -130,7 +130,7 @@ class DistributedExpertReduceScatter(Module):
             bias_shape[-2] = out_features
             self.bias = torch.nn.Parameter(torch.empty(tuple(bias_shape), **factory_kwargs))    # store bias
         else:
-           self.register_parameter('bias', None)    # don't receive bias
+            self.register_parameter('bias', None)    # don't receive bias
 
         # Initialize parameters
         self.reset_parameters()
@@ -232,7 +232,7 @@ class DistributedExpertReduceScatter(Module):
         """
 
         if not self.P_x.active:
-            return input#.clone()
+            return input
 
         # Affine/linear transform
         if self.bias is not None:

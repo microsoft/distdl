@@ -137,5 +137,7 @@ try:
     }
     nccl_to_torch_dtype_dict = {value: key for (key, value) in torch_to_nccl_dtype_dict.items()}
 
-except:
+except ImportError:
+    cupy = None
+    nccl = None
     logger.warning("Cupy dtype conversion not supported.")
