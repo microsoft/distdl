@@ -7,9 +7,9 @@ from distdl.backends.mpi_cupy.functional.reduce_scatter import ReduceScatterFunc
 from distdl.backends.mpi_cupy.functional.all_gather import AllGatherFunction  # noqa: F401
 
 from . import all_sum_reduce    # noqa: F401
-from . import broadcast # noqa: F401
-from . import halo_exchange # noqa: F401
-from . import repartition   # noqa: F401
-from . import sum_reduce    # noqa: F401
-from . import reduce_scatter    # noqa: F401
-from . import all_gather    # noqa: F401
+from . import broadcast  # noqa: F401
+from . import halo_exchange  # noqa: F401
+from . import repartition  # noqa: F401
+from . import sum_reduce  # noqa: F401
+from . import reduce_scatter  # noqa: F401
+from . import all_gather  # noqa: F401

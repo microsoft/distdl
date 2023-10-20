@@ -1,14 +1,8 @@
 __all__ = ["AllSumReduceFunction"]
 
-import threading
-import time
-import cupy as cp
 import torch
-from mpi4py import MPI
-
 from distdl.utilities.torch import zero_volume_tensor
-
-# A better idea is to implement a progress engine for this purpose
+import numpy as np
 
 
 class AllSumReduceFunction(torch.autograd.Function):
@@ -122,12 +116,12 @@ class AllSumReduceFunction(torch.autograd.Function):
 
         # All-sum-reduce is self-adjoint
         if P_allreduce.active:
-            reduced_data = torch.zeros(input_tensor_structure.shape, dtype=input_tensor_structure.dtype, device=device  )
+            reduced_data = torch.zeros(input_tensor_structure.shape, dtype=input_tensor_structure.dtype, device=device)
             P_allreduce._nccl.all_reduce(grad_output.detach(), reduced_data, op='sum', stream=None)
 
         # If we had to receive data, we need to tensorify it.
         if P_allreduce.active:
-            grad_input =reduced_data
+            grad_input = reduced_data
             grad_input.requires_grad_(input_tensor_structure.requires_grad)
 
         return grad_input, None, None, None, None

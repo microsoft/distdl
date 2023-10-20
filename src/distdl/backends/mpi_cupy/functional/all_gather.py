@@ -1,7 +1,5 @@
 __all__ = ["AllGatherFunction"]
 
-import threading
-import time
 import cupy as cp
 import numpy as np
 import torch
@@ -231,7 +229,7 @@ class AllGatherFunction(torch.autograd.Function):
         # If we had to receive data, we need to tensorify it.
         if P_allgather.active:
             grad_input = torch.as_tensor(scattered_data, dtype=input_tensor_structure.dtype,
-                                     device=device)
+                                         device=device)
             grad_input.requires_grad_(input_tensor_structure.requires_grad)
 
             # If we're one of the workers having received zero-padded data, remove padding

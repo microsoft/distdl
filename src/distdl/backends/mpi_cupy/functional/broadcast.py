@@ -1,8 +1,8 @@
 __all__ = ["BroadcastFunction"]
 
 import threading
-import time
 import cupy as cp
+import numpy as np
 import torch
 from mpi4py import MPI
 
@@ -207,8 +207,6 @@ class BroadcastFunction(torch.autograd.Function):
             grad_input = zero_volume_tensor(grad_output.shape[0], device=device)
         else:
             grad_input = zero_volume_tensor(device=device)
-
-        requests = []
 
         # Creating the thread, not passed the args yet
         helper_thread = threading.Thread(target=reduce_function)

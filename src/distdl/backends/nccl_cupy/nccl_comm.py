@@ -81,16 +81,9 @@ import warnings
 
 import cupy
 from cupy.cuda import nccl
-from cupyx.distributed import _store
 from cupyx.distributed._comm import _Backend
 from cupyx.scipy import sparse
 from distdl.utilities.dtype import torch_to_nccl_dtype_dict
-
-try:
-    from mpi4py import MPI
-    _mpi_available = True
-except ImportError:
-    _mpi_available = False
 
 
 if nccl.available:
@@ -159,8 +152,6 @@ class NCCLBackend(_Backend):
         nccl_dtype = torch_to_nccl_dtype_dict[array.dtype]
         if count is None:
             count = numpy.prod(array.size())
-        #if dtype in 'FD':
-        #    return nccl_dtype, 2 * count
         return nccl_dtype, count
 
     def _get_stream(self, stream):
@@ -171,9 +162,6 @@ class NCCLBackend(_Backend):
     def _get_op(self, op, dtype):
         if op not in _nccl_ops:
             raise RuntimeError(f'Unknown op {op} for NCCL')
-        # if dtype in 'FD' and op != nccl.NCCL_SUM:
-        #     raise ValueError(
-        #         'Only nccl.SUM is supported for complex arrays')
         return _nccl_ops[op]
 
     def _dispatch_arg_type(self, function, args):

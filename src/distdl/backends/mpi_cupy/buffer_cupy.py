@@ -84,6 +84,7 @@ class MPIExpandableCupyBuffer(MPIExpandableBuffer):
 
         self.views = new_views
 
+
 class MPICupyBufferManager(MPIBufferManager):
     r"""NumPy (mpi4py compatible) implementation of an expandable buffer
     manager.

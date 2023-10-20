@@ -1,7 +1,5 @@
 __all__ = ["AllGatherFunction"]
 
-import threading
-import time
 import numpy as np
 import torch
 from mpi4py import MPI
@@ -237,7 +235,7 @@ class AllGatherFunction(torch.autograd.Function):
             input_dtype = torch_to_mpi_dtype_dict[input_tensor_structure.dtype]
             output_dtype = torch_to_mpi_dtype_dict[output_tensor_structure.dtype]
             req = P_allgather._comm.Ireduce_scatter((grad_output_flat, output_dtype),
-                (scattered_data, input_dtype), op=MPI.SUM)
+                                                    (scattered_data, input_dtype), op=MPI.SUM)
             requests.append(req)
 
         MPI.Request.Waitall(requests)
@@ -245,7 +243,7 @@ class AllGatherFunction(torch.autograd.Function):
         # If we had to receive data, we need to tensorify it.
         if P_allgather.active:
             grad_input = torch.as_tensor(scattered_data, dtype=input_tensor_structure.dtype,
-                                     device=device)
+                                         device=device)
             grad_input.requires_grad_(input_tensor_structure.requires_grad)
 
             # If we're one of the workers having received zero-padded data, remove padding

@@ -1,7 +1,5 @@
 __all__ = ["ReduceScatterFunction"]
 
-import threading
-import time
 import cupy as cp
 import numpy as np
 import torch

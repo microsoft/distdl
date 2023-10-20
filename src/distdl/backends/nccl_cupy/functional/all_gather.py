@@ -1,11 +1,7 @@
 __all__ = ["AllGatherFunction"]
 
-import threading
-import time
-import cupy as cp
 import numpy as np
 import torch
-from mpi4py import MPI
 from einops import rearrange
 
 from distdl.utilities.torch import zero_volume_tensor, distdl_padding_to_torch_padding
@@ -34,7 +30,7 @@ class AllGatherFunction(torch.autograd.Function):
 
     @staticmethod
     def forward(ctx, input, P_allgather, input_tensor_structure, output_tensor_structure,
-        axes, scale_backward):
+                axes, scale_backward):
         r"""Forward function of distributed all-gather layer.
 
         This method implements the forward all-gather operation using the
@@ -101,8 +97,9 @@ class AllGatherFunction(torch.autograd.Function):
                 output_tensor_shape = torch.Size(output_shape)
 
             # Allocate flattened output array
-            gathered_data = torch.zeros(np.prod(output_tensor_shape), 
-                dtype=output_tensor_structure.dtype, device=device)
+            gathered_data = torch.zeros(np.prod(output_tensor_shape),
+                                        dtype=output_tensor_structure.dtype,
+                                        device=device)
 
             # All-gather (Conversion from torch cuda tensor to cupy array is via pointers. No mem copy.)
             count = np.prod(input.shape).item()

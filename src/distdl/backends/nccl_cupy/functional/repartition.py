@@ -5,7 +5,6 @@ import numpy as np
 import torch
 from mpi4py import MPI
 
-from distdl.utilities.dtype import torch_to_cupy_dtype_dict
 from distdl.utilities.torch import zero_volume_tensor
 
 
@@ -173,7 +172,7 @@ class RepartitionFunction(torch.autograd.Function):
         # allocations.
         if P_y.active:
             output = torch.zeros(*y_local_structure.shape, dtype=x_global_structure.dtype,
-                device=P_y.device)
+                                 device=P_y.device)
 
         # Handle the self-copy
         if P_x.active and P_y.active:
@@ -308,7 +307,7 @@ class RepartitionFunction(torch.autograd.Function):
 
         if P_x.active:
             grad_input = torch.zeros(*x_local_structure.shape, dtype=x_global_structure.dtype,
-                device=P_y.device)
+                                     device=P_y.device)
 
         # Handle the self-copy
         if P_y.active and P_x.active:
