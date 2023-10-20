@@ -253,18 +253,18 @@ class DistributedLinearAllGather(Module):
     def qkv_weight_to_serial(self, weight):
         if self.num_heads_kv is None:
             head_size = weight.shape[-2] // self.num_vars // self.num_heads
-            num_gpu = self.P_weight.shape[-2]
+            num_gpu = self.P_store_weight.shape[-2]
             weight = rearrange(self._squeeze_weight(weight), "(p v h) n -> (v p h) n",
                                p=num_gpu, v=self.num_vars, h=self.num_heads//num_gpu*head_size
                                )
             return self._unsqueeze_weight(weight)
         else:
             head_size = weight.shape[-2] // (self.num_heads_kv * 2 + self.num_heads)
-            num_heads_local = compute_subshape(self.P_weight.shape[-2], self.P_weight.index[-2], [self.num_heads])[0]
-            num_heads_kv_local = compute_subshape(self.P_weight.shape[-2], self.P_weight.index[-2], [self.num_heads_kv])[0]
+            num_heads_local = compute_subshape(self.P_store_weight.shape[-2], self.P_store_weight.index[-2], [self.num_heads])[0]
+            num_heads_kv_local = compute_subshape(self.P_store_weight.shape[-2], self.P_store_weight.index[-2], [self.num_heads_kv])[0]
             q_size_local = head_size * num_heads_local
             kv_size_local = head_size * num_heads_kv_local * 2
-            num_gpu = self.P_weight.shape[-2]
+            num_gpu = self.P_store_weight.shape[-2]
 
             # Split into Q and KV components
             weight = rearrange(self._squeeze_weight(weight), "(p m) n -> p m n",
@@ -285,16 +285,16 @@ class DistributedLinearAllGather(Module):
     def qkv_weight_to_parallel(self, weight):
         if self.num_heads_kv is None:
             head_size = weight.shape[-2] // self.num_vars // self.num_heads
-            num_gpu = self.P_weight.shape[-2]
+            num_gpu = self.P_store_weight.shape[-2]
             weight = rearrange(self._squeeze_weight(weight), "(v p h) n -> (p v h) n",
                                p=num_gpu, v=self.num_vars, h=self.num_heads//num_gpu*head_size)
             return self._unsqueeze_weight(weight)
         else:
             head_size = weight.shape[-2] // (self.num_heads_kv * 2 + self.num_heads)
-            num_heads_local = compute_subshape(self.P_weight.shape[-2], self.P_weight.index[-2], [self.num_heads])[0]
-            num_heads_kv_local = compute_subshape(self.P_weight.shape[-2], self.P_weight.index[-2], [self.num_heads_kv])[0]
+            num_heads_local = compute_subshape(self.P_store_weight.shape[-2], self.P_store_weight.index[-2], [self.num_heads])[0]
+            num_heads_kv_local = compute_subshape(self.P_store_weight.shape[-2], self.P_store_weight.index[-2], [self.num_heads_kv])[0]
             q_size = head_size * self.num_heads
-            num_gpu = self.P_weight.shape[-2]
+            num_gpu = self.P_store_weight.shape[-2]
 
             # Split into Q and KV components
             q_weight = self._squeeze_weight(weight)[:q_size, :]
