@@ -68,7 +68,7 @@ def set_backend(backend_comm=None, backend_array=None, check_input_changed=None)
     backend_config = '_'.join([backend_comm, backend_array])
 
     if backend_config in distdl.backends.supported_backends and \
-                      distdl.backends.supported_backends[backend_config] is not None:
+                         distdl.backends.supported_backends[backend_config] is not None:
         distdl.backends.backend = distdl.backends.supported_backends[backend_config]
     else:
         logger.warning("Selected backend not supported. Default to mpi-numpy.")
