@@ -1,11 +1,11 @@
 import torch
 
+import distdl.nn.init as init
+from distdl.nn.all_gather import AllGather
+from distdl.nn.module import Module
+from distdl.nn.repartition import Repartition
 from distdl.utilities.slicing import compute_subshape
 from distdl.utilities.torch import zero_volume_tensor
-from distdl.nn.module import Module
-from distdl.nn.all_gather import AllGather
-from distdl.nn.repartition import Repartition
-import distdl.nn.init as init
 
 
 class DistributedEmbeddingZero(Module):

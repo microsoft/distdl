@@ -1,13 +1,14 @@
-import torch
 import math
 
-from distdl.backends.common.tensor_comm import assemble_global_tensor_structure
-from distdl.nn.module import Module
-from distdl.nn.all_gather import AllGather
-from distdl.utilities.slicing import compute_subshape
-from distdl.nn.repartition import Repartition
-from distdl.utilities.torch import zero_volume_tensor
+import torch
+
 import distdl.nn.init as init
+from distdl.backends.common.tensor_comm import assemble_global_tensor_structure
+from distdl.nn.all_gather import AllGather
+from distdl.nn.module import Module
+from distdl.nn.repartition import Repartition
+from distdl.utilities.slicing import compute_subshape
+from distdl.utilities.torch import zero_volume_tensor
 
 
 class DistributedExpertAllGather(Module):

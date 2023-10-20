@@ -1,6 +1,7 @@
 import numpy as np
 from mpi4py import MPI
 
+from distdl import backends
 from distdl.backends.common.compare import check_identical_comm
 from distdl.backends.common.compare import check_identical_group
 from distdl.backends.common.compare import check_null_comm
@@ -13,7 +14,6 @@ from distdl.utilities.index_tricks import cartesian_index_c
 from distdl.utilities.index_tricks import cartesian_index_f
 from distdl.utilities.slicing import assemble_index_filter
 from distdl.utilities.slicing import filtered_range_index
-from distdl import backends
 
 
 class MPIPartition:

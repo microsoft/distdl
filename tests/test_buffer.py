@@ -10,6 +10,7 @@ def test_buffer_expansion(barrier_fence_fixture,
                           comm_split_fixture):
 
     import numpy as np
+
     from distdl.backends import backend
     from distdl.config import set_backend
 
@@ -89,6 +90,7 @@ def test_buffer_management(barrier_fence_fixture,
                            comm_split_fixture):
 
     import numpy as np
+
     from distdl.backends import backend
     from distdl.config import set_backend
 
@@ -133,8 +135,8 @@ def test_buffer_management_transpose_network(barrier_fence_fixture,
     import distdl
     from distdl.backends import backend
     from distdl.backends.common.partition import MPIPartition
-    from distdl.utilities.torch import zero_volume_tensor
     from distdl.config import set_backend
+    from distdl.utilities.torch import zero_volume_tensor
 
     set_backend(backend_comm=BACKEND_COMM, backend_array=BACKEND_ARRAY)
 
@@ -230,8 +232,8 @@ def test_buffer_management_conv2d_network(barrier_fence_fixture,
     import distdl
     from distdl.backends import backend
     from distdl.backends.common.partition import MPIPartition
-    from distdl.utilities.torch import zero_volume_tensor
     from distdl.config import set_backend
+    from distdl.utilities.torch import zero_volume_tensor
 
     set_backend(backend_comm=BACKEND_COMM, backend_array=BACKEND_ARRAY)
 
@@ -350,8 +352,8 @@ def test_buffer_management_mixed_network(barrier_fence_fixture,
     import distdl
     from distdl.backends import backend
     from distdl.backends.common.partition import MPIPartition
-    from distdl.utilities.torch import zero_volume_tensor
     from distdl.config import set_backend
+    from distdl.utilities.torch import zero_volume_tensor
 
     set_backend(backend_comm=BACKEND_COMM, backend_array=BACKEND_ARRAY)
 

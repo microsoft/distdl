@@ -1,13 +1,13 @@
 import numpy as np
 import torch
 from mpi4py import MPI
-from distdl.config import set_backend
 
 from distdl.backends.common.partition import MPIPartition
+from distdl.config import set_backend
 from distdl.nn.linear_ag_expert import DistributedExpertAllGather
 from distdl.nn.linear_rs_expert import DistributedExpertReduceScatter
-from distdl.utilities.torch import zero_volume_tensor
 from distdl.nn.repartition import Repartition
+from distdl.utilities.torch import zero_volume_tensor
 
 # Set backend
 set_backend(backend_comm="mpi", backend_array="numpy")

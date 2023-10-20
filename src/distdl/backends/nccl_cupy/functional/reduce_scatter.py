@@ -4,8 +4,9 @@ import numpy as np
 import torch
 from einops import rearrange
 
-from distdl.utilities.torch import zero_volume_tensor, distdl_padding_to_torch_padding
 from distdl.utilities.slicing import get_rearrange_ordering
+from distdl.utilities.torch import distdl_padding_to_torch_padding
+from distdl.utilities.torch import zero_volume_tensor
 
 
 class ReduceScatterFunction(torch.autograd.Function):

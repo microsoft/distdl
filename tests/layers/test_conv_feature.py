@@ -276,12 +276,12 @@ def test_conv_versus_pytorch(barrier_fence_fixture,
     from torch.nn import Conv3d
 
     from distdl.backends.common.partition import MPIPartition
+    from distdl.config import set_backend
     from distdl.nn.conv_feature import DistributedFeatureConv1d
     from distdl.nn.conv_feature import DistributedFeatureConv2d
     from distdl.nn.conv_feature import DistributedFeatureConv3d
     from distdl.nn.repartition import Repartition
     from distdl.utilities.torch import zero_volume_tensor
-    from distdl.config import set_backend
 
     set_backend(backend_comm=BACKEND_COMM, backend_array=BACKEND_ARRAY)
 

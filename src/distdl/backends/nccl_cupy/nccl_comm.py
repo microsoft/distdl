@@ -76,15 +76,15 @@
 #
 
 
-import numpy
 import warnings
 
 import cupy
+import numpy
 from cupy.cuda import nccl
 from cupyx.distributed._comm import _Backend
 from cupyx.scipy import sparse
-from distdl.utilities.dtype import torch_to_nccl_dtype_dict
 
+from distdl.utilities.dtype import torch_to_nccl_dtype_dict
 
 if nccl.available:
     # types are not compliant with windows on long/int32 issue

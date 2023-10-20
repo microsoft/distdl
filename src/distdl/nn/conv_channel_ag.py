@@ -1,21 +1,29 @@
-import torch
 import math
-import einops
-from typing import Optional, List, Tuple, Union
+from typing import List
+from typing import Optional
+from typing import Tuple
+from typing import Union
 
+import einops
+import torch
 from torch import Tensor
-from torch.nn.modules.utils import _single, _pair, _triple, _reverse_repeat_tuple
-from torch.nn.common_types import _size_1_t, _size_2_t, _size_3_t
+from torch.nn.common_types import _size_1_t
+from torch.nn.common_types import _size_2_t
+from torch.nn.common_types import _size_3_t
+from torch.nn.modules.utils import _pair
+from torch.nn.modules.utils import _reverse_repeat_tuple
+from torch.nn.modules.utils import _single
+from torch.nn.modules.utils import _triple
 
 import distdl.nn.init as init
-from distdl.nn.module import Module
+from distdl.backends.common.partition import MPIPartition
+from distdl.backends.common.tensor_comm import assemble_global_tensor_structure
 from distdl.nn.all_gather import AllGather
 from distdl.nn.broadcast import Broadcast
+from distdl.nn.module import Module
 from distdl.nn.repartition import Repartition
 from distdl.utilities.slicing import compute_subshape
 from distdl.utilities.slicing import worker_layout
-from distdl.backends.common.partition import MPIPartition
-from distdl.backends.common.tensor_comm import assemble_global_tensor_structure
 from distdl.utilities.torch import zero_volume_tensor
 
 # -----------------------Extended From Pytorch -------------------------------

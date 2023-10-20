@@ -1,17 +1,18 @@
-import numpy as np
-import torch
 import math
 
+import numpy as np
+import torch
+from einops import rearrange
+
+import distdl.nn.init as init
 from distdl.backends.common.tensor_comm import assemble_global_tensor_structure
-from distdl.nn.module import Module
 from distdl.nn.all_gather import AllGather
+from distdl.nn.module import Module
 from distdl.nn.reduce_scatter import ReduceScatter
+from distdl.nn.repartition import Repartition
 from distdl.utilities.slicing import compute_subshape
 from distdl.utilities.slicing import worker_layout
-from distdl.nn.repartition import Repartition
 from distdl.utilities.torch import zero_volume_tensor
-import distdl.nn.init as init
-from einops import rearrange
 
 
 # Custom forward/backward functions

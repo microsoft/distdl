@@ -1,6 +1,6 @@
+import numpy as np
 import pytest
 from adjoint_test import check_adjoint_test_tight
-import numpy as np
 
 BACKEND_COMM = "mpi"
 BACKEND_ARRAY = "numpy"
@@ -97,11 +97,12 @@ def test_all_sum_reduce_adjoint(barrier_fence_fixture,
                                 axes_gather):
 
     import torch
+
+    import distdl.utilities.slicing as slicing
     from distdl.backends.common.partition import MPIPartition
     from distdl.config import set_backend
     from distdl.nn.all_gather import AllGather
     from distdl.utilities.torch import zero_volume_tensor
-    import distdl.utilities.slicing as slicing
 
     set_backend(backend_comm=BACKEND_COMM, backend_array=BACKEND_ARRAY)
 

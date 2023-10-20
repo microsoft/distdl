@@ -1,7 +1,7 @@
 __all__ = ["SumReduceFunction"]
 
-import torch
 import numpy as np
+import torch
 from mpi4py import MPI
 
 from distdl.utilities.torch import zero_volume_tensor

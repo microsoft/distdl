@@ -1,6 +1,7 @@
 import numpy as np
-from distdl.utilities.slicing import compute_nd_slice_shape
+
 from distdl.backends.common.convert import convert_torch_to_model_dtype
+from distdl.utilities.slicing import compute_nd_slice_shape
 
 
 def allocate_repartition_buffers(buffer_manager, P_x_to_y_overlaps, P_y_to_x_overlaps, dtype):

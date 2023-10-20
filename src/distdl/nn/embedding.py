@@ -1,12 +1,12 @@
 import torch
 
+import distdl.nn.init as init
+from distdl.nn.broadcast import Broadcast
+from distdl.nn.module import Module
+from distdl.nn.repartition import Repartition
 from distdl.utilities.slicing import compute_subshape
 from distdl.utilities.slicing import worker_layout
 from distdl.utilities.torch import zero_volume_tensor
-from distdl.nn.module import Module
-from distdl.nn.broadcast import Broadcast
-from distdl.nn.repartition import Repartition
-import distdl.nn.init as init
 
 
 class DistributedEmbedding(Module):

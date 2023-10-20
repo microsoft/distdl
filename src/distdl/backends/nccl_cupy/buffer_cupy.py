@@ -1,8 +1,10 @@
 import numpy as np
 import torch
 
-from ..common.buffer import MPIBufferManager, MPIExpandableBuffer
 from distdl import backends
+
+from ..common.buffer import MPIBufferManager
+from ..common.buffer import MPIExpandableBuffer
 
 
 class MPIExpandableCupyBuffer(MPIExpandableBuffer):

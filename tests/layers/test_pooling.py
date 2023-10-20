@@ -228,9 +228,9 @@ def test_matches_sequential(barrier_fence_fixture,
     import torch
 
     from distdl.backends.common.partition import MPIPartition
+    from distdl.config import set_backend
     from distdl.nn.repartition import Repartition
     from distdl.utilities.torch import zero_volume_tensor
-    from distdl.config import set_backend
 
     set_backend(backend_comm=BACKEND_COMM, backend_array=BACKEND_ARRAY)
 

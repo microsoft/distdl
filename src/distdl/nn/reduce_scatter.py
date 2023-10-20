@@ -1,6 +1,6 @@
 from distdl.nn.module import Module
-from distdl.utilities.torch import TensorStructure
 from distdl.utilities.slicing import compute_subshape_along_axis
+from distdl.utilities.torch import TensorStructure
 
 
 class ReduceScatter(Module):

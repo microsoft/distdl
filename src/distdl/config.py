@@ -1,6 +1,7 @@
 import os
-import distdl.logger as logger
+
 import distdl.backends
+import distdl.logger as logger
 from distdl.backends import supported_backends
 
 # Environment variable names

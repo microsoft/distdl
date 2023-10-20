@@ -1,6 +1,6 @@
+import distdl.backends as backends
 import distdl.logger as logger
 import distdl.utilities.dtype as dtype_utils
-import distdl.backends as backends
 
 
 def convert_torch_to_model_dtype(dtype):

@@ -2,9 +2,9 @@ import numpy as np
 import pytest
 import torch
 
-from distdl.utilities.torch import zero_volume_tensor
-from distdl.nn.repartition import Repartition
 from distdl.nn.layernorm_zero import DistributedLayerNormZero
+from distdl.nn.repartition import Repartition
+from distdl.utilities.torch import zero_volume_tensor
 
 ERROR_THRESHOLD = 1e-4
 BACKEND_COMM = "mpi"

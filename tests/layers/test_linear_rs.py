@@ -196,9 +196,9 @@ def test_linear_adjoint_input(barrier_fence_fixture,
     import torch
 
     from distdl.backends.common.partition import MPIPartition
+    from distdl.config import set_backend
     from distdl.utilities.slicing import compute_subshape
     from distdl.utilities.torch import zero_volume_tensor
-    from distdl.config import set_backend
 
     if use_zero:
         from distdl.nn.linear_rs_zero import DistributedLinearReduceScatterZero as Linear
@@ -274,9 +274,9 @@ def test_linear_adjoint_weight(barrier_fence_fixture,
     import torch
 
     from distdl.backends.common.partition import MPIPartition
+    from distdl.config import set_backend
     from distdl.utilities.slicing import compute_subshape
     from distdl.utilities.torch import zero_volume_tensor
-    from distdl.config import set_backend
 
     if use_zero:
         from distdl.nn.linear_rs_zero import DistributedLinearReduceScatterZero as Linear
@@ -355,9 +355,9 @@ def test_linear_adjoint_bias(barrier_fence_fixture,
     import torch
 
     from distdl.backends.common.partition import MPIPartition
+    from distdl.config import set_backend
     from distdl.utilities.slicing import compute_subshape
     from distdl.utilities.torch import zero_volume_tensor
-    from distdl.config import set_backend
 
     if use_zero:
         from distdl.nn.linear_rs_zero import DistributedLinearReduceScatterZero as Linear

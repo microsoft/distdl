@@ -1,5 +1,7 @@
+from abc import ABC
+from abc import abstractmethod
+
 import numpy as np
-from abc import ABC, abstractmethod
 
 
 class MPIExpandableBuffer(ABC):

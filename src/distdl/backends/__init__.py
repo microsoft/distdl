@@ -1,7 +1,7 @@
-from . import common  # noqa: F401
-from .. import logger
 import importlib
 
+from .. import logger
+from . import common  # noqa: F401
 
 # Supported distdl backends
 supported_backends = {

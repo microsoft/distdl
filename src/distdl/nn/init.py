@@ -6,8 +6,9 @@
 import math
 import warnings
 
-from torch import Tensor
 import torch
+from torch import Tensor
+
 from distdl.backends.common.tensor_comm import assemble_global_tensor_structure
 
 

@@ -1,6 +1,6 @@
+import numpy as np
 import pytest
 from adjoint_test import check_adjoint_test_tight
-import numpy as np
 
 BACKEND_COMM = "mpi"
 BACKEND_ARRAY = "numpy"

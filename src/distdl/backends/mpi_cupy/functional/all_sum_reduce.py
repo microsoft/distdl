@@ -1,9 +1,9 @@
 __all__ = ["AllSumReduceFunction"]
 
 import cupy as cp
+import numpy as np
 import torch
 from mpi4py import MPI
-import numpy as np
 
 from distdl.utilities.dtype import torch_to_cupy_dtype_dict
 from distdl.utilities.torch import zero_volume_tensor

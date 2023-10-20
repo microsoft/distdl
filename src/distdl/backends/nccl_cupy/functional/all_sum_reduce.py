@@ -1,8 +1,9 @@
 __all__ = ["AllSumReduceFunction"]
 
-import torch
-from distdl.utilities.torch import zero_volume_tensor
 import numpy as np
+import torch
+
+from distdl.utilities.torch import zero_volume_tensor
 
 
 class AllSumReduceFunction(torch.autograd.Function):

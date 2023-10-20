@@ -1,14 +1,15 @@
-import torch
 import numbers
 
+import numpy as np
+import torch
+
+from distdl.nn.all_gather import AllGather
+from distdl.nn.all_sum_reduce import AllSumReduce
+from distdl.nn.module import Module
+from distdl.nn.repartition import Repartition
 from distdl.utilities.slicing import compute_subshape
 from distdl.utilities.slicing import worker_layout
 from distdl.utilities.torch import zero_volume_tensor
-from distdl.nn.module import Module
-from distdl.nn.all_sum_reduce import AllSumReduce
-from distdl.nn.all_gather import AllGather
-from distdl.nn.repartition import Repartition
-import numpy as np
 
 
 class DistributedLayerNormZero(Module):

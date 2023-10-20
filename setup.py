@@ -7,6 +7,7 @@ import io
 import os
 import platform
 import re
+import subprocess
 from glob import glob
 from os.path import basename
 from os.path import dirname
@@ -18,7 +19,6 @@ from setuptools import Extension
 from setuptools import find_packages
 from setuptools import setup
 from torch.utils import cpp_extension
-import subprocess
 
 
 def read(*names, **kwargs):

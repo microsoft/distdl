@@ -1,10 +1,10 @@
 import numpy as np
 import torch
 from mpi4py import MPI
-from distdl.config import set_backend
 
 import distdl.utilities.slicing as slicing
 from distdl.backends.common.partition import MPIPartition
+from distdl.config import set_backend
 from distdl.nn.conv_channel_ag import DistributedChannelAllGatherConv2d
 from distdl.nn.conv_channel_rs import DistributedChannelReduceScatterConv2d
 from distdl.utilities.torch import zero_volume_tensor
