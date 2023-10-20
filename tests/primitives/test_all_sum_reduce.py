@@ -1,8 +1,6 @@
-import os, sys, pytest
-sys.path.insert(1, os.path.join(sys.path[0], '..'))
-
-from adjoint_test import check_adjoint_test_tight
 import numpy as np
+import pytest
+from adjoint_test import check_adjoint_test_tight
 
 BACKEND_COMM = "mpi"
 BACKEND_ARRAY = "numpy"
@@ -154,7 +152,6 @@ def test_all_sum_reduce_adjoint(barrier_fence_fixture,
         x = 10*torch.ones(*x_local_shape, device=P_x.device)
     x.requires_grad = True
 
-    print('P_x.shape: ', P_x.shape)
     dy = zero_volume_tensor(device=P_x.device)
     if P_x.active:
         # Adjoint Input
@@ -177,8 +174,8 @@ def test_all_sum_reduce_adjoint(barrier_fence_fixture,
         if k in axes_reduce:
             reduced_entry_value *= P_x_shape[k]
 
-    assert(torch.all(y == 10*reduced_entry_value))
-    assert(torch.all(dx == 0.1*reduced_entry_value))
+    assert torch.all(y == 10*reduced_entry_value)
+    assert torch.all(dx == 0.1*reduced_entry_value)
 
     check_adjoint_test_tight(P_world, x, dx, y, dy)
 

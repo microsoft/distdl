@@ -239,7 +239,7 @@ class Repartition(Module):
                     # Otherwise, reverse the mapping to get the output
                     # partner's rank in the common partition.
                     else:
-                        # ToDO: The same question as cupy.all() - done 
+                        # ToDO: The same question as cupy.all() - done
                         partner = np.where(self.P_y_ranks == rank)[0][0]
 
                     # ToDO: We don't have ndarray.append in cupy, instead we have cupy.append,
@@ -276,7 +276,7 @@ class Repartition(Module):
                     # Otherwise, reverse the mapping to get the output
                     # partner's rank in the common partition.
                     else:
-                        # ToDO: same as before - done 
+                        # ToDO: same as before - done
                         partner = np.where(self.P_x_ranks == rank)[0][0]
 
                     self.P_y_to_x_overlaps.append((sl, sh, partner))
@@ -351,7 +351,7 @@ class Repartition(Module):
         # If this worker is not active for the input or output, then the input
         # should be a zero-volume tensor, and the output should be the same.
         if not (self.P_x.active or self.P_y.active):
-            return input#.clone()
+            return input
 
         return Function.apply(input,
                               self.P_union,

@@ -142,9 +142,9 @@ class DistributedChannelConvBase(Module, ConvMixin):
         # broadcasts.
         P_x_new_shape = []
         if self.P_x.active:
-            if(np.any(P_x.shape[2:] != P_w_shape[2:])):
+            if np.any(P_x.shape[2:] != P_w_shape[2:]):
                 raise ValueError("Spatial components of P_x and P_w must match.")
-            if(np.any(P_x.shape[2:] != np.ones(len(P_x.shape[2:])))):
+            if np.any(P_x.shape[2:] != np.ones(len(P_x.shape[2:]))):
                 raise ValueError("Spatial components of P_x must be 1 x ... x 1.")
             if P_w_shape[1] != P_x.shape[1]:
                 raise ValueError("Index 2 of P_w dimension must match input channel partition.")
@@ -164,9 +164,9 @@ class DistributedChannelConvBase(Module, ConvMixin):
         # broadcasts.
         P_y_new_shape = []
         if self.P_y.active:
-            if(np.any(P_y.shape[2:] != P_w_shape[2:])):
+            if np.any(P_y.shape[2:] != P_w_shape[2:]):
                 raise ValueError("Spatial components of P_y and P_w must match.")
-            if(np.any(P_y.shape[2:] != np.ones(len(P_y.shape[2:])))):
+            if np.any(P_y.shape[2:] != np.ones(len(P_y.shape[2:]))):
                 raise ValueError("Spatial components of P_y must be 1 x ... x 1.")
             if P_w_shape[0] != P_y.shape[1]:
                 raise ValueError("Index 1 of P_w dimension must match output channel partition.")
@@ -335,7 +335,7 @@ class DistributedChannelConvBase(Module, ConvMixin):
         if not (self.P_x.active or
                 self.P_y.active or
                 self.P_w.active):
-            return input#.clone()
+            return input
 
         if self.serial:
             return self.conv_layer(input)

@@ -191,7 +191,7 @@ class RepartitionFunction(torch.autograd.Function):
 
         # Unpack the received data as it arrives
         completed_count = 0
-        while(completed_count < len(requests)):
+        while completed_count < len(requests):
             status = MPI.Status()
             index = MPI.Request.Waitany(requests, status)
 
@@ -331,7 +331,7 @@ class RepartitionFunction(torch.autograd.Function):
 
         # Unpack the received data as it arrives
         completed_count = 0
-        while(completed_count < len(requests)):
+        while completed_count < len(requests):
             status = MPI.Status()
             index = MPI.Request.Waitany(requests, status)
 

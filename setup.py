@@ -7,6 +7,7 @@ import io
 import os
 import platform
 import re
+import subprocess
 from glob import glob
 from os.path import basename
 from os.path import dirname
@@ -19,8 +20,6 @@ from setuptools import find_packages
 from setuptools import setup
 from torch.utils import cpp_extension
 
-import multiprocessing
-import subprocess
 
 def read(*names, **kwargs):
     with io.open(
@@ -28,6 +27,7 @@ def read(*names, **kwargs):
         encoding=kwargs.get('encoding', 'utf8')
     ) as fh:
         return fh.read()
+
 
 # Check if we have GPUs available w/o using torch.cuda.is_available()
 def check_gpu(device_id):
@@ -37,6 +37,7 @@ def check_gpu(device_id):
         return True
     except (subprocess.CalledProcessError, FileNotFoundError):
         return False
+
 
 # Enable code coverage for C code: we can't use CFLAGS=-coverage in tox.ini, since that may mess with compiling
 # dependencies (e.g. numpy). Therefore we set SETUPPY_CFLAGS=-coverage in tox.ini and copy it to CFLAGS here (after
@@ -106,7 +107,7 @@ setup(
     ),
     author='Russell J. Hewett',
     author_email='rjh@rjh.io',
-    url='https://github.com/distdl/distdl',
+    url='https://github.com/microsoft/distdl',
     packages=find_packages('src'),
     package_dir={'': 'src'},
     py_modules=[splitext(basename(path))[0] for path in glob('src/*.py')],
@@ -122,8 +123,6 @@ setup(
         'Operating System :: Microsoft :: Windows',
         'Programming Language :: Python',
         'Programming Language :: Python :: 3',
-        'Programming Language :: Python :: 3.6',
-        'Programming Language :: Python :: 3.7',
         'Programming Language :: Python :: 3.8',
         'Programming Language :: Python :: Implementation :: CPython',
         # uncomment if you test on these interpreters:

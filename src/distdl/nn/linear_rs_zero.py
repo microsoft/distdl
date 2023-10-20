@@ -1,18 +1,17 @@
-import numpy as np
-import torch, math
+import math
 
+import numpy as np
+import torch
+
+import distdl.nn.init as init
 from distdl.backends.common.tensor_comm import assemble_global_tensor_structure
+from distdl.nn.all_gather import AllGather
 from distdl.nn.module import Module
 from distdl.nn.reduce_scatter import ReduceScatter
-from distdl.nn.all_gather import AllGather
-from distdl.utilities.slicing import compute_subshape
-from distdl.utilities.torch import TensorStructure
-from distdl.utilities.slicing import worker_layout
 from distdl.nn.repartition import Repartition
-from distdl.nn.broadcast import Broadcast
+from distdl.utilities.slicing import compute_subshape
+from distdl.utilities.slicing import worker_layout
 from distdl.utilities.torch import zero_volume_tensor
-import distdl.nn.init as init
-from einops import rearrange
 
 
 # Custom forward/backward functions
@@ -26,10 +25,10 @@ class LinearReduceScatterZeROFunc(torch.autograd.Function):
 
         # Broadcast bias [c_out, 1, 1]
         if bias is not None and bias_active:
-            bias = ag_bias(bias).view(1, 1, -1) # -> [1, 1, c_out]
+            bias = ag_bias(bias).view(1, 1, -1)  # -> [1, 1, c_out]
 
         # Affine layer
-        output = torch.einsum('bij,kj->bik', input, weight) 
+        output = torch.einsum('bij,kj->bik', input, weight)
         if bias is not None and bias_active:
             output += bias
         return rs_input(output)
@@ -44,7 +43,7 @@ class LinearReduceScatterZeROFunc(torch.autograd.Function):
     def backward(ctx, grad_output):
 
         # Load saved tensors and operators
-        input, weight, bias  = ctx.saved_tensors
+        input, weight, bias = ctx.saved_tensors
         ag_input, rs_input, ag_weight, rs_weight, ag_bias, rs_bias, bias_active, scale_backward = ctx.constant
 
         # Gather input
@@ -71,7 +70,7 @@ class LinearReduceScatterZeROFunc(torch.autograd.Function):
 
         # Bias gradient
         if bias_active and ctx.needs_input_grad[2]:
-            grad_bias = grad_output.sum((0,1)).view(-1, 1, 1)
+            grad_bias = grad_output.sum((0, 1)).view(-1, 1, 1)
             if scale_backward is not None:
                 grad_bias.div_(np.prod(rs_bias.P_reducescatter.shape[scale_backward]))
             grad_bias = rs_bias(grad_bias)
@@ -134,7 +133,7 @@ class DistributedLinearReduceScatterZero(Module):
     """
 
     def __init__(self, P_x, in_features, out_features, bias=True, device=None, dtype=None,
-        P_y=None, P_bias=None, collect_state=False, checkpoint=False, scale_backward=None):
+                 P_y=None, P_bias=None, collect_state=False, checkpoint=False, scale_backward=None):
 
         super(DistributedLinearReduceScatterZero, self).__init__()
 
@@ -156,7 +155,8 @@ class DistributedLinearReduceScatterZero(Module):
             assert P_y.shape[-1] == 1
             self.P_y = P_y
 
-        if device is None: device = P_x.device
+        if device is None:
+            device = P_x.device
         factory_kwargs = {'device': device, 'dtype': dtype}
 
         self.in_features = in_features
@@ -207,10 +207,10 @@ class DistributedLinearReduceScatterZero(Module):
             weight_shape = [1] * P_x.dim
             in_features_local = compute_subshape(P_x.shape[-1],
                                                  P_x.index[-1],
-                                                [in_features])[0]
+                                                 [in_features])[0]
             out_features_local = compute_subshape(P_x.shape[0],
                                                   P_x.index[0],
-                                                 [out_features])[0]
+                                                  [out_features])[0]
 
             # Fold channel out dimension into batch dimension
             weight_shape[-1] = in_features_local
@@ -227,7 +227,7 @@ class DistributedLinearReduceScatterZero(Module):
             bias_shape[0] = out_features_local
             self.bias = torch.nn.Parameter(torch.empty(tuple(bias_shape), **factory_kwargs))    # store bias
         else:
-           self.register_parameter('bias', None)    # don't receive bias
+            self.register_parameter('bias', None)    # don't receive bias
 
         # Initialize parameters
         self.reset_parameters()

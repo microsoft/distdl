@@ -1,20 +1,15 @@
 __all__ = ["BroadcastFunction"]
 
-import threading
-import time
-import cupy as cp
+import numpy as np
 import torch
 from mpi4py import MPI
 
 from distdl.utilities.torch import zero_volume_tensor
 
+
 # A better idea is to implement a progress engine for this purpose
-
-
 def reduce_function(partition, src, dst):
     partition._comm.Reduce(src, dst, root=0, op=MPI.SUM)
-    # print("In the helper thread!")
-    # time.sleep(5)
 
 
 class BroadcastFunction(torch.autograd.Function):

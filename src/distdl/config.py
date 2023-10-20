@@ -1,16 +1,19 @@
 import os
-import distdl.logger as logger
+
 import distdl.backends
+import distdl.logger as logger
+from distdl.backends import supported_backends
 
 # Environment variable names
 BACKEND_COMM_ENV = "DISTDL_BACKEND_COMM"
 BACKEND_ARRAY_ENV = "DISTDL_BACKEND_ARRAY"
 PRE_HOOK_CHECK_INPUT_CHANGED_ENV = "DISTDL_CHECK_INPUT_CHANGED"
 
+
 # Get default communication protocol
 def get_default_comm():
 
-    # Check if backend communication protocol is set as 
+    # Check if backend communication protocol is set as
     # an environment variable. If not, set to default (mpi).
     supported_backend_comm = ['mpi', 'nccl']
     if BACKEND_COMM_ENV in os.environ:
@@ -40,6 +43,7 @@ def get_default_array():
         backend_array = "numpy"
     return backend_array
 
+
 def get_default_pre_hook_setting():
     supported_settings = ['0', '1', 'False', 'True']
     if PRE_HOOK_CHECK_INPUT_CHANGED_ENV in os.environ:
@@ -50,6 +54,7 @@ def get_default_pre_hook_setting():
     else:
         check_input_changed = False
     return check_input_changed
+
 
 def set_backend(backend_comm=None, backend_array=None, check_input_changed=None):
 
@@ -64,9 +69,8 @@ def set_backend(backend_comm=None, backend_array=None, check_input_changed=None)
 
     backend_config = '_'.join([backend_comm, backend_array])
 
-    if backend_config in distdl.backends.supported_backends and \
-        distdl.backends.supported_backends[backend_config] is not None:
-        distdl.backends.backend = distdl.backends.supported_backends[backend_config]
+    if backend_config in supported_backends and supported_backends[backend_config] is not None:
+        distdl.backends.backend = supported_backends[backend_config]
     else:
         logger.warning("Selected backend not supported. Default to mpi-numpy.")
-        distdl.backends.backend = distdl.backends.supported_backends['mpi_numpy']
+        distdl.backends.backend = supported_backends['mpi_numpy']

@@ -100,7 +100,8 @@ class AllSumReduce(Module):
         if not self.identity:
 
             self.P_allreduce = self.P_x.create_allreduction_partition(self.axes_reduce,
-                initialize_backend_comm=True)
+                                                                      initialize_backend_comm=True
+                                                                      )
             self.input_tensor_structure = TensorStructure(input[0])
             self.output_tensor_structure = self.input_tensor_structure
 
@@ -162,10 +163,10 @@ class AllSumReduce(Module):
         Function = self._distdl_backend.functional.all_sum_reduce.AllSumReduceFunction
 
         if self.identity:
-            return input#.clone()
+            return input
 
         if not (self.P_x.active):
-            return input#.clone()
+            return input
 
         return Function.apply(input,
                               self.P_allreduce,

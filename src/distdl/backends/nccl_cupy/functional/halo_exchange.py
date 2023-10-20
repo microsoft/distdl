@@ -1,9 +1,7 @@
 __all__ = ["HaloExchangeFunction"]
 
-import numpy as np
 import cupy as cp
 import torch
-from mpi4py import MPI
 
 from distdl.utilities.slicing import compute_nd_slice_shape
 from distdl.utilities.torch import zero_volume_tensor
@@ -52,9 +50,6 @@ class HaloExchangeFunction(torch.autograd.Function):
                 lbb.copy_(output[lbs])
             if rbb is not None:
                 rbb.copy_(output[rbs])
-
-            ltag = 0
-            rtag = 1
 
             # Communication
             cp.cuda.nccl.groupStart()
@@ -125,9 +120,6 @@ class HaloExchangeFunction(torch.autograd.Function):
             if rgb is not None:
                 rgb.copy_(grad_output[rgs])
                 grad_output[rgs] = 0.0
-
-            ltag = 0
-            rtag = 1
 
             cp.cuda.nccl.groupStart()
             if lbb is not None:

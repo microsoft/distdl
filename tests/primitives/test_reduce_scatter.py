@@ -1,8 +1,6 @@
-import os, sys, pytest
-sys.path.insert(1, os.path.join(sys.path[0], '..'))
-
-from adjoint_test import check_adjoint_test_tight
 import numpy as np
+import pytest
+from adjoint_test import check_adjoint_test_tight
 
 BACKEND_COMM = "mpi"
 BACKEND_ARRAY = "numpy"
@@ -14,7 +12,7 @@ adjoint_parametrizations.append(
     pytest.param(
         np.arange(0, 6), [2, 3],  # P_x_ranks, P_x_topo
         [4, 3],  # x_global_shape
-        [2, 3], # y_global_shape
+        [2, 3],  # y_global_shape
         (0,),  # axes_reduce_scatter
         6,  # passed to comm_split_fixture, required MPI ranks
         id="distributed-2D-0D_reduction",
@@ -26,7 +24,7 @@ adjoint_parametrizations.append(
     pytest.param(
         np.arange(0, 6), [2, 3],  # P_x_ranks, P_x_topo
         [2, 9],  # x_global_shape
-        [2, 3], # y_global_shape
+        [2, 3],  # y_global_shape
         (1,),  # axes_reduce_scatter
         6,  # passed to comm_split_fixture, required MPI ranks
         id="distributed-2D-1D_reduction",
@@ -38,7 +36,7 @@ adjoint_parametrizations.append(
     pytest.param(
         np.arange(0, 4), [4],  # P_x_ranks, P_x_topo
         [16],  # x_global_shape
-        [4], # y_global_shape
+        [4],  # y_global_shape
         (0,),  # axes_gather
         4,  # passed to comm_split_fixture, required MPI ranks
         id="distributed-2D-0D_reduction",
@@ -50,7 +48,7 @@ adjoint_parametrizations.append(
     pytest.param(
         np.arange(0, 6), [2, 3],  # P_x_ranks, P_x_topo
         [6, 3],  # x_global_shape
-        [3, 3], # y_global_shape
+        [3, 3],  # y_global_shape
         (0,),  # axes_reduce_scatter
         6,  # passed to comm_split_fixture, required MPI ranks
         id="distributed-2D-0D_reduction",
@@ -62,7 +60,7 @@ adjoint_parametrizations.append(
     pytest.param(
         np.arange(0, 6), [2, 3],  # P_x_ranks, P_x_topo
         [2, 15],  # x_global_shape
-        [2, 5], # y_global_shape
+        [2, 5],  # y_global_shape
         (1,),  # axes_reduce_scatter
         6,  # passed to comm_split_fixture, required MPI ranks
         id="distributed-2D-1D_reduction",
@@ -74,13 +72,14 @@ adjoint_parametrizations.append(
     pytest.param(
         np.arange(0, 4), [4],  # P_x_ranks, P_x_topo
         [24],  # x_global_shape
-        [6], # y_global_shape
+        [6],  # y_global_shape
         (0,),  # axes_gather
         4,  # passed to comm_split_fixture, required MPI ranks
         id="distributed-2D-0D_reduction",
         marks=[pytest.mark.mpi(min_size=4)]
         )
     )
+
 
 # For example of indirect, see https://stackoverflow.com/a/28570677
 @pytest.mark.parametrize("P_x_ranks, P_x_shape,"
@@ -97,14 +96,13 @@ def test_all_sum_reduce_adjoint(barrier_fence_fixture,
                                 y_global_shape,
                                 axes_reduce_scatter):
 
-    import numpy as np
     import torch
 
+    import distdl.utilities.slicing as slicing
     from distdl.backends.common.partition import MPIPartition
     from distdl.config import set_backend
     from distdl.nn.reduce_scatter import ReduceScatter
     from distdl.utilities.torch import zero_volume_tensor
-    import distdl.utilities.slicing as slicing
 
     set_backend(backend_comm=BACKEND_COMM, backend_array=BACKEND_ARRAY)
 
@@ -118,9 +116,6 @@ def test_all_sum_reduce_adjoint(barrier_fence_fixture,
     P_x_base = P_world.create_partition_inclusive(P_x_ranks)
     P_x = P_x_base.create_cartesian_topology_partition(P_x_shape)
 
-
-    # # have different shape.  Then, the output size will also be different, which
-    # # we will have to get from `y` itself.
     x_local_shape = slicing.compute_subshape(P_x.shape, P_x.index, x_global_shape)
     y_local_shape = slicing.compute_subshape(P_x.shape, P_x.index, y_global_shape)
 

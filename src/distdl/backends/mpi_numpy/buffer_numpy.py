@@ -1,6 +1,7 @@
 import numpy as np
 
-from ..common.buffer import MPIBufferManager, MPIExpandableBuffer
+from ..common.buffer import MPIBufferManager
+from ..common.buffer import MPIExpandableBuffer
 
 
 class MPIExpandableNumpyBuffer(MPIExpandableBuffer):

@@ -4,7 +4,8 @@ import numpy as np
 import torch
 from mpi4py import MPI
 
-from distdl.utilities.dtype import torch_to_numpy_dtype_dict, torch_to_mpi_dtype_dict
+from distdl.utilities.dtype import torch_to_mpi_dtype_dict
+from distdl.utilities.dtype import torch_to_numpy_dtype_dict
 from distdl.utilities.torch import zero_volume_tensor
 
 
@@ -190,7 +191,7 @@ class RepartitionFunction(torch.autograd.Function):
 
         # Unpack the received data as it arrives
         completed_count = 0
-        while(completed_count < len(requests)):
+        while completed_count < len(requests):
             status = MPI.Status()
             index = MPI.Request.Waitany(requests, status)
 
@@ -328,7 +329,7 @@ class RepartitionFunction(torch.autograd.Function):
 
         # Unpack the received data as it arrives
         completed_count = 0
-        while(completed_count < len(requests)):
+        while completed_count < len(requests):
             status = MPI.Status()
             index = MPI.Request.Waitany(requests, status)
 

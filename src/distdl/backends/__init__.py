@@ -1,7 +1,7 @@
-from . import common
-from .. import logger
 import importlib
 
+from .. import logger
+from . import common  # noqa: F401
 
 # Supported distdl backends
 supported_backends = {
@@ -14,5 +14,6 @@ supported_backends = {
 for backend in supported_backends.keys():
     try:
         supported_backends[backend] = importlib.import_module('distdl.backends.' + backend)
-    except:
+    except Exception as e:
         logger.warning("Could not load {} backend.".format(backend))
+        logger.warning(e)
