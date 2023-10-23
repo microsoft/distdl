@@ -1,4 +1,4 @@
 torch>=2.0.0
-numpy<=1.20
+numpy>=1.23.0
 mpi4py
 einops

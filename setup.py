@@ -151,11 +151,11 @@ setup(
     ],
     python_requires='>=3.5',
     install_requires=[
-        'torch>=2.0.0', 'numpy', 'einops', 'mpi4py'
+        #'torch>=2.0.0', 'numpy', 'einops', 'mpi4py'
     ],
     extras_require={
-        "cuda11x": ['cupy-cuda11x'] if has_cuda else [],
-        "cuda12x": ['cupy-cuda12x'] if has_cuda else [],
+        #"cuda11x": ['cupy-cuda11x'] if has_cuda else [],
+        #"cuda12x": ['cupy-cuda12x'] if has_cuda else [],
     },
     ext_modules=torch_extensions,
     cmdclass={'build_ext': cpp_extension.BuildExtension},
