@@ -5,6 +5,7 @@ from __future__ import print_function
 
 import io
 import os
+import sys
 import platform
 import re
 import subprocess
@@ -18,7 +19,12 @@ from os.path import splitext
 from setuptools import Extension
 from setuptools import find_packages
 from setuptools import setup
-from torch.utils import cpp_extension
+try:
+    from torch.utils import cpp_extension
+except ImportError:
+    # TODO This is needed for github actions, even though torch is listed as a dependency in the tox config file.
+    subprocess.check_call([sys.executable, '-m', 'pip', 'install', 'torch>=2.0.0'])
+    from torch.utils import cpp_extension
 
 
 def read(*names, **kwargs):
@@ -98,7 +104,7 @@ has_cuda = check_gpu(0)
 
 setup(
     name='distdl',
-    version='0.5.0-dev',
+    version='0.6.0',
     license='BSD-2-Clause',
     description='A Distributed Deep Learning package for PyTorch.',
     long_description='%s\n%s' % (
@@ -123,7 +129,7 @@ setup(
         'Operating System :: Microsoft :: Windows',
         'Programming Language :: Python',
         'Programming Language :: Python :: 3',
-        'Programming Language :: Python :: 3.8',
+        'Programming Language :: Python :: 3.10',
         'Programming Language :: Python :: Implementation :: CPython',
         # uncomment if you test on these interpreters:
         # 'Programming Language :: Python :: 2.7',
