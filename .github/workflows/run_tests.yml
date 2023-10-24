@@ -21,9 +21,13 @@ jobs:
       NP: 20
     strategy:
       matrix:
-        python-version: ['3.10']
+        python-version: ['3.8', '3.9', '3.10']
         mpi: ['mpich']
         include:
+          - python-version: '3.8'
+            toxenv: py38
+          - python-version: '3.9'
+            toxenv: py39
           - python-version: '3.10'
             toxenv: py310
 
