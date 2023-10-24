@@ -145,7 +145,7 @@ setup(
     ],
     python_requires='>=3.5',
     install_requires=[
-        'torch>=2.0.0', 'numpy>=2.0.0', 'einops'
+        'torch>=2.0.0', 'numpy>=1.23.0', 'einops'
     ],
     extras_require={
         "mpi4py"
