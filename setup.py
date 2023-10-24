@@ -143,7 +143,7 @@ setup(
     keywords=[
         # eg: 'keyword1', 'keyword2', 'keyword3',
     ],
-    python_requires='>=3.5',
+    python_requires='>=3.8',
     install_requires=[
         'torch>=2.0.0', 'numpy>=1.23.0', 'einops'
     ],

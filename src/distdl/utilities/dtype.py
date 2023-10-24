@@ -141,4 +141,3 @@ try:
 except ImportError:
     cupy = None
     nccl = None
-    logger.warning("Cupy dtype conversion not supported.")
