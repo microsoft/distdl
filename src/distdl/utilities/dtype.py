@@ -2,8 +2,6 @@ import numpy as np
 import torch
 from mpi4py import MPI
 
-import distdl.logger as logger
-
 # -----------------------Extended From Pytorch -------------------------------
 # https://github.com/pytorch/pytorch/blob/e180ca652f8a38c479a3eff1080efe69cbc11621/torch/testing/_internal/common_utils.py#L349
 
