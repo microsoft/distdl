@@ -138,10 +138,9 @@ setup(
     ],
     python_requires='>=3.8',
     install_requires=[
-        'torch>=2.0.0', 'numpy>=1.23.0', 'einops'
+        'torch>=2.0.0', 'numpy>=1.23.0', 'einops', 'mpi4py'
     ],
     extras_require={
-        "mpi4py"
         "cuda11x": ['cupy-cuda11x'] if has_cuda else [],
         "cuda12x": ['cupy-cuda12x'] if has_cuda else [],
     },
