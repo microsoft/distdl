@@ -129,7 +129,7 @@ class HaloMixin:
 
         # If we have a negative halo on the left, we want to not pass that
         # data to the torch layer
-        ranges[:, 0] = -1*np.minimum(0, halo_shape[:, 0])
+        ranges[:, 0] = -1 * np.minimum(0, halo_shape[:, 0])
 
         # The stop of the slice will be the data + the length of the two halos
         # and the last maximum is so that we dont shorten the stop (keeps the
@@ -141,9 +141,8 @@ class HaloMixin:
         return ranges
 
     def _compute_out_shape(self, in_shape, kernel_size, stride, padding, dilation):
-        return np.floor((in_shape
-                         + 2*padding
-                         - dilation*(kernel_size-1) - 1)/stride + 1).astype(in_shape.dtype)
+        return np.floor((in_shape + 2 * padding - dilation * (kernel_size - 1) - 1) /   # noqa: W504
+                        stride + 1).astype(in_shape.dtype)
 
     def _compute_halo_shape(self,
                             shape,

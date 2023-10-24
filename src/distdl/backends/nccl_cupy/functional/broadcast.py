@@ -197,13 +197,15 @@ class BroadcastFunction(torch.autograd.Function):
         if P_recv.active:
             if ctx.scale_backward is not None:
                 grad_output.div_(np.prod(P_recv.shape[ctx.scale_backward]))
-            reduced_data_recv = torch.zeros(output_tensor_structure.shape, dtype=output_tensor_structure.dtype, device=device)
+            reduced_data_recv = torch.zeros(output_tensor_structure.shape, dtype=output_tensor_structure.dtype,
+                                            device=device)
             P_recv._nccl.reduce(grad_output.detach().contiguous(), reduced_data_recv, op='sum', root=0, stream=None)
 
         # If I sent data in the forward, I have to receive it here.  Unless I
         # also received that data, then I already have it from above.
         if P_send != P_recv and P_send.active:
-            reduced_data_send = torch.zeros(input_tensor_structure.shape, dtype=input_tensor_structure.dtype, device=device)
+            reduced_data_send = torch.zeros(input_tensor_structure.shape, dtype=input_tensor_structure.dtype,
+                                            device=device)
             P_send._nccl.reduce(reduced_data_send, reduced_data_send, op='sum', root=0, stream=None)
 
         # If we had to receive data, we need to tensorify it.

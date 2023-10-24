@@ -15,8 +15,8 @@ adjoint_parametrizations.append(
         4,  # passed to comm_split_fixture, required MPI ranks
         id="distributed",
         marks=[pytest.mark.mpi(min_size=4)]
-        )
     )
+)
 
 
 # For example of indirect, see https://stackoverflow.com/a/28570677
@@ -243,8 +243,8 @@ size_parametrizations.append(
         4,  # passed to comm_split_fixture, required MPI ranks
         id="distributed",
         marks=[pytest.mark.mpi(min_size=4)]
-        )
     )
+)
 size_parametrizations.append(
     pytest.param(
         np.arange(0, 4), [1, 1, 2, 2],  # P_x_ranks, P_x_shape
@@ -254,8 +254,8 @@ size_parametrizations.append(
         4,  # passed to comm_split_fixture, required MPI ranks
         id="distributed",
         marks=[pytest.mark.mpi(min_size=4)]
-        )
     )
+)
 
 
 @pytest.mark.parametrize("P_x_ranks, P_x_shape,"

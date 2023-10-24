@@ -47,14 +47,14 @@ if 'TOXENV' in os.environ and 'SETUPPY_CFLAGS' in os.environ:
 
 # Default extensions
 default_extensions = [
-        Extension(
-            splitext(relpath(path, 'src').replace(os.sep, '.'))[0],
-            sources=[path],
-            include_dirs=[dirname(path)]
-        )
-        for root, _, _ in os.walk('src')
-        for path in glob(join(root, '*.c'))
-    ]
+    Extension(
+        splitext(relpath(path, 'src').replace(os.sep, '.'))[0],
+        sources=[path],
+        include_dirs=[dirname(path)]
+    )
+    for root, _, _ in os.walk('src')
+    for path in glob(join(root, '*.c'))
+]
 
 torch_extensions = []
 

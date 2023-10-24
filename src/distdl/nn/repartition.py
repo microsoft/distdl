@@ -72,7 +72,7 @@ class Repartition(Module):
         # Back-end specific buffer manager for economic buffer allocation
         if buffer_manager is None:
             buffer_manager = self._distdl_backend.BufferManager()
-        elif type(buffer_manager) is not self._distdl_backend.BufferManager:
+        elif not isinstance(buffer_manager, self._distdl_backend.BufferManager):
             raise ValueError("Buffer manager type does not match backend.")
         self.buffer_manager = buffer_manager
 
@@ -213,7 +213,7 @@ class Repartition(Module):
         # have input data.  It is possible to have both input and output data,
         # either input or output data, or neither.  Hence the active guard.
         if self.P_x.active:
-            x_slice = tuple([slice(i, i+1) for i in self.P_x.index] + [slice(None)])
+            x_slice = tuple([slice(i, i + 1) for i in self.P_x.index] + [slice(None)])
             # ToDO: We have equivallent squeeze() in cupy - check later
             x_start_index = x_subtensor_start_indices[x_slice].squeeze()
             x_stop_index = x_subtensor_stop_indices[x_slice].squeeze()
@@ -221,7 +221,7 @@ class Repartition(Module):
             # Compute our overlaps for each output subpartition.
             for rank, P_y_index in enumerate(range_index(self.P_y_shape)):
 
-                y_slice = tuple([slice(i, i+1) for i in P_y_index] + [slice(None)])
+                y_slice = tuple([slice(i, i + 1) for i in P_y_index] + [slice(None)])
                 y_start_index = y_subtensor_start_indices[y_slice].squeeze()
                 y_stop_index = y_subtensor_stop_indices[y_slice].squeeze()
 
@@ -243,7 +243,7 @@ class Repartition(Module):
                         partner = np.where(self.P_y_ranks == rank)[0][0]
 
                     # ToDO: We don't have ndarray.append in cupy, instead we have cupy.append,
-                    # ToDO: so the buffers should be appended using different calls on cupy.append(arr, values) - no need to
+                    # ToDO: so the buffers should be appended using different calls on cupy.append(arr, values)
                     self.P_x_to_y_overlaps.append((sl, sh, partner))
 
                 else:
@@ -252,14 +252,14 @@ class Repartition(Module):
         # We only need to obtain data from the input partition if we actually
         # have output data.
         if self.P_y.active:
-            y_slice = tuple([slice(i, i+1) for i in self.P_y.index] + [slice(None)])
+            y_slice = tuple([slice(i, i + 1) for i in self.P_y.index] + [slice(None)])
             y_start_index = y_subtensor_start_indices[y_slice].squeeze()
             y_stop_index = y_subtensor_stop_indices[y_slice].squeeze()
 
             # Compute our overlaps for each input subpartition.
             for rank, P_x_index in enumerate(range_index(self.P_x_shape)):
 
-                x_slice = tuple([slice(i, i+1) for i in P_x_index] + [slice(None)])
+                x_slice = tuple([slice(i, i + 1) for i in P_x_index] + [slice(None)])
                 x_start_index = x_subtensor_start_indices[x_slice].squeeze()
                 x_stop_index = x_subtensor_stop_indices[x_slice].squeeze()
 

@@ -103,8 +103,8 @@ class DistributedChannelConvBase(Module, ConvMixin):
         # Even inactive workers need some partition union
         P_union = self._distdl_backend.Partition()
 
-        if not (self.P_x.active or
-                self.P_y.active or
+        if not (self.P_x.active or  # noqa: W504
+                self.P_y.active or  # noqa: W504
                 self.P_w.active):
             return
 
@@ -278,8 +278,8 @@ class DistributedChannelConvBase(Module, ConvMixin):
 
         # No setup is needed if the worker is not doing anything for this
         # layer.
-        if not (self.P_x.active or
-                self.P_y.active or
+        if not (self.P_x.active or  # noqa: W504
+                self.P_y.active or  # noqa: W504
                 self.P_w.active):
             return
 
@@ -332,8 +332,8 @@ class DistributedChannelConvBase(Module, ConvMixin):
 
         """
 
-        if not (self.P_x.active or
-                self.P_y.active or
+        if not (self.P_x.active or  # noqa: W504
+                self.P_y.active or  # noqa: W504
                 self.P_w.active):
             return input
 

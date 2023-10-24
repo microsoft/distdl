@@ -79,7 +79,8 @@ numpy_to_intID_dtype_dict = {key: np.dtype(key).num for (key, value) in numpy_to
 intID_to_numpy_dtype_dict = {value: key for (key, value) in numpy_to_intID_dtype_dict.items()}
 
 # Also create the same mappings for torch dtypes
-torch_to_intID_dtype_dict = {value: numpy_to_intID_dtype_dict[key] for (key, value) in numpy_to_torch_dtype_dict.items()}
+torch_to_intID_dtype_dict = {value: numpy_to_intID_dtype_dict[key] for (key, value)
+                             in numpy_to_torch_dtype_dict.items()}
 intID_to_torch_dtype_dict = {value: key for (key, value) in torch_to_intID_dtype_dict.items()}
 
 try:

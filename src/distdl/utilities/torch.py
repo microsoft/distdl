@@ -35,8 +35,8 @@ class TensorStructure:
 
     def __eq__(self, other):
 
-        return ((self.shape == other.shape) and
-                (self.dtype == other.dtype) and
+        return ((self.shape == other.shape) and  # noqa: W504
+                (self.dtype == other.dtype) and  # noqa: W504
                 (self.requires_grad == other.requires_grad))
 
 

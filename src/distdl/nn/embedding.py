@@ -87,7 +87,7 @@ class DistributedEmbedding(Module):
 
         # Root partition for initializing weights
         P_root_base = P_x.create_partition_inclusive([0])
-        self.P_root = P_root_base.create_cartesian_topology_partition([1]*self.P_x.dim)
+        self.P_root = P_root_base.create_cartesian_topology_partition([1] * self.P_x.dim)
         P_root_base.deactivate()
 
         # Partition for storing weights
@@ -132,7 +132,7 @@ class DistributedEmbedding(Module):
         # Gather/collect weights for saving/setting state dict
         if self.collect_state:
             P_root_base = P_x.create_partition_inclusive([0])
-            self.P_root = P_root_base.create_cartesian_topology_partition([1]*P_x.dim)
+            self.P_root = P_root_base.create_cartesian_topology_partition([1] * P_x.dim)
             self.gather_weight = Repartition(P_weight, self.P_root, preserve_batch=False)
             self.scatter_weight = Repartition(self.P_root, P_weight, preserve_batch=False)
 
@@ -155,7 +155,7 @@ class DistributedEmbedding(Module):
 
     def _expand(self, weight):
         if self.P_weight.active:
-            weight_view = [1]*self.P_x.dim
+            weight_view = [1] * self.P_x.dim
             weight_view[-2:] = weight.shape[-2:]
             weight = weight.view(weight_view)
         return weight

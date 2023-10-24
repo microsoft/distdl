@@ -168,8 +168,8 @@ class NCCLBackend(_Backend):
         comm_class = _DenseNCCLCommunicator
         if (
             (isinstance(args[0], (list, tuple))
-             and sparse.issparse(args[0][0]))
-            or sparse.issparse(args[0])
+             and sparse.issparse(args[0][0]))   # noqa: W503
+            or sparse.issparse(args[0])  # noqa: W503
         ):
             comm_class = _SparseNCCLCommunicator
         getattr(comm_class, function)(self, *args)

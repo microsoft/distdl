@@ -48,9 +48,9 @@ def check_adjoint_test_tight(P, x1, x2, y1, y2):
         # Unpack the values
         norm_x1, norm_x2, norm_y1, norm_y2, ipx, ipy = global_results
 
-        d = np.max([norm_y1*norm_y2, norm_x1*norm_x2])
+        d = np.max([norm_y1 * norm_y2, norm_x1 * norm_x2])
         print(f"Adjoint test: {ipx/d} {ipy/d}")
-        assert np.isclose(ipx/d, ipy/d)
+        assert np.isclose(ipx / d, ipy / d)
     else:
         # All other ranks pass the adjoint test
         assert True
@@ -89,6 +89,6 @@ def check_adjoint_test_tight_sequential(x1, x2, y1, y2):
     # Unpack the values
     norm_x1, norm_x2, norm_y1, norm_y2, ipx, ipy = global_results
 
-    d = np.max([norm_y1*norm_y2, norm_x1*norm_x2])
+    d = np.max([norm_y1 * norm_y2, norm_x1 * norm_x2])
     print(f"Adjoint test: {ipx/d} {ipy/d}")
-    assert np.isclose(ipx/d, ipy/d)
+    assert np.isclose(ipx / d, ipy / d)
