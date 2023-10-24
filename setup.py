@@ -131,12 +131,6 @@ setup(
         'Programming Language :: Python :: 3',
         'Programming Language :: Python :: 3.10',
         'Programming Language :: Python :: Implementation :: CPython',
-        # uncomment if you test on these interpreters:
-        # 'Programming Language :: Python :: 2.7',
-        # 'Programming Language :: Python :: Implementation :: PyPy',
-        # 'Programming Language :: Python :: Implementation :: IronPython',
-        # 'Programming Language :: Python :: Implementation :: Jython',
-        # 'Programming Language :: Python :: Implementation :: Stackless',
         'Topic :: Scientific/Engineering',
         'Topic :: Scientific/Engineering :: Artificial Intelligence',
         'Private :: Do Not Upload',
@@ -151,11 +145,12 @@ setup(
     ],
     python_requires='>=3.5',
     install_requires=[
-        #'torch>=2.0.0', 'numpy', 'einops', 'mpi4py'
+        'torch>=2.0.0', 'numpy>=2.0.0', 'einops'
     ],
     extras_require={
-        #"cuda11x": ['cupy-cuda11x'] if has_cuda else [],
-        #"cuda12x": ['cupy-cuda12x'] if has_cuda else [],
+        "mpi4py"
+        "cuda11x": ['cupy-cuda11x'] if has_cuda else [],
+        "cuda12x": ['cupy-cuda12x'] if has_cuda else [],
     },
     ext_modules=torch_extensions,
     cmdclass={'build_ext': cpp_extension.BuildExtension},
