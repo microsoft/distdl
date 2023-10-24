@@ -5,7 +5,6 @@ from __future__ import print_function
 
 import io
 import os
-import sys
 import platform
 import re
 import subprocess
@@ -19,12 +18,7 @@ from os.path import splitext
 from setuptools import Extension
 from setuptools import find_packages
 from setuptools import setup
-try:
-    from torch.utils import cpp_extension
-except ImportError:
-    # TODO This is needed for github actions, even though torch is listed as a dependency in the tox config file.
-    subprocess.check_call([sys.executable, '-m', 'pip', 'install', 'torch>=2.0.0'])
-    from torch.utils import cpp_extension
+from torch.utils import cpp_extension
 
 
 def read(*names, **kwargs):
@@ -120,7 +114,6 @@ setup(
     include_package_data=True,
     zip_safe=False,
     classifiers=[
-        # complete classifier list: http://pypi.python.org/pypi?%3Aaction=list_classifiers
         'Development Status :: 2 - Pre-Alpha',
         'Intended Audience :: Developers',
         'License :: OSI Approved :: BSD License',

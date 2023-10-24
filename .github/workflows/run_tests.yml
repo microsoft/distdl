@@ -42,7 +42,7 @@ jobs:
         if [[ ${{ matrix.mpi }} == "mpich"   ]]; then mpichversion; fi
     - name: Install installer dependencies
       run: |
-        python -mpip install --progress-bar=off tox -rci/requirements.txt
+        python -mpip install --progress-bar=off tox pip virtualenv
         virtualenv --version
         pip --version
         tox --version
