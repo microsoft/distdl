@@ -15,4 +15,5 @@ for backend in supported_backends.keys():
     try:
         supported_backends[backend] = importlib.import_module('distdl.backends.' + backend)
     except Exception as e:
-        pass
+        logger.logger.warning("Could not load {} backend.".format(backend))
+        logger.logger.warning(e)
