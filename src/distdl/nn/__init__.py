@@ -59,6 +59,7 @@ from .pooling import DistributedAvgPool3d  # noqa: F401
 from .pooling import DistributedMaxPool1d  # noqa: F401
 from .pooling import DistributedMaxPool2d  # noqa: F401
 from .pooling import DistributedMaxPool3d  # noqa: F401
+from .rmsnorm_zero import DistributedRMSNormZero  # noqa: F401
 from .reduce_scatter import ReduceScatter  # noqa: F401
 from .repartition import Repartition  # noqa: F401
 from .sum_reduce import SumReduce  # noqa: F401
@@ -101,6 +102,7 @@ __all__ = ["AllGather",
            "DistributedEmbedding",
            "DistributedLayerNormZero",
            "DistributedLayerNorm",
+           "DistributedRMSNormZero",
            "DistributedLinear",
            "DistributedLinearAllGather",
            "DistributedLinearAllGatherZero",
