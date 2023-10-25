@@ -2,8 +2,8 @@ import numpy as np
 import pytest
 import torch
 
-from distdl.nn.rmsnorm_zero import DistributedRMSNormZero
 from distdl.nn.repartition import Repartition
+from distdl.nn.rmsnorm_zero import DistributedRMSNormZero
 from distdl.utilities.torch import zero_volume_tensor
 
 ERROR_THRESHOLD = 1e-4
