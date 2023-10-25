@@ -18,6 +18,20 @@ parametrizations_affine.append(
         (4, 3, 12),  # input_shape
         (3, 12),    # normalized_shape
         True,  # elementwise_affine
+        True,  # bias
+        4,  # passed to comm_split_fixture, required MPI ranks
+        id="distributed-batch-norm-affine-batch-0",
+        marks=[pytest.mark.mpi(min_size=4)]
+    )
+)
+
+parametrizations_affine.append(
+    pytest.param(
+        np.arange(0, 4), [2, 1, 2],  # P_x_ranks, P_x_shape,
+        (4, 3, 12),  # input_shape
+        (3, 12),    # normalized_shape
+        True,  # elementwise_affine
+        False,  # bias
         4,  # passed to comm_split_fixture, required MPI ranks
         id="distributed-batch-norm-affine-batch-0",
         marks=[pytest.mark.mpi(min_size=4)]
@@ -30,6 +44,20 @@ parametrizations_affine.append(
         (4, 3, 12),  # input_shape
         (12,),    # normalized_shape
         True,  # elementwise_affine
+        True,  # bias
+        4,  # passed to comm_split_fixture, required MPI ranks
+        id="distributed-batch-norm-affine-batch-1",
+        marks=[pytest.mark.mpi(min_size=4)]
+    )
+)
+
+parametrizations_affine.append(
+    pytest.param(
+        np.arange(0, 4), [2, 1, 2],  # P_x_ranks, P_x_shape,
+        (4, 3, 12),  # input_shape
+        (12,),    # normalized_shape
+        True,  # elementwise_affine
+        False,  # bias
         4,  # passed to comm_split_fixture, required MPI ranks
         id="distributed-batch-norm-affine-batch-1",
         marks=[pytest.mark.mpi(min_size=4)]
@@ -42,6 +70,20 @@ parametrizations_affine.append(
         (3, 4, 12),  # input_shape
         (4, 12),    # normalized_shape
         True,  # elementwise_affine
+        True,  # bias
+        4,  # passed to comm_split_fixture, required MPI ranks
+        id="distributed-batch-norm-affine-batch-2",
+        marks=[pytest.mark.mpi(min_size=4)]
+    )
+)
+
+parametrizations_affine.append(
+    pytest.param(
+        np.arange(0, 4), [1, 2, 2],  # P_x_ranks, P_x_shape,
+        (3, 4, 12),  # input_shape
+        (4, 12),    # normalized_shape
+        True,  # elementwise_affine
+        False,  # bias
         4,  # passed to comm_split_fixture, required MPI ranks
         id="distributed-batch-norm-affine-batch-2",
         marks=[pytest.mark.mpi(min_size=4)]
@@ -54,6 +96,7 @@ parametrizations_affine.append(
         (4, 3, 8),  # input_shape
         (3, 8),    # normalized_shape
         True,  # elementwise_affine
+        True,  # bias
         2,  # passed to comm_split_fixture, required MPI ranks
         id="distributed-batch-norm-affine-batch-3",
         marks=[pytest.mark.mpi(min_size=4)]
@@ -66,6 +109,7 @@ parametrizations_affine.append(
         (4, 8),  # input_shape
         (4, 8),    # normalized_shape
         True,  # elementwise_affine
+        True,  # bias
         4,  # passed to comm_split_fixture, required MPI ranks
         id="distributed-batch-norm-affine-batch-4",
         marks=[pytest.mark.mpi(min_size=4)]
@@ -78,6 +122,7 @@ parametrizations_affine.append(
         (4, 8),  # input_shape
         (4, 8),    # normalized_shape
         True,  # elementwise_affine
+        True,  # bias
         4,  # passed to comm_split_fixture, required MPI ranks
         id="distributed-batch-norm-affine-batch-5",
         marks=[pytest.mark.mpi(min_size=4)]
@@ -90,6 +135,7 @@ parametrizations_affine.append(
         (4, 8),  # input_shape
         (4, 8),    # normalized_shape
         True,  # elementwise_affine
+        True,  # bias
         4,  # passed to comm_split_fixture, required MPI ranks
         id="distributed-batch-norm-affine-batch-6",
         marks=[pytest.mark.mpi(min_size=4)]
@@ -102,6 +148,7 @@ parametrizations_affine.append(
         (4, 8),  # input_shape
         (8,),    # normalized_shape
         True,  # elementwise_affine
+        True,  # bias
         4,  # passed to comm_split_fixture, required MPI ranks
         id="distributed-batch-norm-affine-batch-7",
         marks=[pytest.mark.mpi(min_size=4)]
@@ -114,6 +161,7 @@ parametrizations_affine.append(
         (4, 8),  # input_shape
         (8,),    # normalized_shape
         True,  # elementwise_affine
+        True,  # bias
         4,  # passed to comm_split_fixture, required MPI ranks
         id="distributed-batch-norm-affine-batch-8",
         marks=[pytest.mark.mpi(min_size=4)]
@@ -126,6 +174,7 @@ parametrizations_affine.append(
         (4, 8),  # input_shape
         (8,),    # normalized_shape
         True,  # elementwise_affine
+        True,  # bias
         4,  # passed to comm_split_fixture, required MPI ranks
         id="distributed-batch-norm-affine-batch-9",
         marks=[pytest.mark.mpi(min_size=4)]
@@ -138,6 +187,7 @@ parametrizations_affine.append(
                          "input_shape,"
                          "normalized_shape,"
                          "elementwise_affine,"
+                         "bias,"
                          "comm_split_fixture",
                          parametrizations_affine,
                          indirect=["comm_split_fixture"])
@@ -145,6 +195,7 @@ def test_batch_norm_with_training(barrier_fence_fixture,
                                   P_x_ranks, P_x_shape,
                                   input_shape,
                                   normalized_shape,
+                                  bias,
                                   elementwise_affine,
                                   comm_split_fixture):
 
@@ -186,6 +237,8 @@ def test_batch_norm_with_training(barrier_fence_fixture,
     seq_ln = torch.nn.LayerNorm(normalized_shape,
                                 elementwise_affine=elementwise_affine
                                 ).to(P_x.device)
+    if not bias:
+        seq_ln.bias = None
 
     # Train sequential layer
     if P_root.active:
@@ -209,7 +262,8 @@ def test_batch_norm_with_training(barrier_fence_fixture,
 
     # Create distributed network
     dist_ln = DistributedLayerNormZero(P_x, normalized_shape,
-                                       elementwise_affine=elementwise_affine
+                                       elementwise_affine=elementwise_affine,
+                                       bias=bias
                                        ).to(P_x.device)
 
     # Train distributed network
@@ -271,6 +325,7 @@ def test_batch_norm_with_training(barrier_fence_fixture,
                          "input_shape,"
                          "normalized_shape,"
                          "elementwise_affine,"
+                         "bias,"
                          "comm_split_fixture",
                          parametrizations_affine,
                          indirect=["comm_split_fixture"])
@@ -278,6 +333,7 @@ def test_batch_norm_without_training(barrier_fence_fixture,
                                      P_x_ranks, P_x_shape,
                                      input_shape,
                                      normalized_shape,
+                                     bias,
                                      elementwise_affine,
                                      comm_split_fixture):
 
@@ -315,6 +371,8 @@ def test_batch_norm_without_training(barrier_fence_fixture,
 
     # Sequential layer
     seq_ln = torch.nn.LayerNorm(normalized_shape).to(P_x.device)
+    if not bias:
+        seq_ln.bias = None
 
     # Train sequential layer
     if P_root.active:
@@ -324,7 +382,8 @@ def test_batch_norm_without_training(barrier_fence_fixture,
 
     # Create distributed network
     dist_ln = DistributedLayerNormZero(P_x, normalized_shape,
-                                       elementwise_affine=elementwise_affine
+                                       elementwise_affine=elementwise_affine,
+                                       bias=bias
                                        ).to(P_x.device)
 
     # Train distributed network

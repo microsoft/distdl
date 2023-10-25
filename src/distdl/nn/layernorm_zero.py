@@ -34,6 +34,9 @@ class DistributedLayerNormZero(Module):
         A boolean value that when set to True, this module has learnable per-element affine
         parameters of size normalized_shape initialized to ones (for weights) and zeros (for biases).
         Default is True.
+    bias: optional
+        A boolean value that when set to True, uses a learned bias in the layer. Default is True.
+        If elementwise_affine is False, this value is ignored.
     collect_state : optional
         If True, weights and biases are gathered to the root worker and serialized to disk when the
         state_dict() function is called. Instead of the weights and biases themselves, the state
@@ -48,7 +51,8 @@ class DistributedLayerNormZero(Module):
     """
 
     def __init__(self, P_x, normalized_shape, elementwise_affine=True, eps=1e-5,
-                 collect_state=False, device=None, dtype=None, scale_backward=None):
+                 collect_state=False, device=None, dtype=None, scale_backward=None,
+                 bias=True):
         super(DistributedLayerNormZero, self).__init__()
 
         self.P_x = P_x
@@ -59,6 +63,7 @@ class DistributedLayerNormZero(Module):
             device = P_x.device
         self.eps = eps
         self.elementwise_affine = elementwise_affine
+        self.use_bias = bias
         self.collect_state = collect_state
         factory_kwargs = {'device': device, 'dtype': dtype}
         self.dtype = dtype
@@ -124,7 +129,10 @@ class DistributedLayerNormZero(Module):
 
             # Weights and biases
             self.weight = torch.nn.Parameter(torch.empty(normalized_shape_local, **factory_kwargs))
-            self.bias = torch.nn.Parameter(torch.empty(normalized_shape_local, **factory_kwargs))
+            if self.use_bias:
+                self.bias = torch.nn.Parameter(torch.empty(normalized_shape_local, **factory_kwargs))
+            else:
+                self.register_parameter('bias', None)
 
         else:
             self.register_parameter('weight', None)
@@ -147,15 +155,17 @@ class DistributedLayerNormZero(Module):
     def reset_parameters(self):
         if self.elementwise_affine and self.P_x.active:
             torch.nn.init.ones_(self.weight)
-            torch.nn.init.zeros_(self.bias)
+            if self.bias is not None:
+                torch.nn.init.zeros_(self.bias)
 
     def gather_state_dict(self, module, destination, prefix, *args):
         if self.collect_state and self.elementwise_affine and self.P_x.active:
 
             # Pop bias from state dict and serialize it
-            bias_key = next(reversed(destination))
-            bias = self.allgather(destination.pop(bias_key).transpose(0, -1)).transpose(0, -1)
-            bias = self.gather(bias)
+            if self.use_bias:
+                bias_key = next(reversed(destination))
+                bias = self.allgather(destination.pop(bias_key).transpose(0, -1)).transpose(0, -1)
+                bias = self.gather(bias)
 
             # Pop weight from state dict and serialize it
             weight_key = next(reversed(destination))
@@ -167,11 +177,13 @@ class DistributedLayerNormZero(Module):
 
                 # Bring into same shape as the serial torch version
                 weight = weight.view(weight.shape[self.dim_reduce_slice])
-                bias = bias.view(bias.shape[self.dim_reduce_slice])
+                if self.use_bias:
+                    bias = bias.view(bias.shape[self.dim_reduce_slice])
 
                 # Add filenames back to state dict
                 destination[weight_key] = weight
-                destination[bias_key] = bias
+                if self.use_bias:
+                    destination[bias_key] = bias
 
         return destination
 
@@ -181,8 +193,9 @@ class DistributedLayerNormZero(Module):
             # Pop entries from state dict
             weight_key = next(iter(destination))
             weight = destination.pop(weight_key)
-            bias_key = next(iter(destination))
-            bias = destination.pop(bias_key)
+            if self.use_bias:
+                bias_key = next(iter(destination))
+                bias = destination.pop(bias_key)
 
             # Load states
             if self.P_root.active:
@@ -190,21 +203,25 @@ class DistributedLayerNormZero(Module):
                 shape_expanded = [1] * self.P_x.dim
                 shape_expanded[self.dim_reduce_slice] = weight.shape
                 weight = weight.view(shape_expanded)
-                bias = bias.view(shape_expanded)
+                if self.use_bias:
+                    bias = bias.view(shape_expanded)
 
             else:
                 weight = zero_volume_tensor(device=self.P_x.device, requires_grad=True, dtype=weight.dtype)
-                bias = zero_volume_tensor(device=self.P_x.device, requires_grad=True, dtype=bias.dtype)
+                if self.use_bias:
+                    bias = zero_volume_tensor(device=self.P_x.device, requires_grad=True, dtype=bias.dtype)
 
             # Scatter states
             weight = self.scatter_mp(weight)
-            bias = self.scatter_mp(bias)
             weight = self.scatter_dp(weight.transpose(0, -1)).transpose(0, -1)
-            bias = self.scatter_dp(bias.transpose(0, -1)).transpose(0, -1)
+            if self.use_bias:
+                bias = self.scatter_mp(bias)
+                bias = self.scatter_dp(bias.transpose(0, -1)).transpose(0, -1)
 
             # Add data back to state dict
             destination[weight_key] = weight
-            destination[bias_key] = bias
+            if self.use_bias:
+                destination[bias_key] = bias
 
         return destination
 
@@ -266,13 +283,18 @@ class DistributedLayerNormZero(Module):
 
             if self.elementwise_affine:
                 weight = self.allgather(self.weight.transpose(0, -1)).transpose(0, -1)
-                bias = self.allgather(self.bias.transpose(0, -1)).transpose(0, -1)
-                input = weight * input + bias
+                input = weight * input
+                if self.use_bias:
+                    bias = self.allgather(self.bias.transpose(0, -1)).transpose(0, -1)
+                    input += bias
 
         else:
             if self.elementwise_affine:
                 weight = self.allgather(self.weight.transpose(0, -1)).transpose(0, -1).squeeze()
-                bias = self.allgather(self.bias.transpose(0, -1)).transpose(0, -1).squeeze()
+                if self.use_bias:
+                    bias = self.allgather(self.bias.transpose(0, -1)).transpose(0, -1).squeeze()
+                else:
+                    bias = None
             else:
                 weight = None
                 bias = None
