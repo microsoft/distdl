@@ -204,7 +204,7 @@ If :math:`x` is a 3D tensor, a partition with shape :math:`3 \times 2 \times
     :alt: Repartition of a 3x2x2 partition to 1x2x3.
 
 Example 4: Repartition as Scatter
--------------------------------
+---------------------------------
 
 Repartition can be used to scatter tensors.  For example, if one worker reads
 data from disk, repartition can be used to scatter it to a number of workers. If
@@ -216,7 +216,7 @@ repartitioned to a partition of dimension :math:`1 \times 3 \times 2`.
     :alt: Repartition of a 1 partition to 1x2x3.
 
 Example 5: Repartition as Gather
-------------------------------
+--------------------------------
 
 Repartition can be used to gather tensors.  For example, if one worker outputs
 data to disk, repartition can be used to gather it from a number of workers. If

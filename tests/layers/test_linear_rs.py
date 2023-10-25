@@ -17,8 +17,8 @@ adjoint_parametrizations.append(
         1,  # passed to comm_split_fixture, required MPI ranks
         id="sequential",
         marks=[pytest.mark.mpi(min_size=1)]
-        )
     )
+)
 
 adjoint_parametrizations.append(
     pytest.param(
@@ -29,8 +29,8 @@ adjoint_parametrizations.append(
         4,  # passed to comm_split_fixture, required MPI ranks
         id="distributed-2d-a",
         marks=[pytest.mark.mpi(min_size=4)]
-        )
     )
+)
 
 adjoint_parametrizations.append(
     pytest.param(
@@ -41,8 +41,8 @@ adjoint_parametrizations.append(
         4,  # passed to comm_split_fixture, required MPI ranks
         id="distributed-3d-a",
         marks=[pytest.mark.mpi(min_size=4)]
-        )
     )
+)
 
 adjoint_parametrizations.append(
     pytest.param(
@@ -53,8 +53,8 @@ adjoint_parametrizations.append(
         8,  # passed to comm_split_fixture, required MPI ranks
         id="distributed-3d-b",
         marks=[pytest.mark.mpi(min_size=8)]
-        )
     )
+)
 
 adjoint_parametrizations.append(
     pytest.param(
@@ -65,8 +65,8 @@ adjoint_parametrizations.append(
         4,  # passed to comm_split_fixture, required MPI ranks
         id="distributed-4d-a",
         marks=[pytest.mark.mpi(min_size=4)]
-        )
     )
+)
 
 adjoint_parametrizations.append(
     pytest.param(
@@ -77,8 +77,8 @@ adjoint_parametrizations.append(
         4,  # passed to comm_split_fixture, required MPI ranks
         id="distributed-4d-b",
         marks=[pytest.mark.mpi(min_size=4)]
-        )
     )
+)
 
 adjoint_parametrizations.append(
     pytest.param(
@@ -89,8 +89,8 @@ adjoint_parametrizations.append(
         4,  # passed to comm_split_fixture, required MPI ranks
         id="distributed-4d-b",
         marks=[pytest.mark.mpi(min_size=4)]
-        )
     )
+)
 
 adjoint_parametrizations.append(
     pytest.param(
@@ -101,8 +101,8 @@ adjoint_parametrizations.append(
         8,  # passed to comm_split_fixture, required MPI ranks
         id="distributed-4d-b",
         marks=[pytest.mark.mpi(min_size=8)]
-        )
     )
+)
 
 adjoint_parametrizations.append(
     pytest.param(
@@ -113,8 +113,8 @@ adjoint_parametrizations.append(
         4,  # passed to comm_split_fixture, required MPI ranks
         id="distributed-3d-a",
         marks=[pytest.mark.mpi(min_size=4)]
-        )
     )
+)
 
 adjoint_parametrizations.append(
     pytest.param(
@@ -125,8 +125,8 @@ adjoint_parametrizations.append(
         8,  # passed to comm_split_fixture, required MPI ranks
         id="distributed-3d-b",
         marks=[pytest.mark.mpi(min_size=8)]
-        )
     )
+)
 
 adjoint_parametrizations.append(
     pytest.param(
@@ -137,8 +137,8 @@ adjoint_parametrizations.append(
         4,  # passed to comm_split_fixture, required MPI ranks
         id="distributed-4d-a",
         marks=[pytest.mark.mpi(min_size=4)]
-        )
     )
+)
 
 adjoint_parametrizations.append(
     pytest.param(
@@ -149,8 +149,8 @@ adjoint_parametrizations.append(
         4,  # passed to comm_split_fixture, required MPI ranks
         id="distributed-4d-b",
         marks=[pytest.mark.mpi(min_size=4)]
-        )
     )
+)
 
 adjoint_parametrizations.append(
     pytest.param(
@@ -161,8 +161,8 @@ adjoint_parametrizations.append(
         4,  # passed to comm_split_fixture, required MPI ranks
         id="distributed-4d-b",
         marks=[pytest.mark.mpi(min_size=4)]
-        )
     )
+)
 
 adjoint_parametrizations.append(
     pytest.param(
@@ -173,8 +173,8 @@ adjoint_parametrizations.append(
         8,  # passed to comm_split_fixture, required MPI ranks
         id="distributed-4d-b",
         marks=[pytest.mark.mpi(min_size=8)]
-        )
     )
+)
 
 
 # For example of indirect, see https://stackoverflow.com/a/28570677

@@ -52,7 +52,7 @@ class DistributedLossBase(Module):
         self.P_x = P_x
 
         P_0_base = P_x.create_partition_inclusive([0])
-        self.P_0 = P_0_base.create_cartesian_topology_partition([1]*P_x.dim)
+        self.P_0 = P_0_base.create_cartesian_topology_partition([1] * P_x.dim)
 
         # Clean up temporary resources.
         P_0_base.deactivate()

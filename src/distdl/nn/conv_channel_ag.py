@@ -218,7 +218,7 @@ class _DistributedChannelAllGatherConvNd(Module):
         # Partition for collecting weights/biases for saving the state dict
         if self.collect_state:
             P_root_base = P_x.create_partition_inclusive([0])
-            self.P_root = P_root_base.create_cartesian_topology_partition([1]*P_x.dim)
+            self.P_root = P_root_base.create_cartesian_topology_partition([1] * P_x.dim)
             self.gather_weight = Repartition(P_weight, self.P_root, preserve_batch=False)
             self.scatter_weight = Repartition(self.P_root, P_weight, preserve_batch=False)
             if self.use_bias:
@@ -432,8 +432,9 @@ class DistributedChannelAllGatherConv1d(_DistributedChannelAllGatherConvNd):
 
     def _conv_forward(self, input: Tensor, weight: Tensor, bias: Optional[Tensor]):
         if self.padding_mode != 'zeros':
-            return torch.nn.functional.conv1d(torch.nn.functional.pad(input, self._reversed_padding_repeated_twice, mode=self.padding_mode),
-                                              weight, bias, self.stride, _single(0), self.dilation, self.groups)
+            return torch.nn.functional.conv1d(torch.nn.functional.pad(input, self._reversed_padding_repeated_twice,
+                                              mode=self.padding_mode), weight, bias, self.stride, _single(0),
+                                              self.dilation, self.groups)
         return torch.nn.functional.conv1d(input, weight, bias, self.stride,
                                           self.padding, self.dilation, self.groups)
 
@@ -546,8 +547,9 @@ class DistributedChannelAllGatherConv2d(_DistributedChannelAllGatherConvNd):
 
     def _conv_forward(self, input: Tensor, weight: Tensor, bias: Optional[Tensor]):
         if self.padding_mode != 'zeros':
-            return torch.nn.functional.conv2d(torch.nn.functional.pad(input, self._reversed_padding_repeated_twice, mode=self.padding_mode),
-                                              weight, bias, self.stride, _pair(0), self.dilation, self.groups)
+            return torch.nn.functional.conv2d(torch.nn.functional.pad(input, self._reversed_padding_repeated_twice,
+                                              mode=self.padding_mode), weight, bias, self.stride, _pair(0),
+                                              self.dilation, self.groups)
         return torch.nn.functional.conv2d(input, weight, bias, self.stride,
                                           self.padding, self.dilation, self.groups)
 
@@ -726,8 +728,7 @@ class _DistributedChannelAllGatherConvTransposeNd(_DistributedChannelAllGatherCo
             min_sizes = torch.jit.annotate(List[int], [])
             max_sizes = torch.jit.annotate(List[int], [])
             for d in range(num_spatial_dims):
-                dim_size = ((input.size(d + num_non_spatial_dims) - 1) * stride[d] -
-                            2 * padding[d] +
+                dim_size = ((input.size(d + num_non_spatial_dims) - 1) * stride[d] - 2 * padding[d] +   # noqa W504
                             (dilation[d] if dilation is not None else 1) * (kernel_size[d] - 1) + 1)
                 min_sizes.append(dim_size)
                 max_sizes.append(min_sizes[d] + stride[d] - 1)
@@ -1067,6 +1068,7 @@ class DistributedChannelAllGatherConvTranspose3d(_DistributedChannelAllGatherCon
         Device location of the layer parameters. Default: P_x.device.
 
     """
+
     def __init__(
         self,
         P_x: MPIPartition,

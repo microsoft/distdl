@@ -113,12 +113,14 @@ class SumReduceFunction(torch.autograd.Function):
         # is OK, as the reduction accounts for the copy, unlike the broadcast
         # below.
         if P_send.active:
-            reduced_data_send = torch.zeros(input_tensor_structure.shape, dtype=input_tensor_structure.dtype, device=device)
+            reduced_data_send = torch.zeros(input_tensor_structure.shape, dtype=input_tensor_structure.dtype,
+                                            device=device)
             P_send._nccl.reduce(input.detach().contiguous(), reduced_data_send, op='sum', root=0, stream=None)
 
         # If I sent data in the forward, I have to receive it here.
         if P_send != P_recv and P_recv.active:
-            reduced_data_recv = torch.zeros(output_tensor_structure.shape, dtype=output_tensor_structure.dtype, device=device)
+            reduced_data_recv = torch.zeros(output_tensor_structure.shape, dtype=output_tensor_structure.dtype,
+                                            device=device)
             P_recv._nccl.reduce(reduced_data_recv, reduced_data_recv, op='sum', root=0, stream=None)
 
         # If we had to receive data, we need to tensorify it.
@@ -212,7 +214,8 @@ class SumReduceFunction(torch.autograd.Function):
                     grad_output.div_(np.prod(P_send.shape[ctx.scale_backward]))
                 grad_input = grad_output
             else:
-                grad_input = torch.zeros(input_tensor_structure.shape, dtype=input_tensor_structure.dtype, device=device)
+                grad_input = torch.zeros(input_tensor_structure.shape, dtype=input_tensor_structure.dtype,
+                                         device=device)
                 P_send._nccl.broadcast(grad_input, root=0, stream=None)
 
                 grad_input.requires_grad_(input_tensor_structure.requires_grad)

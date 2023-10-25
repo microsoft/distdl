@@ -34,7 +34,7 @@ P_x = P_x_base.create_cartesian_topology_partition(in_shape)
 # Create the output partition (using the last 6 workers)
 out_shape = (2, 1)
 out_size = np.prod(out_shape)
-out_workers = np.arange(P_world.size-out_size, P_world.size)
+out_workers = np.arange(P_world.size - out_size, P_world.size)
 
 P_y_base = P_world.create_partition_inclusive(out_workers)
 P_y = P_y_base.create_cartesian_topology_partition(out_shape)

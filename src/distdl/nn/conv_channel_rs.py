@@ -238,7 +238,7 @@ class _DistributedChannelReduceScatterConvNd(Module):
         # Partition for collecting weights/biases for saving the state dict
         if self.collect_state:
             P_root_base = P_x.create_partition_inclusive([0])
-            self.P_root = P_root_base.create_cartesian_topology_partition([1]*P_x.dim)
+            self.P_root = P_root_base.create_cartesian_topology_partition([1] * P_x.dim)
             self.gather_weight = Repartition(P_weight, self.P_root, preserve_batch=False)
             self.scatter_weight = Repartition(self.P_root, P_weight, preserve_batch=False)
 
@@ -433,12 +433,11 @@ class DistributedChannelReduceScatterConv1d(_DistributedChannelReduceScatterConv
 
     def _conv_forward(self, input: Tensor, weight: Tensor, bias: Optional[Tensor]):
         if self.padding_mode != 'zeros':
-            return torch.nn.functional.conv1d(torch.nn.functional.pad(input, self._reversed_padding_repeated_twice, mode=self.padding_mode),
-                                              weight, bias, self.stride, _single(0), self.dilation, self.groups
-                                              )
+            return torch.nn.functional.conv1d(torch.nn.functional.pad(input, self._reversed_padding_repeated_twice,
+                                              mode=self.padding_mode), weight, bias, self.stride, _single(0),
+                                              self.dilation, self.groups)
         return torch.nn.functional.conv1d(input, weight, bias, self.stride,
-                                          self.padding, self.dilation, self.groups
-                                          )
+                                          self.padding, self.dilation, self.groups)
 
     def forward(self, input: Tensor) -> Tensor:
         if not self.P_x.active:
@@ -549,12 +548,11 @@ class DistributedChannelReduceScatterConv2d(_DistributedChannelReduceScatterConv
 
     def _conv_forward(self, input: Tensor, weight: Tensor, bias: Optional[Tensor]):
         if self.padding_mode != 'zeros':
-            return torch.nn.functional.conv2d(torch.nn.functional.pad(input, self._reversed_padding_repeated_twice, mode=self.padding_mode),
-                                              weight, bias, self.stride, _pair(0), self.dilation, self.groups
-                                              )
+            return torch.nn.functional.conv2d(torch.nn.functional.pad(input, self._reversed_padding_repeated_twice,
+                                              mode=self.padding_mode), weight, bias, self.stride, _pair(0),
+                                              self.dilation, self.groups)
         return torch.nn.functional.conv2d(input, weight, bias, self.stride,
-                                          self.padding, self.dilation, self.groups
-                                          )
+                                          self.padding, self.dilation, self.groups)
 
     def forward(self, input: Tensor) -> Tensor:
         if not self.P_x.active:
@@ -667,12 +665,11 @@ class DistributedChannelReduceScatterConv3d(_DistributedChannelReduceScatterConv
 
     def _conv_forward(self, input: Tensor, weight: Tensor, bias: Optional[Tensor]):
         if self.padding_mode != 'zeros':
-            return torch.nn.functional.conv3d(torch.nn.functional.pad(input, self._reversed_padding_repeated_twice, mode=self.padding_mode),
-                                              weight, bias, self.stride, _single(0), self.dilation, self.groups
-                                              )
+            return torch.nn.functional.conv3d(torch.nn.functional.pad(input, self._reversed_padding_repeated_twice,
+                                              mode=self.padding_mode), weight, bias, self.stride, _single(0),
+                                              self.dilation, self.groups)
         return torch.nn.functional.conv3d(input, weight, bias, self.stride,
-                                          self.padding, self.dilation, self.groups
-                                          )
+                                          self.padding, self.dilation, self.groups)
 
     def forward(self, input: Tensor) -> Tensor:
         if not self.P_x.active:
@@ -725,9 +722,9 @@ class _DistributedChannelReduceScatterConvTransposeNd(_DistributedChannelReduceS
             min_sizes = torch.jit.annotate(List[int], [])
             max_sizes = torch.jit.annotate(List[int], [])
             for d in range(num_spatial_dims):
-                dim_size = ((input.size(d + num_non_spatial_dims) - 1) * stride[d] -
-                            2 * padding[d] +
-                            (dilation[d] if dilation is not None else 1) * (kernel_size[d] - 1) + 1)
+                dim_size = ((input.size(d + num_non_spatial_dims) - 1) * stride[d] - 2 *    # noqa W504
+                            padding[d] + (dilation[d] if dilation is not None else 1) *     # noqa W504
+                            (kernel_size[d] - 1) + 1)
                 min_sizes.append(dim_size)
                 max_sizes.append(min_sizes[d] + stride[d] - 1)
 

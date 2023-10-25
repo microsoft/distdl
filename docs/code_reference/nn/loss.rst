@@ -48,7 +48,7 @@ meaningless scalar tensors in a ``forward()`` call and to convert any grad
 input back to zero-volume tensors during the ``backward()`` phase.
 
 .. note::
-   DistDL distributed loss functions follow DistDL's design principles: the 
+   DistDL distributed loss functions follow DistDL's design principles: the
    communication is part of the mathematical formulation of the distributed
    network.  Thus, we do not all-reduce the result.  Only one worker has the
    true loss.
@@ -96,7 +96,7 @@ Under the above assumptions, the forward algorithm is:
 3. On the :math:`0^{\text{th}}` worker, apply the correct normalization based
    on the `reduction` mode.
 
-.. note:: 
+.. note::
    The normalization constant is computed in a pre-forward hook so that
    it can be re-used without more collective communication.
 
@@ -147,9 +147,6 @@ API
 ===
 
 .. currentmodule:: distdl.nn
-
-.. autoclass:: DistributedLossBase
-    :members:
 
 .. autoclass:: DistributedL1Loss
     :members:

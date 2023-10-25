@@ -18,8 +18,8 @@ adjoint_parametrizations.append(
         12,  # passed to comm_split_fixture, required MPI ranks
         id="distributed",
         marks=[pytest.mark.mpi(min_size=12)]
-        )
     )
+)
 
 # Main functionality
 adjoint_parametrizations.append(
@@ -32,8 +32,8 @@ adjoint_parametrizations.append(
         1,  # passed to comm_split_fixture, required MPI ranks
         id="sequential",
         marks=[pytest.mark.mpi(min_size=1)]
-        )
     )
+)
 
 
 # For example of indirect, see https://stackoverflow.com/a/28570677

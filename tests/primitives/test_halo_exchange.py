@@ -35,8 +35,8 @@ adjoint_parametrizations.append(
         9,  # passed to comm_split_fixture, required MPI ranks
         id="conv-same_padding-float32",
         marks=[pytest.mark.mpi(min_size=9)]
-        )
     )
+)
 
 # Main functionality
 adjoint_parametrizations.append(
@@ -52,8 +52,8 @@ adjoint_parametrizations.append(
         9,  # passed to comm_split_fixture, required MPI ranks
         id="conv-same_padding-float64",
         marks=[pytest.mark.mpi(min_size=9)]
-        )
     )
+)
 
 adjoint_parametrizations.append(
     pytest.param(
@@ -68,8 +68,8 @@ adjoint_parametrizations.append(
         3,  # passed to comm_split_fixture, required MPI ranks
         id="conv-same_padding-float32",
         marks=[pytest.mark.mpi(min_size=3)]
-        )
     )
+)
 
 adjoint_parametrizations.append(
     pytest.param(
@@ -84,8 +84,8 @@ adjoint_parametrizations.append(
         3,  # passed to comm_split_fixture, required MPI ranks
         id="conv-same_padding-float64",
         marks=[pytest.mark.mpi(min_size=3)]
-        )
     )
+)
 
 
 @pytest.mark.parametrize("P_x_ranks, P_x_shape,"

@@ -22,8 +22,8 @@ parametrizations_affine.append(
         4,  # passed to comm_split_fixture, required MPI ranks
         id="distributed-batch-norm-affine-batch",
         marks=[pytest.mark.mpi(min_size=4)]
-        )
     )
+)
 
 parametrizations_affine.append(
     pytest.param(
@@ -35,8 +35,8 @@ parametrizations_affine.append(
         4,  # passed to comm_split_fixture, required MPI ranks
         id="distributed-batch-norm-affine-feature",
         marks=[pytest.mark.mpi(min_size=4)]
-        )
     )
+)
 
 parametrizations_affine.append(
     pytest.param(
@@ -48,8 +48,8 @@ parametrizations_affine.append(
         4,  # passed to comm_split_fixture, required MPI ranks
         id="distributed-batch-norm-affine-feature-track-running",
         marks=[pytest.mark.mpi(min_size=4)]
-        )
     )
+)
 
 parametrizations_affine.append(
     pytest.param(
@@ -61,8 +61,8 @@ parametrizations_affine.append(
         4,  # passed to comm_split_fixture, required MPI ranks
         id="distributed-batch-norm-affine-2d",
         marks=[pytest.mark.mpi(min_size=4)]
-        )
     )
+)
 
 parametrizations_affine.append(
     pytest.param(
@@ -74,8 +74,8 @@ parametrizations_affine.append(
         8,  # passed to comm_split_fixture, required MPI ranks
         id="distributed-batch-norm-affine-4d",
         marks=[pytest.mark.mpi(min_size=8)]
-        )
     )
+)
 
 parametrizations_affine.append(
     pytest.param(
@@ -87,8 +87,8 @@ parametrizations_affine.append(
         12,  # passed to comm_split_fixture, required MPI ranks
         id="distributed-batch-norm-affine-4d-many-ranks",
         marks=[pytest.mark.mpi(min_size=12)]
-        )
     )
+)
 
 parametrizations_non_affine = []
 
@@ -101,8 +101,8 @@ parametrizations_non_affine.append(
         4,  # passed to comm_split_fixture, required MPI ranks
         id="distributed-batch-norm-no-affine-feature",
         marks=[pytest.mark.mpi(min_size=4)]
-        )
     )
+)
 
 parametrizations_non_affine.append(
     pytest.param(
@@ -113,8 +113,8 @@ parametrizations_non_affine.append(
         4,  # passed to comm_split_fixture, required MPI ranks
         id="distributed-batch-norm-no-affine-feature-track-running",
         marks=[pytest.mark.mpi(min_size=4)]
-        )
     )
+)
 
 
 @pytest.mark.parametrize("P_x_ranks, P_x_shape,"
@@ -191,7 +191,7 @@ def test_batch_norm_with_training(barrier_fence_fixture,
         # Do a manual weight update (this is what optimizer does):
         with torch.no_grad():
             for p in seq_bn.parameters():
-                p.copy_(p + 0.1*p.grad)
+                p.copy_(p + 0.1 * p.grad)
 
     # Evaluate sequential network
     if P_world.rank == 0:
@@ -242,7 +242,7 @@ def test_batch_norm_with_training(barrier_fence_fixture,
     # Do a manual weight update (this is what optimizer does):
     with torch.no_grad():
         for p in dist_bn.parameters():
-            p.copy_(p + 0.1*p.grad)
+            p.copy_(p + 0.1 * p.grad)
 
     # Evaluate distributed network
     dist_bn.eval()

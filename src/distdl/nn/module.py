@@ -37,7 +37,7 @@ class Module(torch.nn.Module):
     def _distdl_forward_pre_hook(self, input):
         r"""The pre-hook for DistDL distributed layers.
 
-        See the `PyTorch documentation <https://pytorch.org/docs/stable/nn.html#torch.nn.Module.register_forward_pre_hook>`_
+        See the `PyTorch documentation https://pytorch.org/docs/stable/nn.html#torch.nn.Module.register_forward_pre_hook`    # noqa: E501
         for more details on the arguments.
 
         Parameters

@@ -128,7 +128,7 @@ class DistributedLinearAllGather(Module):
             assert P_store_weight.shape[-2] == P_y.shape[-1]
             assert P_store_weight.shape[-1] == 1
             if P_y.dim > 2:
-                assert np.prod(P_store_weight.shape[:P_y.dim-2]) == 1
+                assert np.prod(P_store_weight.shape[:P_y.dim - 2]) == 1
         else:
             store_weight_partition_shape = [1] * P_y.dim
             store_weight_partition_shape[-2] = P_y.shape[-1]
@@ -149,7 +149,7 @@ class DistributedLinearAllGather(Module):
             assert P_y.dim == P_apply_weight.dim
             assert P_apply_weight.shape[-1] == 1
             assert P_apply_weight.shape[-2] == P_y.shape[-1]
-            for i in range(P_y.dim-2):
+            for i in range(P_y.dim - 2):
                 assert P_apply_weight.shape[i] == P_y.shape[i]
         else:
             apply_weight_partition_shape = P_y.shape.copy()
@@ -210,7 +210,7 @@ class DistributedLinearAllGather(Module):
         # Partition for collecting weights/biases for saving the state dict
         if self.collect_state:
             P_root_base = P_y.create_partition_inclusive([0])
-            self.P_root = P_root_base.create_cartesian_topology_partition([1]*P_y.dim)
+            self.P_root = P_root_base.create_cartesian_topology_partition([1] * P_y.dim)
             self.gather_weight = Repartition(P_store_weight, self.P_root, preserve_batch=False)
             self.scatter_weight = Repartition(self.P_root, P_store_weight, preserve_batch=False)
             if self.use_bias:
@@ -230,7 +230,7 @@ class DistributedLinearAllGather(Module):
                 init.uniform_(self.bias, -bound, bound)
 
     def _unsqueeze_weight(self, weight):
-        shape = [1]*self.P_y.dim
+        shape = [1] * self.P_y.dim
         shape[-2] = weight.shape[-2]
         shape[-1] = weight.shape[-1]
         return weight.view(shape)
@@ -240,7 +240,7 @@ class DistributedLinearAllGather(Module):
         return weight.view(c_out, c_in)
 
     def _unsqueeze_bias(self, bias):
-        shape = [1]*self.P_y.dim
+        shape = [1] * self.P_y.dim
         shape[-2] = bias.shape[0]
         return bias.view(shape)
 
@@ -256,13 +256,15 @@ class DistributedLinearAllGather(Module):
             head_size = weight.shape[-2] // self.num_vars // self.num_heads
             num_gpu = self.P_store_weight.shape[-2]
             weight = rearrange(self._squeeze_weight(weight), "(p v h) n -> (v p h) n",
-                               p=num_gpu, v=self.num_vars, h=self.num_heads//num_gpu*head_size
+                               p=num_gpu, v=self.num_vars, h=self.num_heads // num_gpu * head_size
                                )
             return self._unsqueeze_weight(weight)
         else:
             head_size = weight.shape[-2] // (self.num_heads_kv * 2 + self.num_heads)
-            num_heads_local = compute_subshape(self.P_store_weight.shape[-2], self.P_store_weight.index[-2], [self.num_heads])[0]
-            num_heads_kv_local = compute_subshape(self.P_store_weight.shape[-2], self.P_store_weight.index[-2], [self.num_heads_kv])[0]
+            num_heads_local = compute_subshape(self.P_store_weight.shape[-2], self.P_store_weight.index[-2],
+                                               [self.num_heads])[0]
+            num_heads_kv_local = compute_subshape(self.P_store_weight.shape[-2], self.P_store_weight.index[-2],
+                                                  [self.num_heads_kv])[0]
             q_size_local = head_size * num_heads_local
             kv_size_local = head_size * num_heads_kv_local * 2
             num_gpu = self.P_store_weight.shape[-2]
@@ -274,8 +276,8 @@ class DistributedLinearAllGather(Module):
             kv_weight = weight[:, q_size_local:, :]
 
             # Rearrange
-            q_weight = rearrange(q_weight, "p (v h) n -> (v p h) n", v=1, h=num_heads_local*head_size)
-            kv_weight = rearrange(kv_weight, "p (v h) n -> (v p h) n", v=2, h=num_heads_kv_local*head_size)
+            q_weight = rearrange(q_weight, "p (v h) n -> (v p h) n", v=1, h=num_heads_local * head_size)
+            kv_weight = rearrange(kv_weight, "p (v h) n -> (v p h) n", v=2, h=num_heads_kv_local * head_size)
             weight = torch.cat([q_weight, kv_weight], dim=0)
 
             return self._unsqueeze_weight(weight)
@@ -288,12 +290,14 @@ class DistributedLinearAllGather(Module):
             head_size = weight.shape[-2] // self.num_vars // self.num_heads
             num_gpu = self.P_store_weight.shape[-2]
             weight = rearrange(self._squeeze_weight(weight), "(v p h) n -> (p v h) n",
-                               p=num_gpu, v=self.num_vars, h=self.num_heads//num_gpu*head_size)
+                               p=num_gpu, v=self.num_vars, h=self.num_heads // num_gpu * head_size)
             return self._unsqueeze_weight(weight)
         else:
             head_size = weight.shape[-2] // (self.num_heads_kv * 2 + self.num_heads)
-            num_heads_local = compute_subshape(self.P_store_weight.shape[-2], self.P_store_weight.index[-2], [self.num_heads])[0]
-            num_heads_kv_local = compute_subshape(self.P_store_weight.shape[-2], self.P_store_weight.index[-2], [self.num_heads_kv])[0]
+            num_heads_local = compute_subshape(self.P_store_weight.shape[-2], self.P_store_weight.index[-2],
+                                               [self.num_heads])[0]
+            num_heads_kv_local = compute_subshape(self.P_store_weight.shape[-2], self.P_store_weight.index[-2],
+                                                  [self.num_heads_kv])[0]
             q_size = head_size * self.num_heads
             num_gpu = self.P_store_weight.shape[-2]
 
@@ -302,8 +306,8 @@ class DistributedLinearAllGather(Module):
             kv_weight = self._squeeze_weight(weight)[q_size:, :]
 
             # Rearrange
-            q_weight = rearrange(q_weight, "(v p h) n -> p (v h) n", v=1, h=num_heads_local*head_size)
-            kv_weight = rearrange(kv_weight, "(v p h) n -> p (v h) n", v=2, h=num_heads_kv_local*head_size)
+            q_weight = rearrange(q_weight, "(v p h) n -> p (v h) n", v=1, h=num_heads_local * head_size)
+            kv_weight = rearrange(kv_weight, "(v p h) n -> p (v h) n", v=2, h=num_heads_kv_local * head_size)
             weight = torch.cat([q_weight, kv_weight], dim=1)
             weight = rearrange(weight, "p m n -> (p m) n")
 

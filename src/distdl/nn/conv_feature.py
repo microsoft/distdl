@@ -104,7 +104,7 @@ class DistributedFeatureConvBase(Module, HaloMixin, ConvMixin):
         # Back-end specific buffer manager for economic buffer allocation
         if buffer_manager is None:
             buffer_manager = self._distdl_backend.BufferManager()
-        elif type(buffer_manager) is not self._distdl_backend.BufferManager:
+        elif not isinstance(buffer_manager, self._distdl_backend.BufferManager):
             raise ValueError("Buffer manager type does not match backend.")
         self.buffer_manager = buffer_manager
 
@@ -139,7 +139,7 @@ class DistributedFeatureConvBase(Module, HaloMixin, ConvMixin):
         # We will be using global padding to compute local padding,
         # so expand it to a numpy array
         global_padding = np.pad(self.padding,
-                                pad_width=(dims-len(self.padding), 0),
+                                pad_width=(dims - len(self.padding), 0),
                                 mode='constant',
                                 constant_values=0)
         self.global_padding = global_padding
@@ -286,7 +286,7 @@ class DistributedFeatureConvBase(Module, HaloMixin, ConvMixin):
         x_local_structure = TensorStructure(input[0])
         x_global_shape = x_global_structure.shape
         x_local_shape = x_local_structure.shape
-        x_global_shape_after_pad = x_global_shape + 2*self.global_padding
+        x_global_shape_after_pad = x_global_shape + 2 * self.global_padding
         x_local_shape_after_pad = x_local_shape + np.sum(self.local_padding, axis=1, keepdims=False)
         x_local_structure_after_pad = TensorStructure(input[0])
         x_local_structure_after_pad.shape = x_local_shape_after_pad
@@ -371,7 +371,7 @@ class DistributedFeatureConvBase(Module, HaloMixin, ConvMixin):
 
         """
         should_pad_left = [k == 0 for k in self.P_x.index]
-        should_pad_right = [k == d-1 for k, d in zip(self.P_x.index, self.P_x.shape)]
+        should_pad_right = [k == d - 1 for k, d in zip(self.P_x.index, self.P_x.shape)]
         should_pad = np.stack((should_pad_left, should_pad_right), axis=1)
         local_padding = np.where(should_pad, padding, 0)
         return local_padding
