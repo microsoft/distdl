@@ -50,7 +50,7 @@ class DistributedRMSNormZero(Module):
         dimension. Default is None.
     """
 
-    def __init__(self, P_x, normalized_shape, elementwise_affine=True, bias=True, eps=1e-5,
+    def __init__(self, P_x, normalized_shape, elementwise_affine=True, bias=False, eps=1e-5,
                  collect_state=False, device=None, dtype=None, scale_backward=None):
         super(DistributedRMSNormZero, self).__init__()
 
@@ -130,8 +130,6 @@ class DistributedRMSNormZero(Module):
             self.weight = torch.nn.Parameter(torch.empty(normalized_shape_local, **factory_kwargs))
             if self.use_bias:
                 self.bias = torch.nn.Parameter(torch.empty(normalized_shape_local, **factory_kwargs))
-            else:
-                self.register_parameter('bias', None)
         else:
             self.register_parameter('weight', None)
         self.reset_parameters()
