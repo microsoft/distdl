@@ -259,7 +259,7 @@ class DistributedRMSNormZero(Module):
         rms_norm = self._compute_l2_norm(input)
 
         # Re-scale
-        input = input / rms_norm
+        input = input / (rms_norm + self.eps)
 
         if self.elementwise_affine:
             weight = self.allgather(self.weight.transpose(0, -1)).transpose(0, -1)
