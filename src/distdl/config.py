@@ -20,7 +20,7 @@ def get_default_comm():
         if os.environ[BACKEND_COMM_ENV] in supported_backend_comm:
             backend_comm = os.environ[BACKEND_COMM_ENV]
         else:
-            logger.warning("Specified backend communication protocol does not exist. Default to mpi.")
+            logger.logger.warning("Specified backend communication protocol does not exist. Default to mpi.")
             backend_comm = "mpi"
     else:
         backend_comm = "mpi"
@@ -37,7 +37,7 @@ def get_default_array():
         if os.environ[BACKEND_ARRAY_ENV] in supported_backend_array:
             backend_array = os.environ[BACKEND_ARRAY_ENV]
         else:
-            logger.warning("Specified backend array representation does not exist. Default to numpy.")
+            logger.logger.warning("Specified backend array representation does not exist. Default to numpy.")
             backend_array = "numpy"
     else:
         backend_array = "numpy"
@@ -50,7 +50,7 @@ def get_default_pre_hook_setting():
         if os.environ[PRE_HOOK_CHECK_INPUT_CHANGED_ENV] in supported_settings:
             check_input_changed = bool(int(os.environ[PRE_HOOK_CHECK_INPUT_CHANGED_ENV]))
         else:
-            logger.warning("Specified setting for check input changed does not exist. Default to False.")
+            logger.logger.warning("Specified setting for check input changed does not exist. Default to False.")
     else:
         check_input_changed = False
     return check_input_changed
@@ -72,5 +72,5 @@ def set_backend(backend_comm=None, backend_array=None, check_input_changed=None)
     if backend_config in supported_backends and supported_backends[backend_config] is not None:
         distdl.backends.backend = supported_backends[backend_config]
     else:
-        logger.warning("Selected backend not supported. Default to mpi-numpy.")
+        logger.logger.warning("Selected backend not supported. Default to mpi-numpy.")
         distdl.backends.backend = supported_backends['mpi_numpy']
