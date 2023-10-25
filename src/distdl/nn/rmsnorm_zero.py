@@ -233,7 +233,7 @@ class DistributedRMSNormZero(Module):
             PyTorch Tensor of values that should be summed.
         """
         # Local mean
-        output_l2_norm  = input.norm(2, dim=self.dim_reduce, keepdim=True)
+        output_l2_norm = input.norm(2, dim=self.dim_reduce, keepdim=True)
 
         # Average across workers
         output_l2_norm = torch.sqrt(self.allreduce(output_l2_norm.pow(2)) / self.num_reduce)
