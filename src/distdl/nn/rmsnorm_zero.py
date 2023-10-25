@@ -1,3 +1,4 @@
+import math
 import numbers
 
 import numpy as np
@@ -220,7 +221,7 @@ class DistributedRMSNormZero(Module):
 
         return destination
 
-    def _compute_mean(self, input):
+    def _compute_l2_norm(self, input):
         r"""
         Compute global feature mean (i.e., across the last d dimensions,
         where d is the dimension of self.normalized_shape).
@@ -232,10 +233,14 @@ class DistributedRMSNormZero(Module):
             PyTorch Tensor of values that should be summed.
         """
         # Local mean
-        output = input.mean(dim=self.dim_reduce, keepdim=True)
+        output_l2_norm  = input.norm(2, dim=self.dim_reduce, keepdim=True)
 
         # Average across workers
-        return self.allreduce(output) / self.num_reduce
+        output_l2_norm = torch.sqrt(self.allreduce(output_l2_norm.pow(2)) / self.num_reduce)
+
+        # Return RMS norm
+        num_elements = np.prod(input.shape[self.dim_reduce_slice])
+        return output_l2_norm / math.sqrt(num_elements)
 
     def forward(self, input):
         r"""Forward function interface.
@@ -251,10 +256,10 @@ class DistributedRMSNormZero(Module):
             return input
 
         # Calculate mean and variance
-        mean = self._compute_mean(input.pow(2))
+        rms_norm = self._compute_l2_norm(input)
 
         # Re-scale
-        input = input * torch.rsqrt(mean + self.eps)
+        input = input / rms_norm
 
         if self.elementwise_affine:
             weight = self.allgather(self.weight.transpose(0, -1)).transpose(0, -1)
