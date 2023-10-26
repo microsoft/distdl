@@ -72,7 +72,7 @@ parametrizations_affine.append(
         True,  # elementwise_affine
         True,  # use bias
         4,  # passed to comm_split_fixture, required MPI ranks
-        id="distributed-batch-norm-affine-batch-1",
+        id="distributed-batch-norm-affine-batch-5",
         marks=[pytest.mark.mpi(min_size=4)]
     )
 )
@@ -85,7 +85,7 @@ parametrizations_affine.append(
         True,  # elementwise_affine
         True,  # use bias
         4,  # passed to comm_split_fixture, required MPI ranks
-        id="distributed-batch-norm-affine-batch-2",
+        id="distributed-batch-norm-affine-batch-6",
         marks=[pytest.mark.mpi(min_size=4)]
     )
 )
@@ -98,7 +98,7 @@ parametrizations_affine.append(
         True,  # elementwise_affine
         True,  # use bias
         4,  # passed to comm_split_fixture, required MPI ranks
-        id="distributed-batch-norm-affine-batch-3",
+        id="distributed-batch-norm-affine-batch-7",
         marks=[pytest.mark.mpi(min_size=4)]
     )
 )
@@ -111,7 +111,7 @@ parametrizations_affine.append(
         True,  # elementwise_affine
         True,  # use bias
         4,  # passed to comm_split_fixture, required MPI ranks
-        id="distributed-batch-norm-affine-batch-4",
+        id="distributed-batch-norm-affine-batch-8",
         marks=[pytest.mark.mpi(min_size=4)]
     )
 )
