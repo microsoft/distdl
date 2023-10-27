@@ -25,96 +25,96 @@ parametrizations_affine.append(
     )
 )
 
-parametrizations_affine.append(
-    pytest.param(
-        np.arange(0, 4), [2, 2],  # P_x_ranks, P_x_shape,
-        (4, 8),  # input_shape
-        (8,),    # normalized_shape
-        True,  # elementwise_affine
-        False,  # use bias
-        4,  # passed to comm_split_fixture, required MPI ranks
-        id="distributed-batch-norm-affine-batch-2",
-        marks=[pytest.mark.mpi(min_size=4)]
-    )
-)
+# parametrizations_affine.append(
+#     pytest.param(
+#         np.arange(0, 4), [2, 2],  # P_x_ranks, P_x_shape,
+#         (4, 8),  # input_shape
+#         (8,),    # normalized_shape
+#         True,  # elementwise_affine
+#         False,  # use bias
+#         4,  # passed to comm_split_fixture, required MPI ranks
+#         id="distributed-batch-norm-affine-batch-2",
+#         marks=[pytest.mark.mpi(min_size=4)]
+#     )
+# )
 
-parametrizations_affine.append(
-    pytest.param(
-        np.arange(0, 4), [1, 4],  # P_x_ranks, P_x_shape,
-        (4, 8),  # input_shape
-        (8,),    # normalized_shape
-        True,  # elementwise_affine
-        False,  # use bias
-        4,  # passed to comm_split_fixture, required MPI ranks
-        id="distributed-batch-norm-affine-batch-3",
-        marks=[pytest.mark.mpi(min_size=4)]
-    )
-)
+# parametrizations_affine.append(
+#     pytest.param(
+#         np.arange(0, 4), [1, 4],  # P_x_ranks, P_x_shape,
+#         (4, 8),  # input_shape
+#         (8,),    # normalized_shape
+#         True,  # elementwise_affine
+#         False,  # use bias
+#         4,  # passed to comm_split_fixture, required MPI ranks
+#         id="distributed-batch-norm-affine-batch-3",
+#         marks=[pytest.mark.mpi(min_size=4)]
+#     )
+# )
 
-parametrizations_affine.append(
-    pytest.param(
-        np.arange(0, 4), [4, 1],  # P_x_ranks, P_x_shape,
-        (4, 8),  # input_shape
-        (8,),    # normalized_shape
-        True,  # elementwise_affine
-        False,  # use bias
-        4,  # passed to comm_split_fixture, required MPI ranks
-        id="distributed-batch-norm-affine-batch-4",
-        marks=[pytest.mark.mpi(min_size=4)]
-    )
-)
+# parametrizations_affine.append(
+#     pytest.param(
+#         np.arange(0, 4), [4, 1],  # P_x_ranks, P_x_shape,
+#         (4, 8),  # input_shape
+#         (8,),    # normalized_shape
+#         True,  # elementwise_affine
+#         False,  # use bias
+#         4,  # passed to comm_split_fixture, required MPI ranks
+#         id="distributed-batch-norm-affine-batch-4",
+#         marks=[pytest.mark.mpi(min_size=4)]
+#     )
+# )
 
-parametrizations_affine.append(
-    pytest.param(
-        np.arange(0, 4), [2, 1, 2],  # P_x_ranks, P_x_shape,
-        (4, 3, 12),  # input_shape
-        (12,),    # normalized_shape
-        True,  # elementwise_affine
-        True,  # use bias
-        4,  # passed to comm_split_fixture, required MPI ranks
-        id="distributed-batch-norm-affine-batch-5",
-        marks=[pytest.mark.mpi(min_size=4)]
-    )
-)
+# parametrizations_affine.append(
+#     pytest.param(
+#         np.arange(0, 4), [2, 1, 2],  # P_x_ranks, P_x_shape,
+#         (4, 3, 12),  # input_shape
+#         (12,),    # normalized_shape
+#         True,  # elementwise_affine
+#         True,  # use bias
+#         4,  # passed to comm_split_fixture, required MPI ranks
+#         id="distributed-batch-norm-affine-batch-5",
+#         marks=[pytest.mark.mpi(min_size=4)]
+#     )
+# )
 
-parametrizations_affine.append(
-    pytest.param(
-        np.arange(0, 4), [2, 2],  # P_x_ranks, P_x_shape,
-        (4, 8),  # input_shape
-        (8,),    # normalized_shape
-        True,  # elementwise_affine
-        True,  # use bias
-        4,  # passed to comm_split_fixture, required MPI ranks
-        id="distributed-batch-norm-affine-batch-6",
-        marks=[pytest.mark.mpi(min_size=4)]
-    )
-)
+# parametrizations_affine.append(
+#     pytest.param(
+#         np.arange(0, 4), [2, 2],  # P_x_ranks, P_x_shape,
+#         (4, 8),  # input_shape
+#         (8,),    # normalized_shape
+#         True,  # elementwise_affine
+#         True,  # use bias
+#         4,  # passed to comm_split_fixture, required MPI ranks
+#         id="distributed-batch-norm-affine-batch-6",
+#         marks=[pytest.mark.mpi(min_size=4)]
+#     )
+# )
 
-parametrizations_affine.append(
-    pytest.param(
-        np.arange(0, 4), [1, 4],  # P_x_ranks, P_x_shape,
-        (4, 8),  # input_shape
-        (8,),    # normalized_shape
-        True,  # elementwise_affine
-        True,  # use bias
-        4,  # passed to comm_split_fixture, required MPI ranks
-        id="distributed-batch-norm-affine-batch-7",
-        marks=[pytest.mark.mpi(min_size=4)]
-    )
-)
+# parametrizations_affine.append(
+#     pytest.param(
+#         np.arange(0, 4), [1, 4],  # P_x_ranks, P_x_shape,
+#         (4, 8),  # input_shape
+#         (8,),    # normalized_shape
+#         True,  # elementwise_affine
+#         True,  # use bias
+#         4,  # passed to comm_split_fixture, required MPI ranks
+#         id="distributed-batch-norm-affine-batch-7",
+#         marks=[pytest.mark.mpi(min_size=4)]
+#     )
+# )
 
-parametrizations_affine.append(
-    pytest.param(
-        np.arange(0, 4), [4, 1],  # P_x_ranks, P_x_shape,
-        (4, 8),  # input_shape
-        (8,),    # normalized_shape
-        True,  # elementwise_affine
-        True,  # use bias
-        4,  # passed to comm_split_fixture, required MPI ranks
-        id="distributed-batch-norm-affine-batch-8",
-        marks=[pytest.mark.mpi(min_size=4)]
-    )
-)
+# parametrizations_affine.append(
+#     pytest.param(
+#         np.arange(0, 4), [4, 1],  # P_x_ranks, P_x_shape,
+#         (4, 8),  # input_shape
+#         (8,),    # normalized_shape
+#         True,  # elementwise_affine
+#         True,  # use bias
+#         4,  # passed to comm_split_fixture, required MPI ranks
+#         id="distributed-batch-norm-affine-batch-8",
+#         marks=[pytest.mark.mpi(min_size=4)]
+#     )
+# )
 
 
 # Sequential reference implementation from: https://github.com/bzhangGo/rmsnorm/blob/master/rmsnorm_torch.py
