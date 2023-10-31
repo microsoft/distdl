@@ -209,7 +209,7 @@ class DistributedExpertAllGather(Module):
                 weight_key = next(iter(destination))
                 weight = destination.pop(weight_key)
                 if not self.P_root.active:
-                    weight = zero_volume_tensor(device = self.P_e.device, dtype = weight.dtype, requires_grad = True)
+                    weight = zero_volume_tensor(device=self.P_e.device, dtype=weight.dtype, requires_grad=True)
                 weight = self.scatter_weight(weight)
 
             # Scatter bias
@@ -217,7 +217,7 @@ class DistributedExpertAllGather(Module):
                 bias_key = next(iter(destination))
                 bias = destination.pop(bias_key)
                 if not self.P_root.active:
-                    bias = zero_volume_tensor(device = self.P_e.device, dtype = bias.dtype, requires_grad = True)
+                    bias = zero_volume_tensor(device=self.P_e.device, dtype=bias.dtype, requires_grad=True)
                 bias = self.scatter_bias(bias)
                 destination[bias_key] = bias
 

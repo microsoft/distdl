@@ -1,6 +1,5 @@
 import math
 
-import numpy as np
 import torch
 
 import distdl.nn.init as init
@@ -224,7 +223,7 @@ class DistributedExpertReduceScatter(Module):
             weight_key = next(iter(destination))
             weight = destination.pop(weight_key)
             if not self.P_root.active:
-                weight = zero_volume_tensor(device = self.P_e.device, dtype = weight.dtype, requires_grad = True)
+                weight = zero_volume_tensor(device=self.P_e.device, dtype=weight.dtype, requires_grad=True)
             weight = self.scatter_weight(weight)
 
             # Load bias
@@ -232,7 +231,7 @@ class DistributedExpertReduceScatter(Module):
                 bias_key = next(iter(destination))
                 bias = destination.pop(bias_key)
                 if not self.P_root.active and self.P_store_bias.active:
-                    bias = zero_volume_tensor(device = self.P_e.device, dtype = bias.dtype, requires_grad = True)
+                    bias = zero_volume_tensor(device=self.P_e.device, dtype=bias.dtype, requires_grad=True)
 
                 if self.P_store_bias.active:
                     bias = self.scatter_bias(bias)
