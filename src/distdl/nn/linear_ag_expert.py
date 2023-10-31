@@ -5,9 +5,11 @@ import torch
 import distdl.nn.init as init
 from distdl.backends.common.tensor_comm import assemble_global_tensor_structure
 from distdl.nn.all_gather import AllGather
+from distdl.nn.broadcast import Broadcast
 from distdl.nn.module import Module
 from distdl.nn.repartition import Repartition
 from distdl.utilities.slicing import compute_subshape
+from distdl.utilities.slicing import worker_layout
 from distdl.utilities.torch import zero_volume_tensor
 
 
@@ -31,9 +33,10 @@ class DistributedExpertAllGather(Module):
 
     Parameters
     ----------
-    P_x :
-        3D Partition of input/output tensor with shape [ E, 1, M ], where E is the no.
-        of expert-parallel workers and M is the no. of model parallel workers.
+    P_e :
+        3D Partition of input/output tensor with shape [ E, N, M ], where E is the no.
+        of expert-parallel workers and M is the no. of model parallel workers and N is
+        the no. of capacity-parallel workers.
     num_experts :
         Number of experts in the *global* input tensor.
     in_features :
@@ -42,8 +45,8 @@ class DistributedExpertAllGather(Module):
         Number of features in the *global* output tensor.
     bias : bool
         Indicates if a bias term should be used. Default is true.
-    P_weight : optional
-        Partition for storing weights and biases. Must be of shape [ E, M, 1 ].
+    P_bias : optional
+        Partition for the bias of shape: [ E, N, 1 ].
     collect_state: bool, optional
         If true, collects the weights and biases to the root worker and
         serializes them to disk when the state_dict() function is called.
@@ -54,19 +57,17 @@ class DistributedExpertAllGather(Module):
         dimension. Default is None.
     """
 
-    def __init__(self, P_x, num_experts, in_features, out_features, bias=True, device=None, dtype=None,
-                 P_weight=None, collect_state=False, scale_backward=None):
+    def __init__(self, P_e, num_experts, in_features, out_features, bias=True, device=None, dtype=None,
+                 P_bias=None, collect_state=False, scale_backward=None):
 
         super(DistributedExpertAllGather, self).__init__()
 
-        self.P_x = P_x
-        if not self.P_x.active:
+        self.P_e = P_e
+        if not self.P_e.active:
             return
-        else:
-            assert P_x.shape[-2] == 1 or P_x.shape[-1] == 1
 
         if device is None:
-            device = P_x.device
+            device = P_e.device
         factory_kwargs = {'device': device, 'dtype': dtype}
 
         self.in_features = in_features
@@ -74,54 +75,68 @@ class DistributedExpertAllGather(Module):
         self.collect_state = collect_state
         self.use_bias = bias
 
-        # Partition for weights & biases (same size as P_x, but with last two dims swapped).
-        if P_weight is not None:
-            assert P_x.dim == P_weight.dim
-            assert P_weight.shape[-1] == 1
-            assert P_weight.shape[-2] == P_x.shape[-1]
-            for i in range(P_x.dim - 2):
-                assert P_weight.shape[i] == P_x.shape[i]
-        else:
-            apply_weight_partition_shape = P_x.shape.copy()
-            apply_weight_partition_shape[-1] = 1
-            apply_weight_partition_shape[-2] = P_x.shape[-1]
+        # Partition for biases (same size as P_e, but with 2nd dim equal to 1).
+        if P_bias is not None:
+            assert P_bias.dim == P_e.dim
+            assert P_bias.shape[-1] == 1
+            for i in range(P_bias.dim - 1):
+                assert P_e.shape[i] == P_e.shape[i]
+        elif self.use_bias:
+            store_bias_partition_shape = P_e.shape.copy()
+            store_bias_partition_shape[1] = 1
 
-            P_weight_base = P_x.create_partition_inclusive(range(P_x.size))
-            P_weight = P_weight_base.create_cartesian_topology_partition(
-                apply_weight_partition_shape)
-            P_weight_base.deactivate()
+            index_store_bias = [slice(0, 1)] * P_e.dim
+            index_store_bias[0] = slice(0, P_e.shape[0])
+            index_store_bias[2] = slice(0, P_e.shape[2])
+            store_bias_workers = worker_layout(P_e.shape)[tuple(index_store_bias)].\
+                reshape(-1).tolist()
 
-        # Store partitions for later  access
-        self.P_weight = P_weight
+            P_bias_base = P_e.create_partition_inclusive(store_bias_workers)
+            P_bias = P_bias_base.create_cartesian_topology_partition(
+                store_bias_partition_shape)
+            P_bias_base.deactivate()
+
+        # Store bias partition for later  access
+        if self.use_bias:
+            self.P_bias = P_bias
 
         # Create weights
-        if P_weight.active:
+        if P_e.active:
 
-            # Local shape of weights, which must have the same no. of dimensions as P_x
-            weight_shape = [1] * P_x.dim
-            num_experts_local = compute_subshape(P_weight.shape[0],
-                                                 P_weight.index[0],
+            # Local shape of weights, which must have the same no. of dimensions as P_e
+            weight_shape = [1] * P_e.dim
+
+            # Partition weights along expert dimension
+            num_experts_local = compute_subshape(P_e.shape[0],
+                                                 P_e.index[0],
                                                  [num_experts])[0]
-            out_features_local = compute_subshape(P_weight.shape[-2],
-                                                  P_weight.index[-2],
+
+            # Partition weights along model-parallel dimension
+            in_features_local = compute_subshape(P_e.shape[1],
+                                                 P_e.index[1],
+                                                 [in_features])[0]
+
+            # Also shard weights along the 2nd dimension (ZeRO-3-style)
+            out_features_local = compute_subshape(P_e.shape[2],
+                                                  P_e.index[2],
                                                   [out_features])[0]
             weight_shape[0] = num_experts_local
-            weight_shape[-2] = out_features_local
-            weight_shape[-1] = in_features
+            weight_shape[1] = in_features_local
+            weight_shape[2] = out_features_local
 
             # Create weights. Every worker either has weights or receives weights.
             self.weight = torch.nn.Parameter(torch.empty(tuple(weight_shape), **factory_kwargs))
         else:
-            self.register_buffer('weight', zero_volume_tensor(device=device, requires_grad=True))
+            self.register_buffer('weight', zero_volume_tensor(device=device, dtype=dtype, requires_grad=True))
 
         # Create bias
-        if self.use_bias and P_weight.active:
-            bias_shape = [1] * P_x.dim
+        if self.use_bias and P_bias.active:
+            bias_shape = [1] * P_e.dim
             bias_shape[0] = num_experts_local
-            bias_shape[-2] = out_features_local
+            bias_shape[2] = out_features_local
             self.bias = torch.nn.Parameter(torch.empty(tuple(bias_shape), **factory_kwargs))
-        elif self.use_bias:
-            self.register_buffer('bias', zero_volume_tensor(device=device, requires_grad=True))
+        elif self.use_bias and P_e.active:
+            self.register_buffer('bias', zero_volume_tensor(device=device, dtype=dtype, requires_grad=True))
         else:
             self.register_parameter('bias', None)
 
@@ -129,7 +144,10 @@ class DistributedExpertAllGather(Module):
         self.reset_parameters()
 
         # All-gather operation
-        self.all_gather = AllGather(self.P_x, axes_all_gather=(2,), scale_backward=scale_backward)
+        self.all_gather_hidden = AllGather(self.P_e, axes_all_gather=(2,), scale_backward=scale_backward)
+        self.all_gather_weight = AllGather(self.P_e, axes_all_gather=(1,), scale_backward=scale_backward)
+        if self.use_bias:
+            self.broadcast_bias = Broadcast(self.P_bias, self.P_e, scale_backward=scale_backward)
 
         # State dict hooks for gather/scattering distributed weights
         self._register_state_dict_hook(self.gather_state_dict)
@@ -137,20 +155,20 @@ class DistributedExpertAllGather(Module):
 
         # Partition for collecting weights/biases for saving the state dict
         if self.collect_state:
-            P_root_base = P_x.create_partition_inclusive([0])
-            self.P_root = P_root_base.create_cartesian_topology_partition([1] * P_x.dim)
-            self.gather_weight = Repartition(P_weight, self.P_root, preserve_batch=False)
-            self.scatter_weight = Repartition(self.P_root, P_weight, preserve_batch=False)
+            P_root_base = P_e.create_partition_inclusive([0])
+            self.P_root = P_root_base.create_cartesian_topology_partition([1] * P_e.dim)
+            self.gather_weight = Repartition(P_e, self.P_root, preserve_batch=False)
+            self.scatter_weight = Repartition(self.P_root, P_e, preserve_batch=False)
             if self.use_bias:
-                self.gather_bias = Repartition(P_weight, self.P_root, preserve_batch=False)
-                self.scatter_bias = Repartition(self.P_root, P_weight, preserve_batch=False)
+                self.gather_bias = Repartition(P_bias, self.P_root, preserve_batch=False)
+                self.scatter_bias = Repartition(self.P_root, P_bias, preserve_batch=False)
 
     def reset_parameters(self) -> None:
 
-        if self.P_weight.active:
-            init.kaiming_uniform_(self.P_weight, self.weight, a=math.sqrt(5))
+        if self.P_e.active:
+            init.kaiming_uniform_(self.P_e, self.weight, a=math.sqrt(5))
             weight_global_shape = assemble_global_tensor_structure(
-                self.weight, self.P_weight).shape
+                self.weight, self.P_e).shape
 
             if self.bias is not None:
                 fan_in, _ = init._calculate_fan_in_and_fan_out(weight_global_shape)
@@ -159,60 +177,52 @@ class DistributedExpertAllGather(Module):
 
     def gather_state_dict(self, module, destination, prefix, *args):
 
-        if self.collect_state and self.P_x.active:
-            if self.use_bias:
+        if self.collect_state:
+            if self.use_bias and self.P_e.active:
 
                 # Collect bias and serialize (last entry added to dict).
                 # All workers should pop their bias from the state dict.
                 bias_key = next(reversed(destination))
                 bias = self.gather_bias(destination.pop(bias_key))
 
-                if self.P_root.active:
-                    torch.save(bias, bias_key)
-
-            # Collect weights and serialize (second last entry added to dict)
-            weight_key = next(reversed(destination))
-            weight = self.gather_weight(destination.pop(weight_key))
+            if self.P_e.active:
+                # Collect weights and serialize (second last entry added to dict)
+                weight_key = next(reversed(destination))
+                weight = self.gather_weight(destination.pop(weight_key))
 
             if self.P_root.active:
-                torch.save(weight, weight_key)
 
                 # Save filenames in state dict rather than the full weights. Only the root
                 # should have the keys in the end.
-                destination[weight_key] = weight_key
+                destination[weight_key] = weight
 
                 if self.use_bias:
-                    destination[bias_key] = bias_key
+                    destination[bias_key] = bias
 
         return destination
 
     def scatter_state_dict(self, destination, prefix, *args):
-        if self.collect_state and self.P_x.active:
+        if self.collect_state:
+            if self.P_e.active:
 
-            # Scatter weights
-            weight_key = next(iter(destination))
-            destination.pop(weight_key)
-            if self.P_root.active:
-                weight = torch.load(weight_key)
-            else:
-                weight = zero_volume_tensor(device=self.P_x.device, requires_grad=True)
-            if self.P_weight.active:
+                # Scatter weights
+                weight_key = next(iter(destination))
+                weight = destination.pop(weight_key)
+                if not self.P_root.active:
+                    weight = zero_volume_tensor(device = self.P_e.device, dtype = weight.dtype, requires_grad = True)
                 weight = self.scatter_weight(weight)
 
             # Scatter bias
-            if self.use_bias:
+            if self.use_bias and self.P_e.active:
                 bias_key = next(iter(destination))
-                destination.pop(bias_key)
-                if self.P_root.active:
-                    bias = torch.load(bias_key)
-                elif self.P_weight.active:
-                    bias = zero_volume_tensor(device=self.P_x.device, requires_grad=True)
-                if self.P_weight.active:
-                    bias = self.scatter_bias(bias)
-                    destination[bias_key] = bias
+                bias = destination.pop(bias_key)
+                if not self.P_root.active:
+                    bias = zero_volume_tensor(device = self.P_e.device, dtype = bias.dtype, requires_grad = True)
+                bias = self.scatter_bias(bias)
+                destination[bias_key] = bias
 
             # Add scattered weight to state dict
-            if self.P_x.active:
+            if self.P_e.active:
                 destination[weight_key] = weight
 
         return destination
@@ -227,17 +237,22 @@ class DistributedExpertAllGather(Module):
 
         """
 
-        if not self.P_x.active:
+        if not self.P_e.active:
             return input
 
-        # All-gather input
-        input = self.all_gather(input)
+        # All-gather input along model-parallel dimension
+        input = self.all_gather_hidden(input)
+
+        # All-gather weights along capacity dimension
+        weight = self.all_gather_weight(self.weight).transpose(1, 2)
 
         # Affine/linear transform
         if self.bias is not None:
-            bias = self.bias.view(self.bias.shape[0], 1, self.bias.shape[-2])
-            y = torch.einsum('ecm,enm->ecn', input, self.weight) + bias
+
+            # Broadcast bias
+            bias = self.broadcast_bias(self.bias)
+            y = torch.einsum('ecm,enm->ecn', input, weight) + bias
         else:
-            y = torch.einsum('ecm,enm->ecn', input, self.weight)
+            y = torch.einsum('ecm,enm->ecn', input, weight)
 
         return y

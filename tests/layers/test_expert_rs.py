@@ -56,6 +56,28 @@ adjoint_parametrizations.append(
     )
 )
 
+adjoint_parametrizations.append(
+    pytest.param(
+        np.arange(0, 8), [1, 4, 2],  # P_x_ranks, P_x_shape
+        [2, 4, 12],  # x_global_shape
+        [2, 4, 16],  # y_global_shape
+        8,  # passed to comm_split_fixture, required MPI ranks
+        id="distributed-3d-d",
+        marks=[pytest.mark.mpi(min_size=8)]
+    )
+)
+
+adjoint_parametrizations.append(
+    pytest.param(
+        np.arange(0, 8), [2, 2, 2],  # P_x_ranks, P_x_shape
+        [4, 4, 12],  # x_global_shape
+        [4, 4, 16],  # y_global_shape
+        8,  # passed to comm_split_fixture, required MPI ranks
+        id="distributed-3d-e",
+        marks=[pytest.mark.mpi(min_size=8)]
+    )
+)
+
 
 # For example of indirect, see https://stackoverflow.com/a/28570677
 @pytest.mark.parametrize("P_x_ranks, P_x_shape,"
@@ -274,7 +296,7 @@ def test_linear_adjoint_bias(barrier_fence_fixture,
 
     b = zero_volume_tensor(device=P_x.device)
     db = zero_volume_tensor(device=P_x.device)
-    if layer.P_bias.active:
+    if layer.P_store_bias.active:
         b = layer.bias.detach()
         db = layer.bias.grad.detach()
 
