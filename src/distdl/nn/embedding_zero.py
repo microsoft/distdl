@@ -1,3 +1,4 @@
+import pytorch_pfn_extras as ppe
 import torch
 
 import distdl.nn.init as init
@@ -115,6 +116,10 @@ class DistributedEmbeddingZero(Module):
             self.register_buffer('weight', zero_volume_tensor(device=P_x.device,
                                  requires_grad=True, dtype=self.dtype))
 
+        # Buffer and stream for weight prefetching
+        self.weight_buffer = None
+        self.stream_weight = torch.cuda.Stream()
+
         # State dict hooks for gather/scattering distributed weights
         self._register_state_dict_hook(self.gather_state_dict)
         self._register_load_state_dict_pre_hook(self.scatter_state_dict)
@@ -188,6 +193,10 @@ class DistributedEmbeddingZero(Module):
 
         return destination
 
+    def prefetch_weights(self):
+        with ppe.cuda.stream(self.stream_weight):
+            self.weight_buffer = self._squeeze(self.allgather(self._expand(self.weight)))
+
     def forward(self, input):
         r"""Forward function interface.
 
@@ -201,7 +210,11 @@ class DistributedEmbeddingZero(Module):
             return zero_volume_tensor(device=self.P_x.device, dtype=self.dtype)
 
         # Gather weights from data-parallel workers (FSDP/ZeRO-3)
-        weight = self._squeeze(self.allgather(self._expand(self.weight)))
+        if self.weight_buffer is None:
+            weight = self._squeeze(self.allgather(self._expand(self.weight)))
+        else:
+            weight = self.weight_buffer
+            self.weight_buffer = None
 
         return torch.nn.functional.embedding(input, weight, self.padding_idx, self.max_norm,
                                              self.norm_type, self.scale_grad_by_freq, self.sparse
