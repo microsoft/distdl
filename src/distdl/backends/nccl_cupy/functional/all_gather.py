@@ -223,7 +223,8 @@ class AllGatherFunction(torch.autograd.Function):
 
             # Reduce-scatter primitive
             count = np.prod(scattered_data.shape).item()
-            P_allgather._nccl.reduce_scatter(grad_output_flat, scattered_data, count, op='sum', stream=None)
+            stream = cp.cuda.stream.get_current_stream()
+            P_allgather._nccl.reduce_scatter(grad_output_flat, scattered_data, count, op='sum', stream=stream)
 
         # If we had to receive data, we need to tensorify it.
         if P_allgather.active:

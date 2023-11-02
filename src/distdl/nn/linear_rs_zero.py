@@ -1,6 +1,7 @@
 import math
 
 import numpy as np
+import pytorch_pfn_extras as ppe
 import torch
 
 import distdl.nn.init as init
@@ -239,6 +240,14 @@ class DistributedLinearReduceScatterZero(Module):
         self.reduce_scatter = ReduceScatter(self.P_y, axes_reduce_scatter=(scatter_dim,), scale_backward=scale_backward)
         self.all_gather = AllGather(self.P_y, axes_all_gather=(scatter_dim,), scale_backward=scale_backward)
 
+        # CUDA streams for weight prefetching
+        self.stream_weight = torch.cuda.Stream()
+        self.stream_bias = torch.cuda.Stream()
+
+        # Buffers for weight prefetching
+        self.weight_buffer = None
+        self.bias_buffer = None
+
         # State dict hooks for gather/scattering distributed weights
         self._register_state_dict_hook(self.gather_state_dict)
         self._register_load_state_dict_pre_hook(self.scatter_state_dict)
@@ -337,6 +346,16 @@ class DistributedLinearReduceScatterZero(Module):
 
         return destination
 
+    def prefetch_weights(self):
+
+        with ppe.cuda.stream(self.stream_weight):
+            self.weight_buffer = self.all_gather_weight(self.weight)
+            self.weight_buffer = self.weight_buffer.view(self.out_features, -1)
+
+        if self.bias is not None and self.P_bias.active:
+            with ppe.cuda.stream(self.stream_bias):
+                self.bias_buffer = self.all_gather_bias(self.bias).view(self.out_features)
+
     def forward(self, input):
         r"""Forward function interface.
 
@@ -368,16 +387,24 @@ class DistributedLinearReduceScatterZero(Module):
         else:
 
             # Gather weights
-            weight = self.all_gather_weight(self.weight)
-            weight = weight.view(self.out_features, -1)
+            if self.weight_buffer is None:
+                weight = self.all_gather_weight(self.weight)
+                weight = weight.view(self.out_features, -1)
+            else:
+                weight = self.weight_buffer
+                self.weight_buffer = None
 
-            # Broadcast bias
+            # All-gather bias if prefetching function was not previously called
             if self.bias is not None and self.P_bias.active:
-                bias = self.all_gather_bias(self.bias).view(self.out_features)
+                if self.bias_buffer is None:
+                    bias = self.all_gather_bias(self.bias).view(self.out_features)
+                else:
+                    bias = self.bias_buffer
             else:
                 bias = self.bias
 
             # Affine/linear transform
+            torch.cuda.synchronize()
             y = torch.nn.functional.linear(input, weight, bias)
 
             # Reduce-scatter

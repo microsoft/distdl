@@ -1,6 +1,7 @@
 import math
 
 import numpy as np
+import pytorch_pfn_extras as ppe
 import torch
 from einops import rearrange
 
@@ -13,7 +14,6 @@ from distdl.nn.repartition import Repartition
 from distdl.utilities.slicing import compute_subshape
 from distdl.utilities.slicing import worker_layout
 from distdl.utilities.torch import zero_volume_tensor
-import pytorch_pfn_extras as ppe
 
 
 # Custom forward/backward functions
