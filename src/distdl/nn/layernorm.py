@@ -300,6 +300,10 @@ class DistributedLayerNorm(Module):
 
                 input = weight * input + bias
         else:
+            if self.elementwise_affine:
+                weight = weight.squeeze()
+                bias = bias.squeeze()
+
             if self.stream_weight is not None and self.stream_bias is not None:
                 torch.cuda.current_stream().wait_stream(self.stream_weight)
                 torch.cuda.current_stream().wait_stream(self.stream_bias)
