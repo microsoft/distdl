@@ -1,5 +1,6 @@
 __all__ = ["SumReduceFunction"]
 
+import cupy as cp
 import numpy as np
 import torch
 from mpi4py import MPI
@@ -115,13 +116,15 @@ class SumReduceFunction(torch.autograd.Function):
         if P_send.active:
             reduced_data_send = torch.zeros(input_tensor_structure.shape, dtype=input_tensor_structure.dtype,
                                             device=device)
-            P_send._nccl.reduce(input.detach().contiguous(), reduced_data_send, op='sum', root=0, stream=None)
+            stream = cp.cuda.stream.get_current_stream()
+            P_send._nccl.reduce(input.detach().contiguous(), reduced_data_send, op='sum', root=0, stream=stream)
 
         # If I sent data in the forward, I have to receive it here.
         if P_send != P_recv and P_recv.active:
             reduced_data_recv = torch.zeros(output_tensor_structure.shape, dtype=output_tensor_structure.dtype,
                                             device=device)
-            P_recv._nccl.reduce(reduced_data_recv, reduced_data_recv, op='sum', root=0, stream=None)
+            stream = cp.cuda.stream.get_current_stream()
+            P_recv._nccl.reduce(reduced_data_recv, reduced_data_recv, op='sum', root=0, stream=stream)
 
         # If we had to receive data, we need to tensorify it.
         if P_recv.active:
@@ -204,7 +207,8 @@ class SumReduceFunction(torch.autograd.Function):
         if P_recv.active:
             if ctx.scale_backward is not None:
                 grad_output.div_(np.prod(P_recv.shape[ctx.scale_backward]))
-            P_recv._nccl.broadcast(grad_output.detach().contiguous(), root=0, stream=None)
+            stream = cp.cuda.stream.get_current_stream()
+            P_recv._nccl.broadcast(grad_output.detach().contiguous(), root=0, stream=stream)
 
         # If I just receive, receive the broadcast
         if P_send.active:
@@ -216,7 +220,8 @@ class SumReduceFunction(torch.autograd.Function):
             else:
                 grad_input = torch.zeros(input_tensor_structure.shape, dtype=input_tensor_structure.dtype,
                                          device=device)
-                P_send._nccl.broadcast(grad_input, root=0, stream=None)
+                stream = cp.cuda.stream.get_current_stream()
+                P_send._nccl.broadcast(grad_input, root=0, stream=stream)
 
                 grad_input.requires_grad_(input_tensor_structure.requires_grad)
 

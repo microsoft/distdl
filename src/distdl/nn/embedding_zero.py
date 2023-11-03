@@ -118,7 +118,10 @@ class DistributedEmbeddingZero(Module):
 
         # Buffer and stream for weight prefetching
         self.weight_buffer = None
-        self.stream_weight = torch.cuda.Stream()
+        if not self.P_x.device == 'cpu':
+            self.stream_weight = torch.cuda.Stream(device=self.P_x.device)
+        else:
+            self.stream_weight = None
 
         # State dict hooks for gather/scattering distributed weights
         self._register_state_dict_hook(self.gather_state_dict)
@@ -194,7 +197,10 @@ class DistributedEmbeddingZero(Module):
         return destination
 
     def prefetch_weights(self):
-        with ppe.cuda.stream(self.stream_weight):
+        if self.stream_weight is not None:
+            with ppe.cuda.stream(self.stream_weight):
+                self.weight_buffer = self._squeeze(self.allgather(self._expand(self.weight)))
+        else:
             self.weight_buffer = self._squeeze(self.allgather(self._expand(self.weight)))
 
     def forward(self, input):
@@ -215,6 +221,9 @@ class DistributedEmbeddingZero(Module):
         else:
             weight = self.weight_buffer
             self.weight_buffer = None
+
+        if self.stream_weight is not None:
+            torch.cuda.current_stream().wait_stream(self.stream_weight)
 
         return torch.nn.functional.embedding(input, weight, self.padding_idx, self.max_norm,
                                              self.norm_type, self.scale_grad_by_freq, self.sparse

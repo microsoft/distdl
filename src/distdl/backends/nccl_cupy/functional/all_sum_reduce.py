@@ -1,5 +1,6 @@
 __all__ = ["AllSumReduceFunction"]
 
+import cupy as cp
 import numpy as np
 import torch
 
@@ -72,7 +73,8 @@ class AllSumReduceFunction(torch.autograd.Function):
         # There is no need to specificy a root.
         if P_allreduce.active:
             reduced_data = torch.zeros(input_tensor_structure.shape, dtype=input_tensor_structure.dtype, device=device)
-            P_allreduce._nccl.all_reduce(input.detach(), reduced_data, op='sum', stream=None)
+            stream = cp.cuda.stream.get_current_stream()
+            P_allreduce._nccl.all_reduce(input.detach(), reduced_data, op='sum', stream=stream)
 
         # If we had to receive data, we need to tensorify it.
         if P_allreduce.active:
@@ -118,7 +120,8 @@ class AllSumReduceFunction(torch.autograd.Function):
         # All-sum-reduce is self-adjoint
         if P_allreduce.active:
             reduced_data = torch.zeros(input_tensor_structure.shape, dtype=input_tensor_structure.dtype, device=device)
-            P_allreduce._nccl.all_reduce(grad_output.detach(), reduced_data, op='sum', stream=None)
+            stream = cp.cuda.stream.get_current_stream()
+            P_allreduce._nccl.all_reduce(grad_output.detach(), reduced_data, op='sum', stream=stream)
 
         # If we had to receive data, we need to tensorify it.
         if P_allreduce.active:
