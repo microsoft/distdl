@@ -472,7 +472,7 @@ class DistributedLinearAllGather(Module):
             bias = self.bias
         if self.stream_weight is not None:
             torch.cuda.current_stream().wait_stream(self.stream_weight)
-        if self.use_bias and  self.stream_bias is not None:
+        if self.use_bias and self.stream_bias is not None:
             torch.cuda.current_stream().wait_stream(self.stream_bias)
 
         # Affine/linear transform
