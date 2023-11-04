@@ -1,6 +1,7 @@
 import math
 
 import numpy as np
+import pytorch_pfn_extras as ppe
 import torch
 
 import distdl.nn.init as init
@@ -189,6 +190,21 @@ class DistributedLinearReduceScatter(Module):
         scatter_dim = torch.argmax(torch.tensor(self.P_y.shape[-2:])) + self.P_y.dim - 2
         self.reduce_scatter = ReduceScatter(self.P_y, axes_reduce_scatter=(scatter_dim,), scale_backward=scale_backward)
 
+        # CUDA streams for weight prefetching
+        if not self.P_x.device == 'cpu':
+            self.stream_weight = torch.cuda.Stream(device=self.P_x.device)
+            if self.use_bias:
+                self.stream_bias = torch.cuda.Stream(device=self.P_x.device)
+        else:
+            self.stream_weight = None
+            if self.use_bias:
+                self.stream_bias = None
+
+        # Buffers for weight prefetching
+        self.weight_buffer = None
+        if self.use_bias:
+            self.bias_buffer = None
+
         # State dict hooks for gather/scattering distributed weights
         self._register_state_dict_hook(self.gather_state_dict)
         self._register_load_state_dict_pre_hook(self.scatter_state_dict)
@@ -285,6 +301,21 @@ class DistributedLinearReduceScatter(Module):
 
         return destination
 
+    def prefetch_weights(self):
+
+        if self.stream_weight is not None:
+            with ppe.cuda.stream(self.stream_weight):
+                self.weight_buffer = self.broadcast_weight(self.weight).view(self.out_features, -1)
+        else:
+            self.weight_buffer = self.broadcast_weight(self.weight).view(self.out_features, -1)
+
+        if self.bias is not None:
+            if self.stream_bias is not None:
+                with ppe.cuda.stream(self.stream_bias):
+                    self.bias_buffer = self.broadcast_bias(self.bias).view(self.out_features)
+            else:
+                self.bias_buffer = self.broadcast_bias(self.bias).view(self.out_features)
+
     def forward(self, input):
         r"""Forward function interface.
 
@@ -299,13 +330,25 @@ class DistributedLinearReduceScatter(Module):
             return input
 
         # Broadcast weights to everyone
-        weight = self.broadcast_weight(self.weight).view(self.out_features, -1)
+        if self.weight_buffer is None:
+            weight = self.broadcast_weight(self.weight).view(self.out_features, -1)
+        else:
+            weight = self.weight_buffer
+            self.weight_buffer = None
 
         # Broadcast bias
         if self.bias is not None:
-            bias = self.broadcast_bias(self.bias).view(self.out_features)
+            if self.bias_buffer is None:
+                bias = self.broadcast_bias(self.bias).view(self.out_features)
+            else:
+                bias = self.bias_buffer
+                self.bias_buffer = None
         else:
             bias = self.bias
+        if self.stream_weight is not None:
+            torch.cuda.current_stream().wait_stream(self.stream_weight)
+        if self.use_bias and self.stream_bias is not None:
+            torch.cuda.current_stream().wait_stream(self.stream_bias)
 
         # Affine/linear transform
         y = torch.nn.functional.linear(input, weight, bias)

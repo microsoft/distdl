@@ -1,3 +1,4 @@
+import pytorch_pfn_extras as ppe
 import torch
 
 import distdl.nn.init as init
@@ -125,6 +126,13 @@ class DistributedEmbedding(Module):
             self.register_buffer('weight', zero_volume_tensor(device=P_x.device,
                                  requires_grad=True, dtype=self.dtype))
 
+        # Buffer and stream for weight prefetching
+        self.weight_buffer = None
+        if not self.P_x.device == 'cpu':
+            self.stream_weight = torch.cuda.Stream(device=self.P_x.device)
+        else:
+            self.stream_weight = None
+
         # State dict hooks for gather/scattering distributed weights
         self._register_state_dict_hook(self.gather_state_dict)
         self._register_load_state_dict_pre_hook(self.scatter_state_dict)
@@ -196,6 +204,13 @@ class DistributedEmbedding(Module):
 
         return destination
 
+    def prefetch_weights(self):
+        if self.stream_weight is not None:
+            with ppe.cuda.stream(self.stream_weight):
+                self.weight_buffer = self._squeeze(self.broadcast(self._expand(self.weight)))
+        else:
+            self.weight_buffer = self._squeeze(self.broadcast(self._expand(self.weight)))
+
     def forward(self, input):
         r"""Forward function interface.
 
@@ -209,7 +224,14 @@ class DistributedEmbedding(Module):
             return zero_volume_tensor(device=self.P_x.device, dtype=self.dtype)
 
         # Broadcast weights
-        weight = self._squeeze(self.broadcast(self._expand(self.weight)))
+        if self.weight_buffer is None:
+            weight = self._squeeze(self.broadcast(self._expand(self.weight)))
+        else:
+            weight = self.weight_buffer
+            self.weight_buffer = None
+
+        if self.stream_weight is not None:
+            torch.cuda.current_stream().wait_stream(self.stream_weight)
 
         return torch.nn.functional.embedding(input, weight, self.padding_idx, self.max_norm,
                                              self.norm_type, self.scale_grad_by_freq, self.sparse
