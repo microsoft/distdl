@@ -103,7 +103,7 @@ class AllGatherFunction(torch.autograd.Function):
             gathered_data = np.zeros(np.prod(output_tensor_shape), dtype=numpy_dtype)
 
             # All-gather
-            input_numpy = np.asarray(input.detach(), dtype=numpy_dtype)
+            input_numpy = np.asarray(input.detach().cpu().numpy(), dtype=numpy_dtype)
             input_dtype = torch_to_mpi_dtype_dict[input_tensor_structure.dtype]
             output_dtype = torch_to_mpi_dtype_dict[output_tensor_structure.dtype]
             req = P_allgather._comm.Iallgather((input_numpy, input_dtype), (gathered_data, output_dtype))
@@ -223,7 +223,7 @@ class AllGatherFunction(torch.autograd.Function):
             # Allocate output array
             numpy_dtype = torch_to_numpy_dtype_dict[output_tensor_structure.dtype]
             scattered_data = np.zeros(input_tensor_shape, dtype=numpy_dtype)
-            grad_output_flat = np.asarray(grad_output_flat.detach(), dtype=numpy_dtype)
+            grad_output_flat = np.asarray(grad_output_flat.detach().cpu().numpy(), dtype=numpy_dtype)
 
             # Reduce-scatter primitive
             input_dtype = torch_to_mpi_dtype_dict[input_tensor_structure.dtype]
