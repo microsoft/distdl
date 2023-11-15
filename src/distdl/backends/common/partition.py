@@ -114,7 +114,7 @@ class MPIPartition:
 
         # For convenience, sometimes unstructured partitions can be treated
         # like Cartesian partitions, so we need to give a shape and index.
-        self.shape = np.array([self.size], dtype=np.int)
+        self.shape = np.array([self.size], dtype=int)
         self.dim = len(self.shape)
 
         if device != None:
@@ -176,7 +176,7 @@ class MPIPartition:
             self.rank = MPI.PROC_NULL
             self.size = -1
 
-            self.shape = np.array([self.size], dtype=np.int)
+            self.shape = np.array([self.size], dtype=int)
             self.dim = len(self.shape)
             self.index = self.rank
 
@@ -554,7 +554,7 @@ class MPIPartition:
         # Share the src partition dimensions with everyone.  We will compare
         # this with the destination dimensions, so we pad it to the left with
         # ones to make a valid comparison.
-        src_shape = np.ones(dest_dim, dtype=np.int)
+        src_shape = np.ones(dest_dim, dtype=int)
         src_shape[-src_dim:] = P_src_shape[::-1] if transpose_src else P_src_shape
         dest_shape = P_dest_shape[::-1] if transpose_dest else P_dest_shape
 
@@ -586,7 +586,7 @@ class MPIPartition:
                 src_flat_index = cartesian_index_c(src_shape[match_loc],
                                                    src_cart_index[match_loc])
 
-        data = np.array([src_flat_index], dtype=np.int)
+        data = np.array([src_flat_index], dtype=int)
         src_flat_indices = P_union.allgather_data(data)
 
         # Compute the Cartesian index of the destination rank, in the matching
@@ -602,7 +602,7 @@ class MPIPartition:
             else:
                 dest_flat_index = cartesian_index_c(dest_shape[match_loc],
                                                     dest_cart_index[match_loc])
-        data = np.array([dest_flat_index], dtype=np.int)
+        data = np.array([dest_flat_index], dtype=int)
         dest_flat_indices = P_union.allgather_data(data)
 
         # Build partitions to communicate single broadcasts across subsets
@@ -745,7 +745,7 @@ class MPIPartition:
                             "destination partition.")
 
         src_shape = P_src_shape[::-1] if transpose_src else P_src_shape
-        dest_shape = np.ones(src_dim, dtype=np.int)
+        dest_shape = np.ones(src_dim, dtype=int)
         dest_shape[-dest_dim:] = P_dest_shape[::-1] if transpose_dest else P_dest_shape
 
         # Find any location that the dimensions differ and where the dest
@@ -774,7 +774,7 @@ class MPIPartition:
                 src_flat_index = cartesian_index_c(src_shape[match_loc],
                                                    src_cart_index[match_loc])
 
-        data = np.array([src_flat_index], dtype=np.int)
+        data = np.array([src_flat_index], dtype=int)
         src_flat_indices = P_union.allgather_data(data)
 
         # Compute the Cartesian index of the destination rank, in the matching
@@ -793,7 +793,7 @@ class MPIPartition:
                 dest_cart_index[-dest_dim:] = c
                 dest_flat_index = cartesian_index_c(dest_shape[match_loc],
                                                     dest_cart_index[match_loc])
-        data = np.array([dest_flat_index], dtype=np.int)
+        data = np.array([dest_flat_index], dtype=int)
         dest_flat_indices = P_union.allgather_data(data)
 
         # Build partitions to communicate single reductions across subsets
@@ -861,8 +861,8 @@ class MPIPartition:
             data_root = root
         else:
             # Find the root rank (on P_data) in the self communicator
-            rank_map = -1*np.ones(self.size, dtype=np.int)
-            rank_map_data = np.array([-1], dtype=np.int)
+            rank_map = -1*np.ones(self.size, dtype=int)
+            rank_map_data = np.array([-1], dtype=int)
             if P_data.active:
                 rank_map_data[0] = P_data.rank
             self._comm.Allgather(rank_map_data, rank_map)
@@ -873,7 +873,7 @@ class MPIPartition:
                 raise ValueError("Requested root rank is not in P_data.")
 
         # Give everyone the dimension of the data array
-        data_dim = np.zeros(1, dtype=np.int)
+        data_dim = np.zeros(1, dtype=int)
         if P_data.active and self.rank == data_root:
             # Ensure that data is a numpy array
             data = np.atleast_1d(data)
@@ -881,14 +881,14 @@ class MPIPartition:
         self._comm.Bcast(data_dim, root=data_root)
 
         # Give everyone the shape of the data
-        data_shape = np.zeros(data_dim[0], dtype=np.int)
+        data_shape = np.zeros(data_dim[0], dtype=int)
         if P_data.active and self.rank == data_root:
             # Ensure that data is a numpy array
             data = np.atleast_1d(data)
             data_shape[:] = np.asarray(data.shape)
         self._comm.Bcast(data_shape, root=data_root)
 
-        data_dtype = np.zeros(1, dtype=np.int)
+        data_dtype = np.zeros(1, dtype=int)
         if P_data.active and self.rank == data_root:
             # Ensure that data is a numpy array
             data_dtype[0] = numpy_to_intID_dtype_dict[data.dtype]
@@ -925,7 +925,7 @@ class MPIPartition:
         data = np.atleast_1d(data)
         sz = len(data)
 
-        out_data = -1*np.ones(sz*self.size, dtype=np.int)
+        out_data = -1*np.ones(sz*self.size, dtype=int)
         self._comm.Allgather(data, out_data)
         out_data.shape = -1, sz
 
@@ -1022,7 +1022,7 @@ class MPICartesianPartition(MPIPartition):
 
         super(MPICartesianPartition, self).__init__(comm, group, root, device)
 
-        self.shape = np.asarray(shape).astype(np.int)
+        self.shape = np.asarray(shape).astype(int)
         self.dim = len(self.shape)
 
         self.index = None
@@ -1051,7 +1051,7 @@ class MPICartesianPartition(MPIPartition):
 
         super(MPICartesianPartition, self).deactivate()
 
-        self.shape = np.asarray(shape).astype(np.int)
+        self.shape = np.asarray(shape).astype(int)
         self.dim = len(self.shape)
         self.index = None
 

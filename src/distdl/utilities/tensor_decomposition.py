@@ -31,7 +31,7 @@ def compute_subtensor_shapes_balanced(global_tensor_structure, P_tensor_shape):
     global_tensor_shape = np.atleast_1d(global_tensor_structure.shape)
 
     shapes_size = list(P_tensor_shape) + [len(P_tensor_shape)]
-    shapes = np.zeros(shapes_size, dtype=np.int)
+    shapes = np.zeros(shapes_size, dtype=int)
 
     for P_tensor_index in range_index(P_tensor_shape):
 
