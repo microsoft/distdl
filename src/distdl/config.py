@@ -29,7 +29,7 @@ def get_default_array():
 
     # Check if backend array representation is set.
     # If not, default to numpy.
-    supported_backend_array = ['numpy', 'cupy', 'torch']
+    supported_backend_array = ['numpy', 'cupy']
     if BACKEND_ARRAY_ENV in os.environ:
         if os.environ[BACKEND_ARRAY_ENV] in supported_backend_array:
             backend_array = os.environ[BACKEND_ARRAY_ENV]
