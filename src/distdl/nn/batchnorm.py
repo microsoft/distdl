@@ -39,11 +39,15 @@ class DistributedBatchNorm(Module):
         and when set to False, this module does not track such statistics and uses batch statistics
         instead in both training and eval modes if the running mean and variance are None.
         Default is True.
+    scale_backward : Union[int, slice], optional
+        Scale backward pass for AllGather operation by no. of workers along the given
+        dimension. Default is None.
     """
 
     def __init__(self, P_x,
                  num_features, eps=1e-05, momentum=0.1, affine=True,
-                 track_running_stats=True, device=None, dtype=None):
+                 track_running_stats=True, device=None, dtype=None,
+                 scale_backward=None):
         super(DistributedBatchNorm, self).__init__()
 
         self.num_dimensions = len(P_x.shape)
@@ -55,7 +59,7 @@ class DistributedBatchNorm(Module):
         self.affine = affine
         self.track_running_stats = track_running_stats
         self.inputs_seen = 0
-        
+
         if device is None: device = P_x.device
         factory_kwargs = {'device': device, 'dtype': dtype}
 
@@ -93,7 +97,7 @@ class DistributedBatchNorm(Module):
 
         self.sr = SumReduce(P_x, self.P_sum)
         self.bc = Broadcast(self.P_sum, P_x)
-        self.bc_affine = Broadcast(self.P_sum, P_x)
+        self.bc_affine = Broadcast(self.P_sum, P_x, scale_backward=scale_backward)
 
         if self.affine:
             if self.P_sum.active:
