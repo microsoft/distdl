@@ -163,7 +163,7 @@ class MPIPartition:
         """
 
         if self.active:
-            if (self._comm != MPI.COMM_NULL and
+            if (self._comm != MPI.COMM_NULL and  # noqa W504
                 self._comm != MPI.COMM_WORLD):  # noqa E129
                 self._comm.Free()
 
@@ -200,17 +200,17 @@ class MPIPartition:
         # MPI spec.  Because reasons.
         # We will require two partitions to have MPI_IDENT communicators to
         # consider them to be equal.
-        if (check_null_comm(self._comm) or
-            check_null_comm(other._comm) or
-            check_null_group(self._group) or
-            check_null_group(other._group) or
-            check_null_rank(self.rank) or
+        if (check_null_comm(self._comm) or  # noqa W504
+            check_null_comm(other._comm) or  # noqa W504
+            check_null_group(self._group) or  # noqa W504
+            check_null_group(other._group) or  # noqa W504
+            check_null_rank(self.rank) or  # noqa W504
             check_null_rank(other.rank)):  # noqa E129
             return False
 
-        return (check_identical_comm(self._comm, other._comm) and
-                check_identical_group(self._group, other._group) and
-                self.rank == other.rank and
+        return (check_identical_comm(self._comm, other._comm) and  # noqa W504
+                check_identical_group(self._group, other._group) and  # noqa W504
+                self.rank == other.rank and  # noqa W504
                 self.device == other.device)
 
     def print_sequential(self, val):
@@ -856,7 +856,7 @@ class MPIPartition:
             data_root = root
         else:
             # Find the root rank (on P_data) in the self communicator
-            rank_map = -1*np.ones(self.size, dtype=int)
+            rank_map = -1 * np.ones(self.size, dtype=int)
             rank_map_data = np.array([-1], dtype=int)
             if P_data.active:
                 rank_map_data[0] = P_data.rank
@@ -920,7 +920,7 @@ class MPIPartition:
         data = np.atleast_1d(data)
         sz = len(data)
 
-        out_data = -1*np.ones(sz*self.size, dtype=int)
+        out_data = -1 * np.ones(sz * self.size, dtype=int)
         self._comm.Allgather(data, out_data)
         out_data.shape = -1, sz
 
@@ -1130,8 +1130,8 @@ class MPICartesianPartition(MPIPartition):
 
         # Loop over the dimensions and add the ranks at the neighboring index to the list
         for i in range(self.dim):
-            lindex = [x-1 if j == i else x for j, x in enumerate(index)]
-            rindex = [x+1 if j == i else x for j, x in enumerate(index)]
+            lindex = [x - 1 if j == i else x for j, x in enumerate(index)]
+            rindex = [x + 1 if j == i else x for j, x in enumerate(index)]
             lrank = MPI.PROC_NULL if -1 == lindex[i] else self._comm.Get_cart_rank(lindex)
             rrank = MPI.PROC_NULL if self.shape[i] == rindex[i] else self._comm.Get_cart_rank(rindex)
             neighbor_ranks.append((lrank, rrank))

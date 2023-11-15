@@ -2,6 +2,7 @@ import distdl.nn.loss  # noqa: F401
 
 from . import init  # noqa: F401
 from . import mixins  # noqa: F401
+from .all_gather import AllGather  # noqa: F401
 from .all_sum_reduce import AllSumReduce  # noqa: F401
 from .batchnorm import DistributedBatchNorm  # noqa: F401
 from .broadcast import Broadcast  # noqa: F401

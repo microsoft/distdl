@@ -17,9 +17,9 @@ jobs:
         python-version: ['3.8']
 
     steps:
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v3
     - name: Set up Python ${{ matrix.python-version }}
-      uses: actions/setup-python@v2
+      uses: actions/setup-python@v3
       with:
         python-version: ${{ matrix.python-version }}
     - name: Pre-installation
@@ -28,7 +28,7 @@ jobs:
         uname -a
     - name: Install installer dependencies
       run: |
-        python -mpip install --progress-bar=off tox -rci/requirements.txt
+        python -mpip install --progress-bar=off tox pip virtualenv
         virtualenv --version
         pip --version
         tox --version

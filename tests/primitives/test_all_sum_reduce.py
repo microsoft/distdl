@@ -16,8 +16,8 @@ adjoint_parametrizations.append(
         12,  # passed to comm_split_fixture, required MPI ranks
         id="distributed-3D-0D_reduction",
         marks=[pytest.mark.mpi(min_size=12)]
-        )
     )
+)
 
 adjoint_parametrizations.append(
     pytest.param(
@@ -27,8 +27,8 @@ adjoint_parametrizations.append(
         12,  # passed to comm_split_fixture, required MPI ranks
         id="distributed-3D-1D_reduction",
         marks=[pytest.mark.mpi(min_size=12)]
-        )
     )
+)
 
 adjoint_parametrizations.append(
     pytest.param(
@@ -38,8 +38,8 @@ adjoint_parametrizations.append(
         12,  # passed to comm_split_fixture, required MPI ranks
         id="distributed-3D-1D_reduction",
         marks=[pytest.mark.mpi(min_size=12)]
-        )
     )
+)
 adjoint_parametrizations.append(
     pytest.param(
         np.arange(0, 12), [2, 2, 3],  # P_x_ranks, P_x_topo
@@ -48,8 +48,8 @@ adjoint_parametrizations.append(
         12,  # passed to comm_split_fixture, required MPI ranks
         id="distributed-3D-1D_reduction",
         marks=[pytest.mark.mpi(min_size=12)]
-        )
     )
+)
 
 adjoint_parametrizations.append(
     pytest.param(
@@ -59,8 +59,8 @@ adjoint_parametrizations.append(
         12,  # passed to comm_split_fixture, required MPI ranks
         id="distributed-3D-2D_reduction",
         marks=[pytest.mark.mpi(min_size=12)]
-        )
     )
+)
 
 adjoint_parametrizations.append(
     pytest.param(
@@ -70,8 +70,8 @@ adjoint_parametrizations.append(
         12,  # passed to comm_split_fixture, required MPI ranks
         id="distributed-3D-2D_reduction",
         marks=[pytest.mark.mpi(min_size=12)]
-        )
     )
+)
 
 adjoint_parametrizations.append(
     pytest.param(
@@ -81,8 +81,8 @@ adjoint_parametrizations.append(
         12,  # passed to comm_split_fixture, required MPI ranks
         id="distributed-3D-2D_reduction",
         marks=[pytest.mark.mpi(min_size=12)]
-        )
     )
+)
 
 adjoint_parametrizations.append(
     pytest.param(
@@ -92,8 +92,8 @@ adjoint_parametrizations.append(
         12,  # passed to comm_split_fixture, required MPI ranks
         id="distributed-3D-3D_reduction",
         marks=[pytest.mark.mpi(min_size=12)]
-        )
     )
+)
 
 adjoint_parametrizations.append(
     pytest.param(
@@ -103,8 +103,8 @@ adjoint_parametrizations.append(
         12,  # passed to comm_split_fixture, required MPI ranks
         id="distributed-mock_weight_reduction",
         marks=[pytest.mark.mpi(min_size=12)]
-        )
     )
+)
 
 
 # For example of indirect, see https://stackoverflow.com/a/28570677
@@ -149,13 +149,13 @@ def test_all_sum_reduce_adjoint(barrier_fence_fixture,
 
     x = zero_volume_tensor(device=P_x.device)
     if P_x.active:
-        x = 10*torch.ones(*x_local_shape, device=P_x.device)
+        x = 10 * torch.ones(*x_local_shape, device=P_x.device)
     x.requires_grad = True
 
     dy = zero_volume_tensor(device=P_x.device)
     if P_x.active:
         # Adjoint Input
-        dy = 0.1*torch.ones(*x_local_shape, device=P_x.device)
+        dy = 0.1 * torch.ones(*x_local_shape, device=P_x.device)
 
     # y = F @ x
     y = layer(x)
@@ -174,8 +174,8 @@ def test_all_sum_reduce_adjoint(barrier_fence_fixture,
         if k in axes_reduce:
             reduced_entry_value *= P_x_shape[k]
 
-    assert torch.all(y == 10*reduced_entry_value)
-    assert torch.all(dx == 0.1*reduced_entry_value)
+    assert torch.all(y == 10 * reduced_entry_value)
+    assert torch.all(dx == 0.1 * reduced_entry_value)
 
     check_adjoint_test_tight(P_world, x, dx, y, dy)
 

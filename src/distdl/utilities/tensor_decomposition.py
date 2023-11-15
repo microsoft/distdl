@@ -39,7 +39,7 @@ def compute_subtensor_shapes_balanced(global_tensor_structure, P_tensor_shape):
 
         # Generate a slice that isolates the worker's index into shapes
         # where it can store its shape
-        sl = tuple([slice(i, i+1) for i in P_tensor_index] + [slice(None)])
+        sl = tuple([slice(i, i + 1) for i in P_tensor_index] + [slice(None)])
 
         subshape = global_tensor_shape // P_tensor_shape
         subshape[P_tensor_index < global_tensor_shape % P_tensor_shape] += 1
@@ -72,21 +72,21 @@ def compute_subtensor_start_indices(shapes):
 
     indices = compute_subtensor_stop_indices(shapes)
 
-    tensor_dims = len(shapes.shape)-1
+    tensor_dims = len(shapes.shape) - 1
     for d in range(tensor_dims):
 
         # Get the slice containing information for the first dimesion of indices
-        sl_0 = [slice(None)]*tensor_dims + [slice(d, d+1)]
+        sl_0 = [slice(None)] * tensor_dims + [slice(d, d + 1)]
         sl_0[d] = slice(0, 1)
         sl_0 = tuple(sl_0)
 
         # Get the slice containing information for the first D-1 indices
-        sl_a = [slice(None)]*tensor_dims + [slice(d, d+1)]
-        sl_a[d] = slice(0, shapes.shape[d]-1)
+        sl_a = [slice(None)] * tensor_dims + [slice(d, d + 1)]
+        sl_a[d] = slice(0, shapes.shape[d] - 1)
         sl_a = tuple(sl_a)
 
         # Get the slice containing information for the last D-1 indices
-        sl_b = [slice(None)]*tensor_dims + [slice(d, d+1)]
+        sl_b = [slice(None)] * tensor_dims + [slice(d, d + 1)]
         sl_b[d] = slice(1, shapes.shape[d])
         sl_b = tuple(sl_b)
 
@@ -123,10 +123,10 @@ def compute_subtensor_stop_indices(shapes):
 
     indices = shapes.copy()
 
-    tensor_dims = len(shapes.shape)-1
+    tensor_dims = len(shapes.shape) - 1
     for d in range(tensor_dims):
 
-        sl = tuple([slice(None)]*tensor_dims + [slice(d, d+1)])
+        sl = tuple([slice(None)] * tensor_dims + [slice(d, d + 1)])
 
         indices[sl] = np.cumsum(indices[sl], axis=d)
 

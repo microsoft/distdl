@@ -18,8 +18,8 @@ adjoint_parametrizations.append(
         12,  # passed to comm_split_fixture, required MPI ranks
         id="distributed-overlap-3D",
         marks=[pytest.mark.mpi(min_size=12)]
-        )
     )
+)
 
 adjoint_parametrizations.append(
     pytest.param(
@@ -30,8 +30,8 @@ adjoint_parametrizations.append(
         16,  # passed to comm_split_fixture, required MPI ranks
         id="distributed-disjoint-3D",
         marks=[pytest.mark.mpi(min_size=16)]
-        )
     )
+)
 
 adjoint_parametrizations.append(
     pytest.param(
@@ -42,8 +42,8 @@ adjoint_parametrizations.append(
         17,  # passed to comm_split_fixture, required MPI ranks
         id="distributed-disjoint-inactive-3D",
         marks=[pytest.mark.mpi(min_size=17)]
-        )
     )
+)
 
 # Sequential functionality
 adjoint_parametrizations.append(
@@ -55,8 +55,8 @@ adjoint_parametrizations.append(
         1,  # passed to comm_split_fixture, required MPI ranks
         id="sequential-identity",
         marks=[pytest.mark.mpi(min_size=1)]
-        )
     )
+)
 
 # Main functionality, single source
 adjoint_parametrizations.append(
@@ -68,8 +68,8 @@ adjoint_parametrizations.append(
         3,  # passed to comm_split_fixture, required MPI ranks
         id="distributed-overlap-3D-single_source",
         marks=[pytest.mark.mpi(min_size=3)]
-        )
     )
+)
 
 adjoint_parametrizations.append(
     pytest.param(
@@ -80,8 +80,8 @@ adjoint_parametrizations.append(
         4,  # passed to comm_split_fixture, required MPI ranks
         id="distributed-disjoint-3D-single_source",
         marks=[pytest.mark.mpi(min_size=4)]
-        )
     )
+)
 
 adjoint_parametrizations.append(
     pytest.param(
@@ -92,8 +92,8 @@ adjoint_parametrizations.append(
         5,  # passed to comm_split_fixture, required MPI ranks
         id="distributed-disjoint-inactive-3D-single_source",
         marks=[pytest.mark.mpi(min_size=5)]
-        )
     )
+)
 
 # Main functionality, transposed
 adjoint_parametrizations.append(
@@ -105,8 +105,8 @@ adjoint_parametrizations.append(
         12,  # passed to comm_split_fixture, required MPI ranks
         id="distributed-overlap-3D",
         marks=[pytest.mark.mpi(min_size=12)]
-        )
     )
+)
 
 adjoint_parametrizations.append(
     pytest.param(
@@ -117,8 +117,8 @@ adjoint_parametrizations.append(
         16,  # passed to comm_split_fixture, required MPI ranks
         id="distributed-disjoint-3D",
         marks=[pytest.mark.mpi(min_size=16)]
-        )
     )
+)
 
 adjoint_parametrizations.append(
     pytest.param(
@@ -129,8 +129,8 @@ adjoint_parametrizations.append(
         17,  # passed to comm_split_fixture, required MPI ranks
         id="distributed-disjoint-inactive-3D",
         marks=[pytest.mark.mpi(min_size=17)]
-        )
     )
+)
 
 
 # For example of indirect, see https://stackoverflow.com/a/28570677
@@ -220,8 +220,8 @@ deadlock_parametrizations.append(
         4,  # passed to comm_split_fixture, required MPI ranks
         id="deadlock-2D",
         marks=[pytest.mark.mpi(min_size=4)]
-        )
     )
+)
 
 deadlock_parametrizations.append(
     pytest.param(
@@ -230,8 +230,8 @@ deadlock_parametrizations.append(
         8,  # passed to comm_split_fixture, required MPI ranks
         id="deadlock-3D",
         marks=[pytest.mark.mpi(min_size=8)]
-        )
     )
+)
 
 deadlock_parametrizations.append(
     pytest.param(
@@ -240,8 +240,8 @@ deadlock_parametrizations.append(
         16,  # passed to comm_split_fixture, required MPI ranks
         id="deadlock-4D",
         marks=[pytest.mark.mpi(min_size=16)]
-        )
     )
+)
 
 
 @pytest.mark.parametrize("P_x_ranks, P_x_shape,"
@@ -296,8 +296,8 @@ dtype_parametrizations.append(
         12,  # passed to comm_split_fixture, required MPI ranks
         id="distributed-dtype-float32",
         marks=[pytest.mark.mpi(min_size=12)]
-        )
     )
+)
 
 # Test that it works with ints as well, can't compute gradient here
 dtype_parametrizations.append(
@@ -310,8 +310,8 @@ dtype_parametrizations.append(
         12,  # passed to comm_split_fixture, required MPI ranks
         id="distributed-dtype-int32",
         marks=[pytest.mark.mpi(min_size=12)]
-        )
     )
+)
 
 # Also test doubles
 dtype_parametrizations.append(
@@ -324,8 +324,8 @@ dtype_parametrizations.append(
         12,  # passed to comm_split_fixture, required MPI ranks
         id="distributed-dtype-float64",
         marks=[pytest.mark.mpi(min_size=12)]
-        )
     )
+)
 
 
 # For example of indirect, see https://stackoverflow.com/a/28570677
@@ -378,7 +378,7 @@ def test_broadcast_dtype(barrier_fence_fixture,
 
     x = zero_volume_tensor(device=P_x.device)
     if P_x.active:
-        x = 10*torch.randn(*x_local_shape).to(dtype)
+        x = 10 * torch.randn(*x_local_shape).to(dtype)
         x = x.to(P_x.device)
 
     x.requires_grad = test_backward
@@ -395,7 +395,7 @@ def test_broadcast_dtype(barrier_fence_fixture,
         dy = zero_volume_tensor(device=P_x.device)
         if P_y.active:
             # Adjoint Input
-            dy = 10*torch.randn(*x_local_shape).to(dtype)
+            dy = 10 * torch.randn(*x_local_shape).to(dtype)
             dy = dy.to(P_x.device)
 
         # dx = F* @ dy

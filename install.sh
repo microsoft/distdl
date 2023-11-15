@@ -25,5 +25,5 @@ else
     echo "CUDA versions below 11.x are not supported."
 fi
 
-# Install DistDL 
+# Install DistDL
 python3 -m pip install -e .

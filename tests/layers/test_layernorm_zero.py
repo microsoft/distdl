@@ -21,8 +21,8 @@ parametrizations_affine.append(
         4,  # passed to comm_split_fixture, required MPI ranks
         id="distributed-batch-norm-affine-batch-0",
         marks=[pytest.mark.mpi(min_size=4)]
-        )
     )
+)
 
 parametrizations_affine.append(
     pytest.param(
@@ -33,8 +33,8 @@ parametrizations_affine.append(
         4,  # passed to comm_split_fixture, required MPI ranks
         id="distributed-batch-norm-affine-batch-1",
         marks=[pytest.mark.mpi(min_size=4)]
-        )
     )
+)
 
 parametrizations_affine.append(
     pytest.param(
@@ -45,8 +45,8 @@ parametrizations_affine.append(
         4,  # passed to comm_split_fixture, required MPI ranks
         id="distributed-batch-norm-affine-batch-2",
         marks=[pytest.mark.mpi(min_size=4)]
-        )
     )
+)
 
 parametrizations_affine.append(
     pytest.param(
@@ -57,8 +57,8 @@ parametrizations_affine.append(
         2,  # passed to comm_split_fixture, required MPI ranks
         id="distributed-batch-norm-affine-batch-3",
         marks=[pytest.mark.mpi(min_size=4)]
-        )
     )
+)
 
 parametrizations_affine.append(
     pytest.param(
@@ -69,8 +69,8 @@ parametrizations_affine.append(
         4,  # passed to comm_split_fixture, required MPI ranks
         id="distributed-batch-norm-affine-batch-4",
         marks=[pytest.mark.mpi(min_size=4)]
-        )
     )
+)
 
 parametrizations_affine.append(
     pytest.param(
@@ -81,8 +81,8 @@ parametrizations_affine.append(
         4,  # passed to comm_split_fixture, required MPI ranks
         id="distributed-batch-norm-affine-batch-5",
         marks=[pytest.mark.mpi(min_size=4)]
-        )
     )
+)
 
 parametrizations_affine.append(
     pytest.param(
@@ -93,8 +93,8 @@ parametrizations_affine.append(
         4,  # passed to comm_split_fixture, required MPI ranks
         id="distributed-batch-norm-affine-batch-6",
         marks=[pytest.mark.mpi(min_size=4)]
-        )
     )
+)
 
 parametrizations_affine.append(
     pytest.param(
@@ -105,8 +105,8 @@ parametrizations_affine.append(
         4,  # passed to comm_split_fixture, required MPI ranks
         id="distributed-batch-norm-affine-batch-7",
         marks=[pytest.mark.mpi(min_size=4)]
-        )
     )
+)
 
 parametrizations_affine.append(
     pytest.param(
@@ -117,8 +117,8 @@ parametrizations_affine.append(
         4,  # passed to comm_split_fixture, required MPI ranks
         id="distributed-batch-norm-affine-batch-8",
         marks=[pytest.mark.mpi(min_size=4)]
-        )
     )
+)
 
 parametrizations_affine.append(
     pytest.param(
@@ -129,8 +129,8 @@ parametrizations_affine.append(
         4,  # passed to comm_split_fixture, required MPI ranks
         id="distributed-batch-norm-affine-batch-9",
         marks=[pytest.mark.mpi(min_size=4)]
-        )
     )
+)
 
 
 # TODO This test is broken when normalized shape has more than 1 dimension
@@ -197,7 +197,7 @@ def test_batch_norm_with_training(barrier_fence_fixture,
         # Do a manual weight update (this is what optimizer does):
         with torch.no_grad():
             for p in seq_ln.parameters():
-                p.copy_(p + 0.1*p.grad)
+                p.copy_(p + 0.1 * p.grad)
 
     # Evaluate sequential network
     if P_root.active:
@@ -223,7 +223,7 @@ def test_batch_norm_with_training(barrier_fence_fixture,
     if P_x.active:
         with torch.no_grad():
             for p in dist_ln.parameters():
-                p.copy_(p + 0.1*p.grad)
+                p.copy_(p + 0.1 * p.grad)
 
     # if P_root.active:
     #     print("Seq weight: ", seq_ln.weight, P_root.rank)

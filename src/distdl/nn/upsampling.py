@@ -79,7 +79,7 @@ class DistributedUpsample(Module, InterpolateMixin):
         # Back-end specific buffer manager for economic buffer allocation
         if buffer_manager is None:
             buffer_manager = self._distdl_backend.BufferManager()
-        elif type(buffer_manager) is not self._distdl_backend.BufferManager:
+        elif not isinstance(buffer_manager, self._distdl_backend.BufferManager):
             raise ValueError("Buffer manager type does not match backend.")
         self.buffer_manager = buffer_manager
 
@@ -181,7 +181,7 @@ class DistributedUpsample(Module, InterpolateMixin):
         # TODO #176: This block to compute the start and stop index of the
         # post-halo exchanged input can be cleaned up, as it is a duplicate of
         # calculation in the halo layer itself
-        _slice = tuple([slice(i, i+1) for i in self.P_x.index] + [slice(None)])
+        _slice = tuple([slice(i, i + 1) for i in self.P_x.index] + [slice(None)])
 
         x_subtensor_shapes = compute_subtensor_shapes_balanced(global_input_tensor_structure,
                                                                self.P_x.shape)
@@ -206,7 +206,7 @@ class DistributedUpsample(Module, InterpolateMixin):
                                                    self.mode,
                                                    self.align_corners)
 
-        x_stop_index = self._compute_needed_stop(y_stop_index-1,
+        x_stop_index = self._compute_needed_stop(y_stop_index - 1,
                                                  global_input_tensor_structure.shape,
                                                  global_output_tensor_structure.shape,
                                                  self.scale_factor,

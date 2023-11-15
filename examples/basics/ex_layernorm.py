@@ -44,7 +44,7 @@ x = zero_volume_tensor(device=P_x.device)
 
 # Initialize on root worker
 if P_root.active:
-    x = torch.randn(batchsize, num_tokens, num_features).to(P_x.device)*4.0 + 2.0
+    x = torch.randn(batchsize, num_tokens, num_features).to(P_x.device) * 4.0 + 2.0
 
 # Scatter to workers
 x = scatter(x)

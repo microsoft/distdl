@@ -10,7 +10,7 @@ Overview
 Interpolation Mixin
 -------------------
 
-.. automodule:: distdl.nn.mixins.interpolation_mixin
+.. automodule:: distdl.nn.mixins.interpolate_mixin
 
 API
 ===
@@ -20,9 +20,3 @@ API
 .. autoclass:: DistributedUpsample
     :members:
     :exclude-members: forward
-
-
-.. currentmodule:: distdl.nn.mixins
-
-.. autoclass:: InterpolateMixin
-    :members:

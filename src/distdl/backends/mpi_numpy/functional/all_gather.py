@@ -91,8 +91,8 @@ class AllGatherFunction(torch.autograd.Function):
             ctx.remainder = output_tensor_shape[axes[0]] % P_allgather.shape[axes[0]]
             if ctx.remainder != 0:
                 if P_allgather.rank >= ctx.remainder:
-                    padding = [0]*2*P_allgather.dim
-                    padding[2*axes[0]] = 1
+                    padding = [0] * 2 * P_allgather.dim
+                    padding[2 * axes[0]] = 1
                     padding = distdl_padding_to_torch_padding(tuple(padding))
                     input = torch.nn.functional.pad(input, padding, mode='constant', value=0)
 
@@ -133,8 +133,8 @@ class AllGatherFunction(torch.autograd.Function):
                 output_list = list(torch.split(output, 1, dim=0))
 
                 # Remove padding
-                s = [slice(None)]*(P_allgather.dim+1)
-                s[axes[0]+1] = slice(0, -1)
+                s = [slice(None)] * (P_allgather.dim + 1)
+                s[axes[0] + 1] = slice(0, -1)
                 for i in range(ctx.remainder, P_allgather.shape[axes[0]]):
                     output_list[i] = output_list[i][s]
 
@@ -214,10 +214,11 @@ class AllGatherFunction(torch.autograd.Function):
 
                 # Zero-pad sub-tensors that are too small
                 for i in range(ctx.remainder, P_allgather.shape[axes[0]]):
-                    padding = [0]*2*P_allgather.dim
-                    padding[2*axes[0]] = 1
+                    padding = [0] * 2 * P_allgather.dim
+                    padding[2 * axes[0]] = 1
                     padding = distdl_padding_to_torch_padding(tuple(padding))
-                    grad_output_list[i] = torch.nn.functional.pad(grad_output_list[i], padding, mode='constant', value=0)
+                    grad_output_list[i] = torch.nn.functional.pad(grad_output_list[i], padding,
+                                                                  mode='constant', value=0)
 
                 # Concatenate and flatten
                 grad_output_flat = torch.cat(grad_output_list, dim=0).reshape(-1)
@@ -250,7 +251,7 @@ class AllGatherFunction(torch.autograd.Function):
 
             # If we're one of the workers having received zero-padded data, remove padding
             if remainder != 0 and P_allgather.rank >= remainder:
-                s = [slice(None)]*(P_allgather.dim)
+                s = [slice(None)] * (P_allgather.dim)
                 s[axes[0]] = slice(0, -1)
                 grad_input = grad_input[s]
 

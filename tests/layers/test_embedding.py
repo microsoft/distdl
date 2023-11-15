@@ -20,8 +20,8 @@ parametrizations_affine.append(
         1,  # passed to comm_split_fixture, required MPI ranks
         id="serial-embedding",
         marks=[pytest.mark.mpi(min_size=1)]
-        )
     )
+)
 
 parametrizations_affine.append(
     pytest.param(
@@ -30,8 +30,8 @@ parametrizations_affine.append(
         4,  # passed to comm_split_fixture, required MPI ranks
         id="distributed-embedding",
         marks=[pytest.mark.mpi(min_size=4)]
-        )
     )
+)
 
 
 @pytest.mark.parametrize("P_x_ranks, P_x_shape,"
@@ -91,7 +91,7 @@ def test_batch_norm_with_training(barrier_fence_fixture,
         # Do a manual weight update (this is what optimizer does):
         with torch.no_grad():
             for p in seq_emb.parameters():
-                p.copy_(p + 0.1*p.grad)
+                p.copy_(p + 0.1 * p.grad)
 
     # Evaluate sequential network
     if P_root.active:
@@ -120,7 +120,7 @@ def test_batch_norm_with_training(barrier_fence_fixture,
         dist_grads = []
         with torch.no_grad():
             for p in dist_emb.parameters():
-                p.copy_(p + 0.1*p.grad)
+                p.copy_(p + 0.1 * p.grad)
 
     # Evaluate distributed network
     dist_emb.eval()

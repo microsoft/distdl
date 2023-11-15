@@ -39,7 +39,7 @@ def compute_subtensor_shapes_unbalanced(local_tensor_structure, P_in, P_out=None
 
         # Generate a slice that isolates the worker's index into shapes
         # where it can store its shape
-        sl = tuple([slice(i, i+1) for i in P_in.index] + [slice(None)])
+        sl = tuple([slice(i, i + 1) for i in P_in.index] + [slice(None)])
         shapes[sl] = np.asarray(local_tensor_structure.shape)
 
         # Share everyone's shapes

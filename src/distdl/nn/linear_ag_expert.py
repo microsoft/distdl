@@ -79,7 +79,7 @@ class DistributedExpertAllGather(Module):
             assert P_x.dim == P_weight.dim
             assert P_weight.shape[-1] == 1
             assert P_weight.shape[-2] == P_x.shape[-1]
-            for i in range(P_x.dim-2):
+            for i in range(P_x.dim - 2):
                 assert P_weight.shape[i] == P_x.shape[i]
         else:
             apply_weight_partition_shape = P_x.shape.copy()
@@ -138,7 +138,7 @@ class DistributedExpertAllGather(Module):
         # Partition for collecting weights/biases for saving the state dict
         if self.collect_state:
             P_root_base = P_x.create_partition_inclusive([0])
-            self.P_root = P_root_base.create_cartesian_topology_partition([1]*P_x.dim)
+            self.P_root = P_root_base.create_cartesian_topology_partition([1] * P_x.dim)
             self.gather_weight = Repartition(P_weight, self.P_root, preserve_batch=False)
             self.scatter_weight = Repartition(self.P_root, P_weight, preserve_batch=False)
             if self.use_bias:

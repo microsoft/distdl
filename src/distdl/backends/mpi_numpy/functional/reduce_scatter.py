@@ -107,8 +107,8 @@ class ReduceScatterFunction(torch.autograd.Function):
 
                 # Zero-pad sub-tensors that are too small
                 for i in range(ctx.remainder, P_reducescatter.shape[axes[0]]):
-                    padding = [0]*2*P_reducescatter.dim
-                    padding[2*axes[0]] = 1
+                    padding = [0] * 2 * P_reducescatter.dim
+                    padding[2 * axes[0]] = 1
                     padding = distdl_padding_to_torch_padding(tuple(padding))
                     input_list[i] = torch.nn.functional.pad(input_list[i], padding, mode='constant', value=0)
 
@@ -140,7 +140,7 @@ class ReduceScatterFunction(torch.autograd.Function):
 
             # If we're one of the workers having received zero-padded data, remove padding
             if ctx.remainder != 0 and P_reducescatter.rank >= ctx.remainder:
-                s = [slice(None)]*(P_reducescatter.dim)
+                s = [slice(None)] * (P_reducescatter.dim)
                 s[axes[0]] = slice(0, -1)
                 output = output[s]
 
@@ -193,8 +193,8 @@ class ReduceScatterFunction(torch.autograd.Function):
             # If output shape does not evenly divide by number of partitions, we need to zero-pad input
             if remainder != 0:
                 if P_reducescatter.rank >= remainder:
-                    padding = [0]*2*P_reducescatter.dim
-                    padding[2*axes[0]] = 1
+                    padding = [0] * 2 * P_reducescatter.dim
+                    padding[2 * axes[0]] = 1
                     padding = distdl_padding_to_torch_padding(tuple(padding))
                     grad_output = torch.nn.functional.pad(grad_output, padding, mode='constant', value=0)
                 output_tensor_shape = grad_output.shape
@@ -233,8 +233,8 @@ class ReduceScatterFunction(torch.autograd.Function):
                 grad_input_list = list(torch.split(grad_input, 1, dim=0))
 
                 # Remove padding
-                s = [slice(None)]*(P_reducescatter.dim+1)
-                s[axes[0]+1] = slice(0, -1)
+                s = [slice(None)] * (P_reducescatter.dim + 1)
+                s[axes[0] + 1] = slice(0, -1)
                 for i in range(remainder, P_reducescatter.shape[axes[0]]):
                     grad_input_list[i] = grad_input_list[i][s]
 
