@@ -113,6 +113,9 @@ class AllSumReduceFunction(torch.autograd.Function):
 
         grad_input = zero_volume_tensor(device=device)
 
+        # Scale by number of partitions
+        grad_output.div_(P_allreduce.size)
+
         # All-sum-reduce is self-adjoint
         if P_allreduce.active:
             reduced_data = torch.zeros(input_tensor_structure.shape, dtype=input_tensor_structure.dtype, device=device  )

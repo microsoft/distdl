@@ -172,6 +172,9 @@ class ReduceScatterFunction(torch.autograd.Function):
         input_tensor_shape = np.array(input_tensor_structure.shape)
         output_tensor_shape = np.array(output_tensor_structure.shape)
 
+        # Scale gradient
+        grad_output.div_(P_reducescatter.size)
+
         # All-gather operation
         if P_reducescatter.active:
 
