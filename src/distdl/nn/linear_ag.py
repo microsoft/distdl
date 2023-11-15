@@ -68,6 +68,9 @@ class DistributedLinearAllGather(Module):
     num_heads: int, optional
         Total number of attention heads across all workers for multi-head attention.
         Only required if collect_state=True. Default is None.
+    num_heads_kv: int, optional
+        Number of attention heads for key and value tensors. Only required if
+        collect_state=True. Default is 0.
     num_vars: int, optional
         Number of output variables if used as a linear layer for QKV computations.
         Set to 3 for QKV, 2 for KV, and 1 for Q. Only required if collect_state=True.
@@ -82,7 +85,7 @@ class DistributedLinearAllGather(Module):
 
     def __init__(self, P_y, in_features, out_features, bias=True, device=None, dtype=None,
         P_x=None, P_store_weight=None, P_apply_weight=None, collect_state=False, num_heads=None,
-        num_vars=3, geglu=False, scale_backward=None):
+        num_heads_kv=None, num_vars=3, geglu=False, scale_backward=None):
 
         super(DistributedLinearAllGather, self).__init__()
 
@@ -111,6 +114,7 @@ class DistributedLinearAllGather(Module):
         self.out_features = out_features
         self.collect_state = collect_state
         self.num_heads = num_heads
+        self.num_heads_kv = num_heads_kv
         self.num_vars = num_vars    #  3, 2, 1 (QKV, KV, Q)
         self.geglu = geglu
         self.use_bias = bias
@@ -245,21 +249,62 @@ class DistributedLinearAllGather(Module):
     # such that the split into QKV occurs in the slowest (dim 0) dimension. This enables
     # us to load weights for a different partitioning scheme than they were saved in.
     def qkv_weight_to_serial(self, weight):
-        head_size = weight.shape[-2] // self.num_vars // self.num_heads
-        num_gpu = self.P_store_weight.shape[-2]
-        weight = rearrange(self._squeeze_weight(weight), "(p v h) n -> (v p h) n",
-            p=num_gpu, v=self.num_vars, h=self.num_heads//num_gpu*head_size)
-        return self._unsqueeze_weight(weight)
+        if self.num_heads_kv is None:
+            head_size = weight.shape[-2] // self.num_vars // self.num_heads
+            num_gpu = self.P_weight.shape[-2]
+            weight = rearrange(self._squeeze_weight(weight), "(p v h) n -> (v p h) n",
+                p=num_gpu, v=self.num_vars, h=self.num_heads//num_gpu*head_size)
+            return self._unsqueeze_weight(weight)
+        else:
+            head_size = weight.shape[-2] // (self.num_heads_kv * 2 + self.num_heads)
+            num_heads_local = compute_subshape(self.P_weight.shape[-2], self.P_weight.index[-2], [self.num_heads])[0]
+            num_heads_kv_local = compute_subshape(self.P_weight.shape[-2], self.P_weight.index[-2], [self.num_heads_kv])[0]
+            q_size_local = head_size * num_heads_local
+            kv_size_local = head_size * num_heads_kv_local * 2
+            num_gpu = self.P_weight.shape[-2]
+
+            # Split into Q and KV components
+            weight = rearrange(self._squeeze_weight(weight), "(p m) n -> p m n",
+                p=num_gpu, m=q_size_local + kv_size_local)
+            q_weight = weight[:, :q_size_local, :]
+            kv_weight = weight[:, q_size_local:, :]
+
+            # Rearrange
+            q_weight = rearrange(q_weight, "p (v h) n -> (v p h) n", v=1, h=num_heads_local*head_size)
+            kv_weight = rearrange(kv_weight, "p (v h) n -> (v p h) n", v=2, h=num_heads_kv_local*head_size)
+            weight = torch.cat([q_weight, kv_weight], dim=0)
+
+            return self._unsqueeze_weight(weight)
 
     # Similarly, if we want to load weights from a serial partitioning scheme and
     # use them in a parallel scheme, we need to rearrange the weights to move the
     # QKV/QK split into the 2nd slowest dimension (dim 1).
     def qkv_weight_to_parallel(self, weight):
-        head_size = weight.shape[-2] // self.num_vars // self.num_heads
-        num_gpu = self.P_store_weight.shape[-2]
-        weight = rearrange(self._squeeze_weight(weight), "(v p h) n -> (p v h) n",
-            p=num_gpu, v=self.num_vars, h=self.num_heads//num_gpu*head_size)
-        return self._unsqueeze_weight(weight)
+        if self.num_heads_kv is None:
+            head_size = weight.shape[-2] // self.num_vars // self.num_heads
+            num_gpu = self.P_weight.shape[-2]
+            weight = rearrange(self._squeeze_weight(weight), "(v p h) n -> (p v h) n",
+                p=num_gpu, v=self.num_vars, h=self.num_heads//num_gpu*head_size)
+            return self._unsqueeze_weight(weight)
+        else:
+            head_size = weight.shape[-2] // (self.num_heads_kv * 2 + self.num_heads)
+            num_heads_local = compute_subshape(self.P_weight.shape[-2], self.P_weight.index[-2], [self.num_heads])[0]
+            num_heads_kv_local = compute_subshape(self.P_weight.shape[-2], self.P_weight.index[-2], [self.num_heads_kv])[0]
+            q_size = head_size * self.num_heads
+            kv_size = head_size * self.num_heads_kv * 2
+            num_gpu = self.P_weight.shape[-2]
+
+            # Split into Q and KV components
+            q_weight = self._squeeze_weight(weight)[:q_size, :]
+            kv_weight = self._squeeze_weight(weight)[q_size:, :]
+
+            # Rearrange
+            q_weight = rearrange(q_weight, "(v p h) n -> p (v h) n", v=1, h=num_heads_local*head_size)
+            kv_weight = rearrange(kv_weight, "(v p h) n -> p (v h) n", v=2, h=num_heads_kv_local*head_size)
+            weight = torch.cat([q_weight, kv_weight], dim=1)
+            weight = rearrange(weight, "p m n -> (p m) n")
+
+            return self._unsqueeze_weight(weight)
 
     # If we collect the weights on the root worker and want to use a gated linear
     # unit right after the linear layer, we need to rearrange the weights, such that
