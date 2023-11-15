@@ -120,10 +120,10 @@ class Repartition(Module):
         # Share the two indices with every worker in the union.  The first
         # column of data contains the source index and the second contains
         # the destination index.
-        data = np.array([P_x.rank if P_x.active else -1], dtype=np.int)
+        data = np.array([P_x.rank if P_x.active else -1], dtype=int)
         self.P_x_ranks = P_union.allgather_data(data)
 
-        data = np.array([P_y.rank if P_y.active else -1], dtype=np.int)
+        data = np.array([P_y.rank if P_y.active else -1], dtype=int)
         self.P_y_ranks = P_union.allgather_data(data)
 
         # Get some types and functions from the back-end
