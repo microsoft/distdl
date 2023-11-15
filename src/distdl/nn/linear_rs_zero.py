@@ -232,14 +232,13 @@ class DistributedLinearReduceScatterZero(Module):
         self._register_load_state_dict_pre_hook(self.scatter_state_dict)
 
         # Partition for collecting weights/biases for saving the state dict
-        if self.collect_state:
-            P_root_base = P_x.create_partition_inclusive([0])
-            self.P_root = P_root_base.create_cartesian_topology_partition([1]*P_x.dim)
-            self.gather_weight = Repartition(P_x, self.P_root, preserve_batch=False)
-            self.scatter_weight = Repartition(self.P_root, P_x, preserve_batch=False)
-            if self.use_bias:
-                self.gather_bias = Repartition(self.P_bias, self.P_root, preserve_batch=False)
-                self.scatter_bias = Repartition(self.P_root, self.P_bias, preserve_batch=False)
+        P_root_base = P_x.create_partition_inclusive([0])
+        self.P_root = P_root_base.create_cartesian_topology_partition([1]*P_x.dim)
+        self.gather_weight = Repartition(P_x, self.P_root, preserve_batch=False)
+        self.scatter_weight = Repartition(self.P_root, P_x, preserve_batch=False)
+        if self.use_bias:
+            self.gather_bias = Repartition(self.P_bias, self.P_root, preserve_batch=False)
+            self.scatter_bias = Repartition(self.P_root, self.P_bias, preserve_batch=False)
 
     def reset_parameters(self) -> None:
 
@@ -305,7 +304,7 @@ class DistributedLinearReduceScatterZero(Module):
             if self.P_root.active:
                 weight = self._unsqueeze_weight(weight)
             else:
-                weight = zero_volume_tensor(device=self.P_x.device, requires_grad=True, dtype=self.dtype)
+                weight = zero_volume_tensor(device=self.P_x.device, requires_grad=True, dtype=weight.dtype)
             if self.P_x.active:
                 weight = self.scatter_weight(weight)
 
@@ -317,7 +316,7 @@ class DistributedLinearReduceScatterZero(Module):
                 if self.P_root.active:
                     bias = self._unsqueeze_bias(bias)
                 else:
-                    bias = zero_volume_tensor(device=self.P_x.device, requires_grad=True, dtype=self.dtype)
+                    bias = zero_volume_tensor(device=self.P_x.device, requires_grad=True, dtype=bias.dtype)
                 if self.P_bias.active:
                     destination[bias_key] = self.scatter_bias(bias)
 
