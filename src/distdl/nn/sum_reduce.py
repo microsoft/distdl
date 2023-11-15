@@ -45,12 +45,14 @@ class SumReduce(Module):
         Transpose the output partition prior to the broadcast.
     preserve_batch : bool, optional
         Indicates if batch size should be preserved for zero-volume outputs.
+    scale_backward: Union[int, slice], optional
+        Scale the backward pass by the number of workers along the given dimension(s).
 
     """
 
     def __init__(self, P_x, P_y,
                  transpose_src=False, transpose_dest=False,
-                 preserve_batch=True):
+                 preserve_batch=True, scale_backward=None):
 
         super(SumReduce, self).__init__()
 
@@ -88,6 +90,9 @@ class SumReduce(Module):
         # Variables for tracking input changes and buffer construction
         self._distdl_is_setup = False
         self._input_tensor_structure = TensorStructure()
+
+        # Scale the backward pass by the number of workers along given dimension.
+        self.scale_backward = scale_backward
 
         # The identity case is if the partitions are of size 1,
         # or they are the same partition and neither is tranposed,
@@ -204,4 +209,5 @@ class SumReduce(Module):
                               self.P_recv,
                               self.preserve_batch,
                               self.input_tensor_structure,
-                              self.output_tensor_structure)
+                              self.output_tensor_structure,
+                              self.scale_backward)
