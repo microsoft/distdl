@@ -82,14 +82,14 @@ class DistributedExpertReduceScatter(Module):
         if P_bias is not None:
             assert P_x.dim == P_bias.dim
             assert np.prod(P_bias.shape[-2:]) == 1
-            for i in range(P_x.dim-2):
+            for i in range(P_x.dim - 2):
                 assert P_bias.shape[i] == P_x.shape[i]
         elif bias:
             apply_bias_partition_shape = P_x.shape.copy()
             apply_bias_partition_shape[-2:] = 1
 
             index_bias = [slice(0, 1)] * P_x.dim
-            for i in range(P_x.dim-2):
+            for i in range(P_x.dim - 2):
                 index_bias[i] = slice(0, P_x.shape[i])
             apply_bias_workers = worker_layout(P_x.shape)[tuple(index_bias)].reshape(-1).tolist()
 
@@ -146,7 +146,7 @@ class DistributedExpertReduceScatter(Module):
         # Partition for collecting weights/biases for saving the state dict
         if self.collect_state:
             P_root_base = P_x.create_partition_inclusive([0])
-            self.P_root = P_root_base.create_cartesian_topology_partition([1]*P_x.dim)
+            self.P_root = P_root_base.create_cartesian_topology_partition([1] * P_x.dim)
             self.gather_weight = Repartition(P_x, self.P_root, preserve_batch=False)
             self.scatter_weight = Repartition(self.P_root, P_x, preserve_batch=False)
             self.gather_bias = Repartition(P_bias, self.P_root, preserve_batch=False)

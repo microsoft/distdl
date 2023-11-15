@@ -116,8 +116,8 @@ class DistributedGeneralConvBase(Module, HaloMixin, ConvMixin):
 
         # Even inactive workers need some partition union
         self.P_union = self._distdl_backend.Partition()
-        if not (self.P_x.active or
-                self.P_y.active or
+        if not (self.P_x.active or  # noqa: W504
+                self.P_y.active or  # noqa: W504
                 self.P_w.active):
             return
 
@@ -217,7 +217,7 @@ class DistributedGeneralConvBase(Module, HaloMixin, ConvMixin):
             # We will be using global padding to compute local padding,
             # so expand it to a numpy array
             global_padding = np.pad(self.padding,
-                                    pad_width=(dims-len(self.padding), 0),
+                                    pad_width=(dims - len(self.padding), 0),
                                     mode='constant',
                                     constant_values=0)
             self.global_padding = global_padding
@@ -247,7 +247,7 @@ class DistributedGeneralConvBase(Module, HaloMixin, ConvMixin):
 
             P_wr_base = self.P_w.create_partition_inclusive(w_root_subset)
             # ones are needed so the broadcast will work
-            self.P_wr = P_wr_base.create_cartesian_topology_partition([P_co, P_ci] + [1]*len(P_spatial))
+            self.P_wr = P_wr_base.create_cartesian_topology_partition([P_co, P_ci] + [1] * len(P_spatial))
             self.stores_weight = self.P_wr.active
 
             # Release temporary resources
@@ -280,7 +280,7 @@ class DistributedGeneralConvBase(Module, HaloMixin, ConvMixin):
 
             P_br_base = self.P_w.create_partition_inclusive(b_root_subset)
             # ones are needed so the broadcast will work
-            self.P_br = P_br_base.create_cartesian_topology_partition([P_co] + [1] + [1]*len(P_spatial))
+            self.P_br = P_br_base.create_cartesian_topology_partition([P_co] + [1] + [1] * len(P_spatial))
             self.stores_bias = self.P_br.active and self.use_bias
 
             # Release temporary resources
@@ -420,8 +420,8 @@ class DistributedGeneralConvBase(Module, HaloMixin, ConvMixin):
 
         """
 
-        if not (self.P_x.active or
-                self.P_y.active or
+        if not (self.P_x.active or  # noqa: W504
+                self.P_y.active or  # noqa: W504
                 self.P_w.active):
             return
 
@@ -439,7 +439,7 @@ class DistributedGeneralConvBase(Module, HaloMixin, ConvMixin):
             x_local_structure = TensorStructure(input[0])
             x_global_shape = x_global_structure.shape
             x_local_shape = x_local_structure.shape
-            x_global_shape_after_pad = x_global_shape + 2*self.global_padding
+            x_global_shape_after_pad = x_global_shape + 2 * self.global_padding
             x_local_shape_after_pad = x_local_shape + np.sum(self.local_padding, axis=1, keepdims=False)
             x_local_structure_after_pad = TensorStructure(input[0])
             x_local_structure_after_pad.shape = x_local_shape_after_pad
@@ -528,7 +528,7 @@ class DistributedGeneralConvBase(Module, HaloMixin, ConvMixin):
         """
         if self.P_x.active:
             should_pad_left = [k == 0 for k in self.P_x.index]
-            should_pad_right = [k == d-1 for k, d in zip(self.P_x.index, self.P_x.shape)]
+            should_pad_right = [k == d - 1 for k, d in zip(self.P_x.index, self.P_x.shape)]
             should_pad = np.stack((should_pad_left, should_pad_right), axis=1)
             local_padding = np.where(should_pad, padding, 0)
             return local_padding
@@ -545,8 +545,8 @@ class DistributedGeneralConvBase(Module, HaloMixin, ConvMixin):
 
         """
 
-        if not (self.P_x.active or
-                self.P_y.active or
+        if not (self.P_x.active or  # noqa: W504
+                self.P_y.active or  # noqa: W504
                 self.P_w.active):
             return input
 

@@ -47,14 +47,14 @@ if 'TOXENV' in os.environ and 'SETUPPY_CFLAGS' in os.environ:
 
 # Default extensions
 default_extensions = [
-        Extension(
-            splitext(relpath(path, 'src').replace(os.sep, '.'))[0],
-            sources=[path],
-            include_dirs=[dirname(path)]
-        )
-        for root, _, _ in os.walk('src')
-        for path in glob(join(root, '*.c'))
-    ]
+    Extension(
+        splitext(relpath(path, 'src').replace(os.sep, '.'))[0],
+        sources=[path],
+        include_dirs=[dirname(path)]
+    )
+    for root, _, _ in os.walk('src')
+    for path in glob(join(root, '*.c'))
+]
 
 torch_extensions = []
 
@@ -98,7 +98,7 @@ has_cuda = check_gpu(0)
 
 setup(
     name='distdl',
-    version='0.5.0-dev',
+    version='0.6.0',
     license='BSD-2-Clause',
     description='A Distributed Deep Learning package for PyTorch.',
     long_description='%s\n%s' % (
@@ -114,7 +114,6 @@ setup(
     include_package_data=True,
     zip_safe=False,
     classifiers=[
-        # complete classifier list: http://pypi.python.org/pypi?%3Aaction=list_classifiers
         'Development Status :: 2 - Pre-Alpha',
         'Intended Audience :: Developers',
         'License :: OSI Approved :: BSD License',
@@ -123,14 +122,8 @@ setup(
         'Operating System :: Microsoft :: Windows',
         'Programming Language :: Python',
         'Programming Language :: Python :: 3',
-        'Programming Language :: Python :: 3.8',
+        'Programming Language :: Python :: 3.10',
         'Programming Language :: Python :: Implementation :: CPython',
-        # uncomment if you test on these interpreters:
-        # 'Programming Language :: Python :: 2.7',
-        # 'Programming Language :: Python :: Implementation :: PyPy',
-        # 'Programming Language :: Python :: Implementation :: IronPython',
-        # 'Programming Language :: Python :: Implementation :: Jython',
-        # 'Programming Language :: Python :: Implementation :: Stackless',
         'Topic :: Scientific/Engineering',
         'Topic :: Scientific/Engineering :: Artificial Intelligence',
         'Private :: Do Not Upload',
@@ -143,9 +136,9 @@ setup(
     keywords=[
         # eg: 'keyword1', 'keyword2', 'keyword3',
     ],
-    python_requires='>=3.5',
+    python_requires='>=3.8',
     install_requires=[
-        'torch>=2.0.0', 'numpy', 'einops', 'mpi4py'
+        'torch>=2.0.0', 'numpy>=1.23.0', 'einops', 'mpi4py'
     ],
     extras_require={
         "cuda11x": ['cupy-cuda11x'] if has_cuda else [],

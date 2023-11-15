@@ -16,8 +16,8 @@ adjoint_parametrizations.append(
         2,  # passed to comm_split_fixture, required MPI ranks
         id="distributed-co3_ci2",
         marks=[pytest.mark.mpi(min_size=2)]
-        )
     )
+)
 
 adjoint_parametrizations.append(
     pytest.param(
@@ -27,8 +27,8 @@ adjoint_parametrizations.append(
         4,  # passed to comm_split_fixture, required MPI ranks
         id="distributed-co2_ci3",
         marks=[pytest.mark.mpi(min_size=4)]
-        )
     )
+)
 
 
 # For example of indirect, see https://stackoverflow.com/a/28570677

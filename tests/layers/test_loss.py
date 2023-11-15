@@ -16,8 +16,8 @@ input_parametrizations.append(
         4,  # passed to comm_split_fixture, required MPI ranks
         id="1D",
         marks=[pytest.mark.mpi(min_size=4)]
-        )
     )
+)
 
 input_parametrizations.append(
     pytest.param(
@@ -26,8 +26,8 @@ input_parametrizations.append(
         4,  # passed to comm_split_fixture, required MPI ranks
         id="1D-nonpartitioned_batch",
         marks=[pytest.mark.mpi(min_size=4)]
-        )
     )
+)
 
 input_parametrizations.append(
     pytest.param(
@@ -36,8 +36,8 @@ input_parametrizations.append(
         4,  # passed to comm_split_fixture, required MPI ranks
         id="1D-partitioned_batch",
         marks=[pytest.mark.mpi(min_size=4)]
-        )
     )
+)
 
 input_parametrizations.append(
     pytest.param(
@@ -46,8 +46,8 @@ input_parametrizations.append(
         8,  # passed to comm_split_fixture, required MPI ranks
         id="2D-nonpartitioned_batch",
         marks=[pytest.mark.mpi(min_size=8)]
-        )
     )
+)
 
 input_parametrizations.append(
     pytest.param(
@@ -56,8 +56,8 @@ input_parametrizations.append(
         8,  # passed to comm_split_fixture, required MPI ranks
         id="2D-partitioned_batch",
         marks=[pytest.mark.mpi(min_size=8)]
-        )
     )
+)
 
 input_parametrizations.append(
     pytest.param(
@@ -66,8 +66,8 @@ input_parametrizations.append(
         16,  # passed to comm_split_fixture, required MPI ranks
         id="3D-nonpartitioned_batch",
         marks=[pytest.mark.mpi(min_size=16)]
-        )
     )
+)
 
 input_parametrizations.append(
     pytest.param(
@@ -76,8 +76,8 @@ input_parametrizations.append(
         16,  # passed to comm_split_fixture, required MPI ranks
         id="3D-partitioned_batch",
         marks=[pytest.mark.mpi(min_size=16)]
-        )
     )
+)
 
 loss_parametrizations = [
     # SequentialLoss, DistributedLoss
@@ -126,7 +126,7 @@ def test_distributed_loss(barrier_fence_fixture,
     P_x = P_x_base.create_cartesian_topology_partition(P_x_shape)
 
     P_0_base = P_x_base.create_partition_inclusive([0])
-    P_0 = P_0_base.create_cartesian_topology_partition([1]*len(P_x_shape))
+    P_0 = P_0_base.create_cartesian_topology_partition([1] * len(P_x_shape))
 
     scatter = Repartition(P_0, P_x).to(P_x.device)
     gather = Repartition(P_x, P_0).to(P_x.device)

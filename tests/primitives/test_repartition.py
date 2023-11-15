@@ -17,8 +17,8 @@ adjoint_parametrizations.append(
         12,  # passed to comm_split_fixture, required MPI ranks
         id="distributed-overlap-3D",
         marks=[pytest.mark.mpi(min_size=12)]
-        )
     )
+)
 
 adjoint_parametrizations.append(
     pytest.param(
@@ -28,8 +28,8 @@ adjoint_parametrizations.append(
         16,  # passed to comm_split_fixture, required MPI ranks
         id="distributed-disjoint-3D",
         marks=[pytest.mark.mpi(min_size=16)]
-        )
     )
+)
 
 adjoint_parametrizations.append(
     pytest.param(
@@ -39,8 +39,8 @@ adjoint_parametrizations.append(
         17,  # passed to comm_split_fixture, required MPI ranks
         id="distributed-disjoint-inactive-3D",
         marks=[pytest.mark.mpi(min_size=17)]
-        )
     )
+)
 
 # Sequential functionality
 adjoint_parametrizations.append(
@@ -51,8 +51,8 @@ adjoint_parametrizations.append(
         1,  # passed to comm_split_fixture, required MPI ranks
         id="sequential-identity",
         marks=[pytest.mark.mpi(min_size=1)]
-        )
     )
+)
 
 # As a scatter
 adjoint_parametrizations.append(
@@ -63,8 +63,8 @@ adjoint_parametrizations.append(
         12,  # passed to comm_split_fixture, required MPI ranks
         id="distributed-as_scatter-overlap-3D",
         marks=[pytest.mark.mpi(min_size=12)]
-        )
     )
+)
 
 adjoint_parametrizations.append(
     pytest.param(
@@ -74,8 +74,8 @@ adjoint_parametrizations.append(
         13,  # passed to comm_split_fixture, required MPI ranks
         id="distributed-as_scatter-disjoint-3D",
         marks=[pytest.mark.mpi(min_size=13)]
-        )
     )
+)
 
 adjoint_parametrizations.append(
     pytest.param(
@@ -85,8 +85,8 @@ adjoint_parametrizations.append(
         14,  # passed to comm_split_fixture, required MPI ranks
         id="distributed-as_scatter-disjoint-inactive-3D",
         marks=[pytest.mark.mpi(min_size=14)]
-        )
     )
+)
 
 # As a gather
 adjoint_parametrizations.append(
@@ -97,8 +97,8 @@ adjoint_parametrizations.append(
         12,  # passed to comm_split_fixture, required MPI ranks
         id="distributed-as_gather-overlap-3D",
         marks=[pytest.mark.mpi(min_size=12)]
-        )
     )
+)
 
 adjoint_parametrizations.append(
     pytest.param(
@@ -108,8 +108,8 @@ adjoint_parametrizations.append(
         13,  # passed to comm_split_fixture, required MPI ranks
         id="distributed-as_gather-disjoint-3D",
         marks=[pytest.mark.mpi(min_size=13)]
-        )
     )
+)
 
 adjoint_parametrizations.append(
     pytest.param(
@@ -119,8 +119,8 @@ adjoint_parametrizations.append(
         14,  # passed to comm_split_fixture, required MPI ranks
         id="distributed-as_gather-disjoint-inactive-3D",
         marks=[pytest.mark.mpi(min_size=14)]
-        )
     )
+)
 
 
 # For example of indirect, see https://stackoverflow.com/a/28570677
@@ -237,7 +237,7 @@ def test_excepts_mismatched_partitions(barrier_fence_fixture,
     P_x_base = P_world.create_partition_inclusive(np.arange(0, in_size))
     P_x = P_x_base.create_cartesian_topology_partition(in_shape)
 
-    P_y_base = P_world.create_partition_inclusive(np.arange(P_world.size-out_size, P_world.size))
+    P_y_base = P_world.create_partition_inclusive(np.arange(P_world.size - out_size, P_world.size))
     P_y = P_y_base.create_cartesian_topology_partition(out_shape)
 
     with pytest.raises(ValueError) as e_info:  # noqa: F841
@@ -283,7 +283,7 @@ def test_excepts_mismatched_input_partition_tensor(barrier_fence_fixture,
     P_x_base = P_world.create_partition_inclusive(np.arange(0, in_size))
     P_x = P_x_base.create_cartesian_topology_partition(in_shape)
 
-    P_y_base = P_world.create_partition_inclusive(np.arange(P_world.size-out_size, P_world.size))
+    P_y_base = P_world.create_partition_inclusive(np.arange(P_world.size - out_size, P_world.size))
     P_y = P_y_base.create_cartesian_topology_partition(out_shape)
 
     with pytest.raises(ValueError) as e_info:  # noqa: F841
@@ -341,7 +341,7 @@ def test_excepts_mismatched_output_partition_tensor(barrier_fence_fixture,
     P_x_base = P_world.create_partition_inclusive(np.arange(0, in_size))
     P_x = P_x_base.create_cartesian_topology_partition(in_shape)
 
-    P_y_base = P_world.create_partition_inclusive(np.arange(P_world.size-out_size, P_world.size))
+    P_y_base = P_world.create_partition_inclusive(np.arange(P_world.size - out_size, P_world.size))
     P_y = P_y_base.create_cartesian_topology_partition(out_shape)
 
     with pytest.raises(ValueError) as e_info:  # noqa: F841
@@ -400,7 +400,7 @@ def test_excepts_mismatched_nondivisible_tensor(barrier_fence_fixture,
     P_x_base = P_world.create_partition_inclusive(np.arange(0, in_size))
     P_x = P_x_base.create_cartesian_topology_partition(in_shape)
 
-    P_y_base = P_world.create_partition_inclusive(np.arange(P_world.size-out_size, P_world.size))
+    P_y_base = P_world.create_partition_inclusive(np.arange(P_world.size - out_size, P_world.size))
     P_y = P_y_base.create_cartesian_topology_partition(out_shape)
 
     with pytest.raises(ValueError) as e_info:  # noqa: F841
@@ -438,8 +438,8 @@ dtype_parametrizations.append(
         4,  # passed to comm_split_fixture, required MPI ranks
         id="distributed-dtype-float32",
         marks=[pytest.mark.mpi(min_size=4)]
-        )
     )
+)
 
 # Test that it works with ints as well, can't compute gradient here
 dtype_parametrizations.append(
@@ -451,8 +451,8 @@ dtype_parametrizations.append(
         4,  # passed to comm_split_fixture, required MPI ranks
         id="distributed-dtype-int32",
         marks=[pytest.mark.mpi(min_size=4)]
-        )
     )
+)
 
 # Also test doubles
 dtype_parametrizations.append(
@@ -464,8 +464,8 @@ dtype_parametrizations.append(
         4,  # passed to comm_split_fixture, required MPI ranks
         id="distributed-dtype-float64",
         marks=[pytest.mark.mpi(min_size=4)]
-        )
     )
+)
 
 
 # For example of indirect, see https://stackoverflow.com/a/28570677
@@ -516,7 +516,7 @@ def test_repartition_dtype(barrier_fence_fixture,
         x_local_shape = compute_subshape(P_x.shape,
                                          P_x.index,
                                          x_global_shape)
-        x = 10*torch.randn(*x_local_shape, device=P_x.device).to(dtype)
+        x = 10 * torch.randn(*x_local_shape, device=P_x.device).to(dtype)
 
     x.requires_grad = test_backward
     # y = F @ x
@@ -531,7 +531,7 @@ def test_repartition_dtype(barrier_fence_fixture,
             y_local_shape = compute_subshape(P_y.shape,
                                              P_y.index,
                                              x_global_shape)
-            dy = 10*torch.randn(*y_local_shape, device=P_x.device).to(dtype)
+            dy = 10 * torch.randn(*y_local_shape, device=P_x.device).to(dtype)
 
         # dx = F* @ dy
         y.backward(dy)
@@ -556,8 +556,8 @@ identity_parametrizations.append(
         12,  # passed to comm_split_fixture, required MPI ranks
         id="distributed-identity-2D",
         marks=[pytest.mark.mpi(min_size=12)]
-        )
     )
+)
 
 identity_parametrizations.append(
     pytest.param(
@@ -566,8 +566,8 @@ identity_parametrizations.append(
         4,  # passed to comm_split_fixture, required MPI ranks
         id="distributed-identity-1D",
         marks=[pytest.mark.mpi(min_size=16)]
-        )
     )
+)
 
 
 # For example of indirect, see https://stackoverflow.com/a/28570677

@@ -36,7 +36,7 @@ def compute_start_index(P_shape, index, shape):
     P_shape = np.atleast_1d(P_shape)
     index = np.atleast_1d(index)
     shape = np.atleast_1d(shape)
-    start_index = (shape // P_shape)*index
+    start_index = (shape // P_shape) * index
     start_index += np.minimum(index, shape % P_shape)
 
     return start_index
@@ -107,7 +107,7 @@ def compute_partition_intersection(P_x_r_shape,
 
 def compute_nd_slice_volume(slices):
 
-    return np.prod([s.stop-s.start for s in slices])
+    return np.prod([s.stop - s.start for s in slices])
 
 
 def compute_nd_slice_shape(slices):
@@ -127,7 +127,7 @@ def compute_nd_slice_shape(slices):
 
     """
 
-    return tuple([s.stop-s.start for s in slices])
+    return tuple([s.stop - s.start for s in slices])
 
 
 def range_index(shape):

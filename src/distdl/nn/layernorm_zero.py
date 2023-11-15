@@ -110,7 +110,7 @@ class DistributedLayerNormZero(Module):
                 P_x.shape[dim_reduce_slice],
                 P_x.index[dim_reduce_slice],
                 normalized_shape
-                )
+            )
             normalized_shape_mp = tuple(normalized_shape_mp)
 
             # Additionally, shard the last dimension across data-parallel workers
@@ -119,7 +119,7 @@ class DistributedLayerNormZero(Module):
                 P_x.shape[0],
                 P_x.index[0],
                 normalized_shape_mp[-1]
-                ).item()
+            ).item()
             normalized_shape_local = tuple(normalized_shape_local)
 
             # Weights and biases
@@ -138,7 +138,7 @@ class DistributedLayerNormZero(Module):
         # Partition for collecting weights/biases for saving the state dict
         if self.elementwise_affine:
             P_root_base = P_x.create_partition_inclusive([0])
-            self.P_root = P_root_base.create_cartesian_topology_partition([1]*P_x.dim)
+            self.P_root = P_root_base.create_cartesian_topology_partition([1] * P_x.dim)
             self.gather = Repartition(self.P_w, self.P_root, preserve_batch=False)
             self.scatter_mp = Repartition(self.P_root, self.P_w, preserve_batch=False)
             self.scatter_dp = Repartition(self.P_w, self.P_x, preserve_batch=False)
@@ -267,7 +267,7 @@ class DistributedLayerNormZero(Module):
             if self.elementwise_affine:
                 weight = self.allgather(self.weight.transpose(0, -1)).transpose(0, -1)
                 bias = self.allgather(self.bias.transpose(0, -1)).transpose(0, -1)
-                input = weight*input + bias
+                input = weight * input + bias
 
         else:
             if self.elementwise_affine:

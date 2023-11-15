@@ -1,4 +1,4 @@
-__version__ = '0.5.0-dev'
+__version__ = '0.6.0'
 
 # Import remaining modules
 from . import backends  # noqa: F401

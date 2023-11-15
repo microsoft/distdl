@@ -16,8 +16,8 @@ parametrizations.append(
         2,  # passed to comm_split_fixture, required MPI ranks
         id="distributed-conv-feature-1d",
         marks=[pytest.mark.mpi(min_size=2)]
-        )
     )
+)
 
 parametrizations.append(
     pytest.param(
@@ -30,8 +30,8 @@ parametrizations.append(
         4,  # passed to comm_split_fixture, required MPI ranks
         id="distributed-conv-channel-1d",
         marks=[pytest.mark.mpi(min_size=4)]
-        )
     )
+)
 
 parametrizations.append(
     pytest.param(
@@ -44,8 +44,8 @@ parametrizations.append(
         8,  # passed to comm_split_fixture, required MPI ranks
         id="distributed-conv-general-1d",
         marks=[pytest.mark.mpi(min_size=8)]
-        )
     )
+)
 
 parametrizations.append(
     pytest.param(
@@ -58,8 +58,8 @@ parametrizations.append(
         4,  # passed to comm_split_fixture, required MPI ranks
         id="distributed-conv-feature-2d",
         marks=[pytest.mark.mpi(min_size=4)]
-        )
     )
+)
 
 parametrizations.append(
     pytest.param(
@@ -72,8 +72,8 @@ parametrizations.append(
         4,  # passed to comm_split_fixture, required MPI ranks
         id="distributed-conv-channel-2d",
         marks=[pytest.mark.mpi(min_size=4)]
-        )
     )
+)
 
 parametrizations.append(
     pytest.param(
@@ -86,8 +86,8 @@ parametrizations.append(
         8,  # passed to comm_split_fixture, required MPI ranks
         id="distributed-conv-general-2d",
         marks=[pytest.mark.mpi(min_size=8)]
-        )
     )
+)
 
 parametrizations.append(
     pytest.param(
@@ -100,8 +100,8 @@ parametrizations.append(
         4,  # passed to comm_split_fixture, required MPI ranks
         id="distributed-conv-feature-3d",
         marks=[pytest.mark.mpi(min_size=4)]
-        )
     )
+)
 
 parametrizations.append(
     pytest.param(
@@ -114,8 +114,8 @@ parametrizations.append(
         4,  # passed to comm_split_fixture, required MPI ranks
         id="distributed-conv-channel-3d",
         marks=[pytest.mark.mpi(min_size=4)]
-        )
     )
+)
 
 parametrizations.append(
     pytest.param(
@@ -128,8 +128,8 @@ parametrizations.append(
         8,  # passed to comm_split_fixture, required MPI ranks
         id="distributed-conv-general-3d",
         marks=[pytest.mark.mpi(min_size=8)]
-        )
     )
+)
 
 
 # For example of indirect, see https://stackoverflow.com/a/28570677

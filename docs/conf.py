@@ -54,7 +54,7 @@ html_use_smartypants = True
 html_last_updated_fmt = '%b %d, %Y'
 html_split_index = False
 html_sidebars = {
-   '**': ['searchbox.html', 'globaltoc.html', 'sourcelink.html'],
+    '**': ['searchbox.html', 'globaltoc.html', 'sourcelink.html'],
 }
 html_short_title = '%s-%s' % (project, version)
 
@@ -137,7 +137,7 @@ def _fixup_napoleon_numpydoc():
         fields = self._consume_fields()
         pos_fields, kw_fields = self._process_optional_params(fields)
         return self.format_fields(
-                _('Other Parameters'), pos_fields + kw_fields)
+            _('Other Parameters'), pos_fields + kw_fields)
 
     NumpyDocstring._process_optional_params = _process_optional_params
     NumpyDocstring._parse_parameters_section = _parse_parameters_section

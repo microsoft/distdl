@@ -31,7 +31,7 @@ P_x = P_x_base.create_cartesian_topology_partition(in_shape)
 batch_size = 8
 num_tokens = 64
 in_channels = 128
-hidden_channels = int(4*128)
+hidden_channels = int(4 * 128)
 out_channels = 128
 
 # Linear layers with 2D data- and weight partitioning (ZeRO-3, FDSP1)

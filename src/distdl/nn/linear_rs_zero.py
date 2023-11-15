@@ -18,7 +18,8 @@ from distdl.utilities.torch import zero_volume_tensor
 class LinearReduceScatterZeROFunc(torch.autograd.Function):
 
     @staticmethod
-    def forward(input, weight, bias, ag_input, rs_input, ag_weight, rs_weight, ag_bias, rs_bias, bias_active, scale_backward):
+    def forward(input, weight, bias, ag_input, rs_input, ag_weight, rs_weight,
+                ag_bias, rs_bias, bias_active, scale_backward):
 
         # Gather weights    [ c_cout, 1, c_in]
         weight = ag_weight(weight).squeeze(1)   # -> [c_out, c_in]
@@ -35,7 +36,8 @@ class LinearReduceScatterZeROFunc(torch.autograd.Function):
 
     @staticmethod
     def setup_context(ctx, inputs, output):
-        input, weight, bias, ag_input, rs_input, ag_weight, rs_weight, ag_bias, rs_bias, bias_active, scale_backward = inputs
+        input, weight, bias, ag_input, rs_input, ag_weight, rs_weight, \
+            ag_bias, rs_bias, bias_active, scale_backward = inputs
         ctx.save_for_backward(input, weight, bias)
         ctx.constant = (ag_input, rs_input, ag_weight, rs_weight, ag_bias, rs_bias, bias_active, scale_backward)
 
@@ -171,14 +173,14 @@ class DistributedLinearReduceScatterZero(Module):
         if P_bias is not None:
             assert P_x.dim == P_bias.dim
             assert np.prod(P_bias.shape[-2:]) == 1
-            for i in range(P_x.dim-2):
+            for i in range(P_x.dim - 2):
                 assert P_bias.shape[i] == P_x.shape[i]
         elif bias:
             apply_bias_partition_shape = P_x.shape.copy()
             apply_bias_partition_shape[-2:] = 1
 
             index_bias = [slice(0, 1)] * P_x.dim
-            for i in range(P_x.dim-2):
+            for i in range(P_x.dim - 2):
                 index_bias[i] = slice(0, P_x.shape[i])
             apply_bias_workers = worker_layout(P_x.shape)[tuple(index_bias)].reshape(-1).tolist()
 
@@ -243,7 +245,7 @@ class DistributedLinearReduceScatterZero(Module):
 
         # Partition for collecting weights/biases for saving the state dict
         P_root_base = P_x.create_partition_inclusive([0])
-        self.P_root = P_root_base.create_cartesian_topology_partition([1]*P_x.dim)
+        self.P_root = P_root_base.create_cartesian_topology_partition([1] * P_x.dim)
         self.gather_weight = Repartition(P_x, self.P_root, preserve_batch=False)
         self.scatter_weight = Repartition(self.P_root, P_x, preserve_batch=False)
         if self.use_bias:
@@ -262,7 +264,7 @@ class DistributedLinearReduceScatterZero(Module):
             init.uniform_(self.bias, -bound, bound)
 
     def _unsqueeze_weight(self, weight):
-        shape = [1]*self.P_y.dim
+        shape = [1] * self.P_y.dim
         shape[0] = weight.shape[0]
         shape[-1] = weight.shape[1]
         return weight.view(shape)
@@ -273,7 +275,7 @@ class DistributedLinearReduceScatterZero(Module):
         return weight.view(c_out, c_in)
 
     def _unsqueeze_bias(self, bias):
-        shape = [1]*self.P_y.dim
+        shape = [1] * self.P_y.dim
         shape[0] = bias.shape[0]
         return bias.view(shape)
 

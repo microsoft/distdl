@@ -17,8 +17,8 @@ adjoint_parametrizations.append(
         6,  # passed to comm_split_fixture, required MPI ranks
         id="distributed-2D-0D_reduction",
         marks=[pytest.mark.mpi(min_size=6)]
-        )
     )
+)
 
 adjoint_parametrizations.append(
     pytest.param(
@@ -29,8 +29,8 @@ adjoint_parametrizations.append(
         6,  # passed to comm_split_fixture, required MPI ranks
         id="distributed-2D-1D_reduction",
         marks=[pytest.mark.mpi(min_size=6)]
-        )
     )
+)
 
 adjoint_parametrizations.append(
     pytest.param(
@@ -41,8 +41,8 @@ adjoint_parametrizations.append(
         4,  # passed to comm_split_fixture, required MPI ranks
         id="distributed-2D-0D_reduction",
         marks=[pytest.mark.mpi(min_size=4)]
-        )
     )
+)
 
 adjoint_parametrizations.append(
     pytest.param(
@@ -53,8 +53,8 @@ adjoint_parametrizations.append(
         6,  # passed to comm_split_fixture, required MPI ranks
         id="distributed-2D-0D_reduction",
         marks=[pytest.mark.mpi(min_size=6)]
-        )
     )
+)
 
 adjoint_parametrizations.append(
     pytest.param(
@@ -65,8 +65,8 @@ adjoint_parametrizations.append(
         6,  # passed to comm_split_fixture, required MPI ranks
         id="distributed-2D-1D_reduction",
         marks=[pytest.mark.mpi(min_size=6)]
-        )
     )
+)
 
 adjoint_parametrizations.append(
     pytest.param(
@@ -77,8 +77,8 @@ adjoint_parametrizations.append(
         4,  # passed to comm_split_fixture, required MPI ranks
         id="distributed-2D-0D_reduction",
         marks=[pytest.mark.mpi(min_size=4)]
-        )
     )
+)
 
 
 # For example of indirect, see https://stackoverflow.com/a/28570677
@@ -125,13 +125,13 @@ def test_all_sum_reduce_adjoint(barrier_fence_fixture,
 
     x = zero_volume_tensor(device=P_x.device)
     if P_x.active:
-        x = 10*torch.ones(*x_local_shape, device=P_x.device)
+        x = 10 * torch.ones(*x_local_shape, device=P_x.device)
     x.requires_grad = True
 
     dy = zero_volume_tensor(device=P_x.device)
     if P_x.active:
         # Adjoint Input
-        dy = 0.1*torch.ones(*y_local_shape, device=P_x.device)
+        dy = 0.1 * torch.ones(*y_local_shape, device=P_x.device)
 
     # y = F @ x
     y = layer(x)

@@ -92,8 +92,8 @@ extent of the pooling window.  As these calculations are the same for all
 pooling operations, they are mixed in to every pooling layer requiring a halo
 exchange.
 
-Assumptions
-~~~~~~~~~~~
+Remarks
+~~~~~~~
 
 * Pooling kernels are not centered, the origin of the window is the "upper left"
   entry.
@@ -116,7 +116,7 @@ API
 
 .. currentmodule:: distdl.nn.pooling
 
-.. autoclass:: DistributedPoolingBase
+.. autoclass:: DistributedPoolBase
     :members:
 
 .. autoclass:: DistributedAvgPool1d

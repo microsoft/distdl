@@ -103,7 +103,7 @@ class DistributedLinearReduceScatter(Module):
         if P_weight is not None:
             assert P_x.dim == P_weight.dim
             assert P_weight.shape[-1] == P_x.shape[-1]
-            assert np.prod(P_weight.shape[:P_x.dim-1]) == 1
+            assert np.prod(P_weight.shape[:P_x.dim - 1]) == 1
         else:
             weight_partition_shape = [1] * P_x.dim
             weight_partition_shape[-1] = P_x.shape[-1]
@@ -129,14 +129,14 @@ class DistributedLinearReduceScatter(Module):
         if P_apply_bias is not None:
             assert P_x.dim == P_apply_bias.dim
             assert np.prod(P_apply_bias.shape[-2:]) == 1
-            for i in range(P_x.dim-2):
+            for i in range(P_x.dim - 2):
                 assert P_apply_bias.shape[i] == P_x.shape[i]
         elif bias:
             apply_bias_partition_shape = P_x.shape.copy()
             apply_bias_partition_shape[-2:] = 1
 
             index_bias = [slice(0, 1)] * P_x.dim
-            for i in range(P_x.dim-2):
+            for i in range(P_x.dim - 2):
                 index_bias[i] = slice(0, P_x.shape[i])
             apply_bias_workers = worker_layout(P_x.shape)[tuple(index_bias)].reshape(-1).tolist()
 
@@ -196,7 +196,7 @@ class DistributedLinearReduceScatter(Module):
         # Partition for collecting weights/biases for saving the state dict
         if self.collect_state:
             P_root_base = P_x.create_partition_inclusive([0])
-            self.P_root = P_root_base.create_cartesian_topology_partition([1]*P_x.dim)
+            self.P_root = P_root_base.create_cartesian_topology_partition([1] * P_x.dim)
             self.gather_weight = Repartition(P_weight, self.P_root, preserve_batch=False)
             self.scatter_weight = Repartition(self.P_root, P_weight, preserve_batch=False)
 
@@ -212,7 +212,7 @@ class DistributedLinearReduceScatter(Module):
             init.uniform_(self.bias, -bound, bound)
 
     def _unsqueeze_weight(self, weight):
-        shape = [1]*self.P_y.dim
+        shape = [1] * self.P_y.dim
         shape[-2] = weight.shape[-2]
         shape[-1] = weight.shape[-1]
         return weight.view(shape)
@@ -222,7 +222,7 @@ class DistributedLinearReduceScatter(Module):
         return weight.view(c_out, c_in)
 
     def _unsqueeze_bias(self, bias):
-        shape = [1]*self.P_y.dim
+        shape = [1] * self.P_y.dim
         shape[-2] = bias.shape[0]
         return bias.view(shape)
 

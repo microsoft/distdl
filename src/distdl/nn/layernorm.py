@@ -109,7 +109,7 @@ class DistributedLayerNorm(Module):
                 P_x.shape[dim_reduce_slice],
                 P_x.index[dim_reduce_slice],
                 normalized_shape
-                )
+            )
             normalized_shape_local = tuple(normalized_shape_local)
 
             if P_w.active:
@@ -131,7 +131,7 @@ class DistributedLayerNorm(Module):
         # Partition for collecting weights/biases for saving the state dict
         if self.collect_state:
             P_root_base = P_x.create_partition_inclusive([0])
-            self.P_root = P_root_base.create_cartesian_topology_partition([1]*P_x.dim)
+            self.P_root = P_root_base.create_cartesian_topology_partition([1] * P_x.dim)
             self.gather = Repartition(self.P_w, self.P_root, preserve_batch=False)
             self.scatter = Repartition(self.P_root, self.P_w, preserve_batch=False)
 
@@ -255,7 +255,7 @@ class DistributedLayerNorm(Module):
             if self.elementwise_affine:
                 weight = self.broadcast(self.weight)
                 bias = self.broadcast(self.bias)
-                input = weight*input + bias
+                input = weight * input + bias
 
         else:
             if self.elementwise_affine:
