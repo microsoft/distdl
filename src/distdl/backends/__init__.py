@@ -7,8 +7,7 @@ import importlib
 supported_backends = {
     'mpi_numpy': None,
     'mpi_cupy': None,
-    'nccl_cupy': None,
-    'mpi_torch': None
+    'nccl_cupy': None
 }
 
 # Load backends that are locally supported
