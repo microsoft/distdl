@@ -21,26 +21,26 @@ def broadcast_tensor_structure(input_tensor_structure, P_send, P_recv):
         # Share the torch dtype code, converted to an int.
         intID_dtype = torch_to_intID_dtype_dict[input_tensor_structure.dtype]
         
-        send_intID_dtype = np.array([intID_dtype], dtype=np.int)
+        send_intID_dtype = np.array([intID_dtype], dtype=int)
         req = P_send._comm.Iallreduce(MPI.IN_PLACE, send_intID_dtype, op=MPI.MAX)
         requests.append(req)
 
         # Need to send non-Python types, so convert the boolean temporarily
-        rg_int_send = np.array([-1], dtype=np.int)
+        rg_int_send = np.array([-1], dtype=int)
         rg_int_send[0] = 1 if input_tensor_structure.requires_grad else 0
         req = P_send._comm.Iallreduce(MPI.IN_PLACE, rg_int_send, op=MPI.MAX)
         requests.append(req)
 
         # Sending processes know the shape, so they can send a copy of the
         # data.  We will ignore this variable later.
-        send_tensor_dim = np.array([len(input_tensor_structure.shape)], dtype=np.int)
+        send_tensor_dim = np.array([len(input_tensor_structure.shape)], dtype=int)
         req = P_send._comm.Iallreduce(MPI.IN_PLACE, send_tensor_dim, op=MPI.MAX)
         requests.append(req)
 
         # Similarly, sending processes know the tensor shape, so they can send
         # a copy of it, but we will not use that copy for our actual return
         # value.
-        send_tensor_shape = np.array(input_tensor_structure.shape, dtype=np.int)
+        send_tensor_shape = np.array(input_tensor_structure.shape, dtype=int)
         req = P_send._comm.Iallreduce(MPI.IN_PLACE, send_tensor_shape, op=MPI.MAX)
         requests.append(req)
 
@@ -54,21 +54,21 @@ def broadcast_tensor_structure(input_tensor_structure, P_send, P_recv):
         # Everyone needs to receive these two values, but we don't need them
         # for future communication in this function so we can defer receiving
         # the data.
-        recv_intID_dtype = np.array([-1], dtype=np.int)
+        recv_intID_dtype = np.array([-1], dtype=int)
         req = P_recv._comm.Iallreduce(MPI.IN_PLACE, recv_intID_dtype, op=MPI.MAX)
         requests.append(req)
 
-        rg_int_recv = np.array([-1], dtype=np.int)
+        rg_int_recv = np.array([-1], dtype=int)
         req = P_recv._comm.Iallreduce(MPI.IN_PLACE, rg_int_recv, op=MPI.MAX)
         requests.append(req)
 
         # We need this value for the next communication, so we have to wait
         # for it to complete before moving on.
-        recv_tensor_dim = np.array([-1], dtype=np.int)
+        recv_tensor_dim = np.array([-1], dtype=int)
         req = P_recv._comm.Iallreduce(MPI.IN_PLACE, recv_tensor_dim, op=MPI.MAX)
         req.Wait()
 
-        recv_tensor_shape = np.zeros(recv_tensor_dim, dtype=np.int)
+        recv_tensor_shape = np.zeros(recv_tensor_dim, dtype=int)
         recv_tensor_shape[:] = -1
         req = P_recv._comm.Iallreduce(MPI.IN_PLACE, recv_tensor_shape, op=MPI.MAX)
         requests.append(req)
@@ -105,7 +105,7 @@ def assemble_global_tensor_structure(local_tensor_structure, P_in, P_out=None):
     if P_in.active:
 
         # Assemble the global shape
-        global_tensor_shape = np.zeros(P_in.dim, dtype=np.int)
+        global_tensor_shape = np.zeros(P_in.dim, dtype=int)
         for i in range(P_in.dim):
 
             keep = [False] * P_in.dim
@@ -114,7 +114,7 @@ def assemble_global_tensor_structure(local_tensor_structure, P_in, P_out=None):
             P_sub = P_in.create_cartesian_subtopology_partition(keep)
 
             v0 = np.atleast_1d(int(local_tensor_structure.shape[i]))
-            v1 = np.zeros(1, dtype=np.int)
+            v1 = np.zeros(1, dtype=int)
             P_sub._comm.Allreduce(v0, v1, op=MPI.SUM)
             global_tensor_shape[i] = v1[0]
 
@@ -124,9 +124,9 @@ def assemble_global_tensor_structure(local_tensor_structure, P_in, P_out=None):
         # Get a communicable integer representing the dtype
         intID_dtype = torch_to_intID_dtype_dict[local_tensor_structure.dtype]
         
-        intID_dtype = np.array([intID_dtype], dtype=np.int)
+        intID_dtype = np.array([intID_dtype], dtype=int)
 
-        requires_grad_int = np.array([-1], dtype=np.int)
+        requires_grad_int = np.array([-1], dtype=int)
         requires_grad_int[0] = 1 if local_tensor_structure.requires_grad else 0
 
         global_tensor_structure.shape = global_tensor_shape
@@ -166,7 +166,7 @@ def assemble_global_tensor_structure_along_axis(local_tensor_structure, P_x, axi
         P_sub = P_x.create_cartesian_subtopology_partition(keep)
 
         v0 = np.atleast_1d(int(local_tensor_structure.shape[axis[0]]))
-        v1 = np.zeros(1, dtype=np.int)
+        v1 = np.zeros(1, dtype=int)
         P_sub._comm.Allreduce(v0, v1, op=MPI.SUM)
         global_tensor_shape[axis[0]] = v1[0]
 
@@ -176,9 +176,9 @@ def assemble_global_tensor_structure_along_axis(local_tensor_structure, P_x, axi
         # Get a communicable integer representing the dtype
         intID_dtype = torch_to_intID_dtype_dict[local_tensor_structure.dtype]
         
-        intID_dtype = np.array([intID_dtype], dtype=np.int)
+        intID_dtype = np.array([intID_dtype], dtype=int)
 
-        requires_grad_int = np.array([-1], dtype=np.int)
+        requires_grad_int = np.array([-1], dtype=int)
         requires_grad_int[0] = 1 if local_tensor_structure.requires_grad else 0
 
         global_tensor_structure.shape = torch.Size(global_tensor_shape)

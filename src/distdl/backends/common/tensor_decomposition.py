@@ -35,7 +35,7 @@ def compute_subtensor_shapes_unbalanced(local_tensor_structure, P_in, P_out=None
     if P_in.active:
 
         shapes_size = list(P_in.shape) + [P_in.dim]
-        shapes = np.zeros(shapes_size, dtype=np.int)
+        shapes = np.zeros(shapes_size, dtype=int)
 
         # Generate a slice that isolates the worker's index into shapes
         # where it can store its shape

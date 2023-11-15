@@ -126,7 +126,7 @@ class DistributedChannelConvBase(Module, ConvMixin):
         # Ensure that all workers have the full size and structure of P_w
         P_w_shape = None
         if P_union.rank == 0:
-            P_w_shape = np.array(P_w.shape, dtype=np.int)
+            P_w_shape = np.array(P_w.shape, dtype=int)
         P_w_shape = P_union.broadcast_data(P_w_shape, root=0)
 
         # Release the temporary resources
