@@ -52,19 +52,20 @@ class HaloExchangeFunction(torch.autograd.Function):
                 rbb.copy_(output[rbs])
 
             # Communication
+            stream = cp.cuda.stream.get_current_stream()
             cp.cuda.nccl.groupStart()
             if lgb is not None:
-                P_x._nccl.recv(lgb, lrank, stream=None)
+                P_x._nccl.recv(lgb, lrank, stream=stream)
                 event_lgb = cp.cuda.Event()
                 event_lgb.record()
             if rgb is not None:
-                P_x._nccl.recv(rgb, rrank, stream=None)
+                P_x._nccl.recv(rgb, rrank, stream=stream)
                 event_rgb = cp.cuda.Event()
                 event_rgb.record()
             if lbb is not None:
-                P_x._nccl.send(lbb, lrank, stream=None)
+                P_x._nccl.send(lbb, lrank, stream=stream)
             if rbb is not None:
-                P_x._nccl.send(rbb, rrank, stream=None)
+                P_x._nccl.send(rbb, rrank, stream=stream)
             cp.cuda.nccl.groupEnd()
 
             # Wait for receive calls to complete
@@ -121,19 +122,20 @@ class HaloExchangeFunction(torch.autograd.Function):
                 rgb.copy_(grad_output[rgs])
                 grad_output[rgs] = 0.0
 
+            stream = cp.cuda.stream.get_current_stream()
             cp.cuda.nccl.groupStart()
             if lbb is not None:
-                P_x._nccl.recv(lbb, lrank, stream=None)
+                P_x._nccl.recv(lbb, lrank, stream=stream)
                 event_lbb = cp.cuda.Event()
                 event_lbb.record()
             if rbb is not None:
-                P_x._nccl.recv(rbb, rrank, stream=None)
+                P_x._nccl.recv(rbb, rrank, stream=stream)
                 event_rbb = cp.cuda.Event()
                 event_rbb.record()
             if lgb is not None:
-                P_x._nccl.send(lgb, lrank, stream=None)
+                P_x._nccl.send(lgb, lrank, stream=stream)
             if rgb is not None:
-                P_x._nccl.send(rgb, rrank, stream=None)
+                P_x._nccl.send(rgb, rrank, stream=stream)
             cp.cuda.nccl.groupEnd()
 
             # Wait for receive calls to complete

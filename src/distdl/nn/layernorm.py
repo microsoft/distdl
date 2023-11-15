@@ -1,6 +1,7 @@
 import numbers
 
 import numpy as np
+import pytorch_pfn_extras as ppe
 import torch
 
 from distdl.nn.all_sum_reduce import AllSumReduce
@@ -118,6 +119,18 @@ class DistributedLayerNorm(Module):
             else:
                 self.register_buffer('weight', zero_volume_tensor(device=device, requires_grad=True, dtype=self.dtype))
                 self.register_buffer('bias', zero_volume_tensor(device=device, requires_grad=True, dtype=self.dtype))
+
+            # Buffers for weight prefetching
+            self.weight_buffer = None
+            self.bias_buffer = None
+
+            # CUDA streams for weight prefetching
+            if not self.P_x.device == 'cpu':
+                self.stream_weight = torch.cuda.Stream(device=self.P_x.device)
+                self.stream_bias = torch.cuda.Stream(device=self.P_x.device)
+            else:
+                self.stream_weight = None
+                self.stream_bias = None
         else:
             self.register_parameter('weight', None)
             self.register_parameter('bias', None)
@@ -227,6 +240,20 @@ class DistributedLayerNorm(Module):
         input = (input - mean)**2
         return self._compute_mean(input)
 
+    def prefetch_weights(self):
+
+        if self.stream_weight is not None:
+            with ppe.cuda.stream(self.stream_weight):
+                self.weight_buffer = self.broadcast(self.weight)
+        else:
+            self.weight_buffer = self.broadcast(self.weight)
+
+        if self.stream_bias is not None:
+            with ppe.cuda.stream(self.stream_bias):
+                self.bias_buffer = self.broadcast(self.bias)
+        else:
+            self.bias_buffer = self.broadcast(self.bias)
+
     def forward(self, input):
         r"""Forward function interface.
 
@@ -239,6 +266,20 @@ class DistributedLayerNorm(Module):
 
         if not self.P_x.active:
             return input
+
+        # Collect weights and biases
+        if self.elementwise_affine:
+            if self.weight_buffer is None:
+                weight = self.broadcast(self.weight)
+                bias = self.broadcast(self.bias)
+            else:
+                weight = self.weight_buffer
+                bias = self.bias_buffer
+                self.weight_buffer = None
+                self.bias_buffer = None
+        else:
+            weight = None
+            bias = None
 
         # If we compute mean/variance over more than one partition, we need to
         # use our custom mean/variance implementations with allreduce. Otherwise
@@ -253,17 +294,20 @@ class DistributedLayerNorm(Module):
             input = (input - mean) / torch.sqrt(var + self.eps)
 
             if self.elementwise_affine:
-                weight = self.broadcast(self.weight)
-                bias = self.broadcast(self.bias)
-                input = weight * input + bias
+                if self.stream_weight is not None and self.stream_bias is not None:
+                    torch.cuda.current_stream().wait_stream(self.stream_weight)
+                    torch.cuda.current_stream().wait_stream(self.stream_bias)
 
+                input = weight * input + bias
         else:
             if self.elementwise_affine:
-                weight = self.broadcast(self.weight).squeeze()
-                bias = self.broadcast(self.bias).squeeze()
-            else:
-                weight = None
-                bias = None
+                weight = weight.squeeze()
+                bias = bias.squeeze()
+
+            if self.stream_weight is not None and self.stream_bias is not None:
+                torch.cuda.current_stream().wait_stream(self.stream_weight)
+                torch.cuda.current_stream().wait_stream(self.stream_bias)
+
             input = torch.nn.functional.layer_norm(input, self.normalized_shape, weight, bias, self.eps)
 
         return input

@@ -1,5 +1,6 @@
 __all__ = ["BroadcastFunction"]
 
+import cupy as cp
 import numpy as np
 import torch
 from mpi4py import MPI
@@ -112,7 +113,8 @@ class BroadcastFunction(torch.autograd.Function):
 
         # Send all of the data
         if P_send.active:
-            P_send._nccl.broadcast(input.detach().contiguous(), root=0, stream=None)
+            stream = cp.cuda.stream.get_current_stream()
+            P_send._nccl.broadcast(input.detach().contiguous(), root=0, stream=stream)
 
         if P_recv.active:
             # If I send to and receive from the same partition, make a copy.
@@ -121,7 +123,8 @@ class BroadcastFunction(torch.autograd.Function):
             # If I just receive, receive the broadcast
             else:
                 output = torch.zeros(output_tensor_structure.shape, dtype=output_tensor_structure.dtype, device=device)
-                P_recv._nccl.broadcast(output, root=0, stream=None)
+                stream = cp.cuda.stream.get_current_stream()
+                P_recv._nccl.broadcast(output, root=0, stream=stream)
                 output.requires_grad_(output_tensor_structure.requires_grad)
 
         return output
@@ -194,19 +197,22 @@ class BroadcastFunction(torch.autograd.Function):
         # I need to reduce that data.  If I send and receive to myself, this
         # is OK, as the reduction accounts for the copy, unlike the broadcast
         # above.
+
         if P_recv.active:
             if ctx.scale_backward is not None:
                 grad_output.div_(np.prod(P_recv.shape[ctx.scale_backward]))
             reduced_data_recv = torch.zeros(output_tensor_structure.shape, dtype=output_tensor_structure.dtype,
                                             device=device)
-            P_recv._nccl.reduce(grad_output.detach().contiguous(), reduced_data_recv, op='sum', root=0, stream=None)
+            stream = cp.cuda.stream.get_current_stream()
+            P_recv._nccl.reduce(grad_output.detach().contiguous(), reduced_data_recv, op='sum', root=0, stream=stream)
 
         # If I sent data in the forward, I have to receive it here.  Unless I
         # also received that data, then I already have it from above.
         if P_send != P_recv and P_send.active:
             reduced_data_send = torch.zeros(input_tensor_structure.shape, dtype=input_tensor_structure.dtype,
                                             device=device)
-            P_send._nccl.reduce(reduced_data_send, reduced_data_send, op='sum', root=0, stream=None)
+            stream = cp.cuda.stream.get_current_stream()
+            P_send._nccl.reduce(reduced_data_send, reduced_data_send, op='sum', root=0, stream=stream)
 
         # If we had to receive data, we need to tensorify it.
         if P_send.active:

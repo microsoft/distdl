@@ -1,3 +1,4 @@
+import pytorch_pfn_extras as ppe
 import torch
 
 from distdl.backends.common.tensor_comm import assemble_global_tensor_structure
@@ -108,6 +109,18 @@ class DistributedBatchNorm(Module):
                 self.register_buffer('gamma', zero_volume_tensor(device=device, requires_grad=True))
                 self.register_buffer('beta', zero_volume_tensor(device=device, requires_grad=True))
 
+            # Buffers for weight prefetching
+            self.gamma_buffer = None
+            self.beta_buffer = None
+
+            # CUDA streams for weight prefetching
+            if not self.P_x.device == 'cpu':
+                self.stream_gamma = torch.cuda.Stream(device=self.P_x.device)
+                self.stream_beta = torch.cuda.Stream(device=self.P_x.device)
+            else:
+                self.stream_gamma = None
+                self.stream_beta = None
+
     def _distdl_module_setup(self, input):
         r"""Distributed batch norm module setup function.
 
@@ -193,6 +206,19 @@ class DistributedBatchNorm(Module):
                 self.running_var = (var + self.inputs_seen * self.running_var) / (self.inputs_seen + 1)
                 self.inputs_seen += 1
 
+    def prefetch_weights(self):
+        if self.stream_gamma is not None:
+            with ppe.cuda.stream(self.stream_gamma):
+                self.gamma_buffer = self.bc_affine(self.gamma)
+        else:
+            self.gamma_buffer = self.bc_affine(self.gamma)
+
+        if self.stream_beta is not None:
+            with ppe.cuda.stream(self.stream_beta):
+                self.beta_buffer = self.bc_affine(self.beta)
+        else:
+            self.beta_buffer = self.bc_affine(self.beta)
+
     def forward(self, input):
         r"""Forward function interface.
 
@@ -234,8 +260,18 @@ class DistributedBatchNorm(Module):
 
         # scale and shift
         if self.affine:
-            gamma = self.bc_affine(self.gamma)
-            beta = self.bc_affine(self.beta)
+            if self.gamma_buffer is None:
+                gamma = self.bc_affine(self.gamma)
+                beta = self.bc_affine(self.beta)
+            else:
+                gamma = self.gamma_buffer
+                beta = self.beta_buffer
+                self.gamma_buffer = None
+                self.beta_buffer = None
+            if self.stream_gamma is not None and self.stream_beta is not None:
+                torch.cuda.current_stream().wait_stream(self.stream_gamma)
+                torch.cuda.current_stream().wait_stream(self.stream_beta)
+
             x = gamma * x + beta
 
         return x
