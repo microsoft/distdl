@@ -154,14 +154,13 @@ class DistributedExpertAllGather(Module):
         self._register_load_state_dict_pre_hook(self.scatter_state_dict)
 
         # Partition for collecting weights/biases for saving the state dict
-        if self.collect_state:
-            P_root_base = P_e.create_partition_inclusive([0])
-            self.P_root = P_root_base.create_cartesian_topology_partition([1] * P_e.dim)
-            self.gather_weight = Repartition(P_e, self.P_root, preserve_batch=False)
-            self.scatter_weight = Repartition(self.P_root, P_e, preserve_batch=False)
-            if self.use_bias:
-                self.gather_bias = Repartition(P_bias, self.P_root, preserve_batch=False)
-                self.scatter_bias = Repartition(self.P_root, P_bias, preserve_batch=False)
+        P_root_base = P_e.create_partition_inclusive([0])
+        self.P_root = P_root_base.create_cartesian_topology_partition([1] * P_e.dim)
+        self.gather_weight = Repartition(P_e, self.P_root, preserve_batch=False)
+        self.scatter_weight = Repartition(self.P_root, P_e, preserve_batch=False)
+        if self.use_bias:
+            self.gather_bias = Repartition(P_bias, self.P_root, preserve_batch=False)
+            self.scatter_bias = Repartition(self.P_root, P_bias, preserve_batch=False)
 
     def reset_parameters(self) -> None:
 
