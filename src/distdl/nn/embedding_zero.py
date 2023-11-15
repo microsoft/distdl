@@ -179,10 +179,9 @@ class DistributedEmbeddingZero(Module):
                 weight = destination.pop(weight_key)
                 weight = self._expand(weight)
             else:
-                destination.pop(weight_key)
-                weight = zero_volume_tensor(device=self.P_x.device, requires_grad=True, dtype=self.dtype)
-            if self.P_x.active:
-                weight = self._squeeze(self.scatter_weight(weight))
+                dtype = destination.pop(weight_key).dtype
+                weight = zero_volume_tensor(device=self.P_x.device, requires_grad=True, dtype=dtype)
+            weight = self._squeeze(self.scatter_weight(weight))
 
             destination[weight_key] = weight
 
