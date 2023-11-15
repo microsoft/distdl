@@ -122,35 +122,16 @@ class DistributedFeatureConvBase(Module, HaloMixin, ConvMixin):
         self.use_bias = bias
         self.collect_state = collect_state
 
-        self.serial = self.P_x.size == 1
-
-        if self.serial:
-            self.conv_layer = self.TorchConvType(in_channels=in_channels,
-                                                 out_channels=out_channels,
-                                                 kernel_size=self.kernel_size,
-                                                 stride=self.stride,
-                                                 padding=self.padding,
-                                                 padding_mode=self.padding_mode,
-                                                 dilation=self.dilation,
-                                                 groups=self.groups,
-                                                 bias=self.use_bias,
-                                                 device=P_x.device)
-            self.weight = self.conv_layer.weight
-            self.bias = self.conv_layer.bias
-        else:
-            self.conv_layer = self.TorchConvType(in_channels=in_channels,
-                                                 out_channels=out_channels,
-                                                 kernel_size=self.kernel_size,
-                                                 stride=self.stride,
-                                                 padding=0,
-                                                 padding_mode='zeros',
-                                                 dilation=self.dilation,
-                                                 groups=groups,
-                                                 bias=bias,
-                                                 device=P_x.device)
-
-        if self.serial:
-            return
+        self.conv_layer = self.TorchConvType(in_channels=in_channels,
+                                                out_channels=out_channels,
+                                                kernel_size=self.kernel_size,
+                                                stride=self.stride,
+                                                padding=0,
+                                                padding_mode='zeros',
+                                                dilation=self.dilation,
+                                                groups=groups,
+                                                bias=bias,
+                                                device=P_x.device)
 
         dims = len(self.P_x.shape)
 
@@ -298,9 +279,6 @@ class DistributedFeatureConvBase(Module, HaloMixin, ConvMixin):
         if not self.P_x.active:
             return
 
-        if self.serial:
-            return
-
         # Compute global and local shapes with padding
         x_global_structure = \
             self._distdl_backend.assemble_global_tensor_structure(input[0], self.P_x)
@@ -408,10 +386,7 @@ class DistributedFeatureConvBase(Module, HaloMixin, ConvMixin):
         """
 
         if not self.P_x.active:
-            return input#.clone()
-
-        if self.serial:
-            return self.conv_layer(input)
+            return input
 
         w = self.w_broadcast(self.weight)
         self.conv_layer.weight = w
