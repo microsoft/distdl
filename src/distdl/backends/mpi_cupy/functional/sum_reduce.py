@@ -224,7 +224,7 @@ class SumReduceFunction(torch.autograd.Function):
         # If I received the reduction in the forward call, I broadcast my data
         if P_recv.active:
             if ctx.scale_backward is not None:
-                grad_output.div_(P_recv.shape[ctx.scale_backward])
+                grad_output.div_(np.prod(P_recv.shape[ctx.scale_backward]))
             grad_output_cupy = cp.asarray(grad_output.detach().contiguous())
             req = P_recv._comm.Ibcast(grad_output_cupy, root=0)
             requests.append(req)
@@ -234,7 +234,7 @@ class SumReduceFunction(torch.autograd.Function):
             # If I both sent and received reduction data, then I copy the "input"
             if P_send == P_recv:
                 if ctx.scale_backward is not None:
-                    grad_output.div_(P_send.shape[ctx.scale_backward])
+                    grad_output.div_(np.prod(P_send.shape[ctx.scale_backward]))
                 grad_input = grad_output.clone()
             else:
                 cupy_dtype = torch_to_cupy_dtype_dict[input_tensor_structure.dtype]

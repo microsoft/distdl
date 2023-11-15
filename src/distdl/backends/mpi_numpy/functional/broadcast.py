@@ -206,7 +206,7 @@ class BroadcastFunction(torch.autograd.Function):
         # above.
         if P_recv.active:
             if ctx.scale_backward is not None:
-                grad_output.div_(P_recv.shape[ctx.scale_backward])
+                grad_output.div_(np.prod(P_recv.shape[ctx.scale_backward]))
             numpy_dtype = torch_to_numpy_dtype_dict[output_tensor_structure.dtype]
             reduced_data_recv = np.zeros(output_tensor_structure.shape, dtype=numpy_dtype)
             grad_output_numpy = grad_output.detach().cpu().contiguous().numpy()

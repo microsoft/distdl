@@ -125,7 +125,7 @@ class AllSumReduceFunction(torch.autograd.Function):
 
         # Scale by number of workers along the given dimension(s)
         if ctx.scale_backward is not None:
-            grad_output.div_(P_allreduce.shape[ctx.scale_backward])
+            grad_output.div_(np.prod(P_allreduce.shape[ctx.scale_backward]))
         requests = []
 
         # All-sum-reduce is self-adjoint
