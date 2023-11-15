@@ -1,6 +1,7 @@
 import numbers
 
 import numpy as np
+import pytorch_pfn_extras as ppe
 import torch
 
 from distdl.nn.all_gather import AllGather
@@ -126,6 +127,17 @@ class DistributedLayerNormZero(Module):
             self.weight = torch.nn.Parameter(torch.empty(normalized_shape_local, **factory_kwargs))
             self.bias = torch.nn.Parameter(torch.empty(normalized_shape_local, **factory_kwargs))
 
+            # Buffers for weight prefetching
+            self.weight_buffer = None
+            self.bias_buffer = None
+
+            # CUDA streams for weight prefetching
+            if not self.P_x.device == 'cpu':
+                self.stream_weight = torch.cuda.Stream(device=self.P_x.device)
+                self.stream_bias = torch.cuda.Stream(device=self.P_x.device)
+            else:
+                self.stream_weight = None
+                self.stream_bias = None
         else:
             self.register_parameter('weight', None)
             self.register_parameter('bias', None)
@@ -222,7 +234,7 @@ class DistributedLayerNormZero(Module):
         # Local mean
         output = input.mean(dim=self.dim_reduce, keepdim=True)
 
-        # Average across workers
+        # Average across MP-workers
         return self.allreduce(output) / self.num_reduce
 
     def _compute_var(self, input, mean):
@@ -239,6 +251,20 @@ class DistributedLayerNormZero(Module):
         input = (input - mean)**2
         return self._compute_mean(input)
 
+    def prefetch_weights(self):
+
+        if self.stream_weight is not None:
+            with ppe.cuda.stream(self.stream_weight):
+                self.weight_buffer = self.allgather(self.weight.transpose(0, -1)).transpose(0, -1)
+        else:
+            self.weight_buffer = self.allgather(self.weight.transpose(0, -1)).transpose(0, -1)
+
+        if self.stream_bias is not None:
+            with ppe.cuda.stream(self.stream_bias):
+                self.bias_buffer = self.allgather(self.bias.transpose(0, -1)).transpose(0, -1)
+        else:
+            self.bias_buffer = self.allgather(self.bias.transpose(0, -1)).transpose(0, -1)
+
     def forward(self, input):
         r"""Forward function interface.
 
@@ -251,6 +277,17 @@ class DistributedLayerNormZero(Module):
 
         if not self.P_x.active:
             return input
+
+        # Collect weights and biases
+        if self.elementwise_affine:
+            if self.weight_buffer is None:
+                weight = self.allgather(self.weight.transpose(0, -1)).transpose(0, -1)
+                bias = self.allgather(self.bias.transpose(0, -1)).transpose(0, -1)
+            else:
+                weight = self.weight_buffer
+                bias = self.bias_buffer
+                self.weight_buffer = None
+                self.bias_buffer = None
 
         # If we compute mean/variance over more than one partition, we need to
         # use our custom mean/variance implementations with allreduce. Otherwise
@@ -265,14 +302,18 @@ class DistributedLayerNormZero(Module):
             input = (input - mean) / torch.sqrt(var + self.eps)
 
             if self.elementwise_affine:
-                weight = self.allgather(self.weight.transpose(0, -1)).transpose(0, -1)
-                bias = self.allgather(self.bias.transpose(0, -1)).transpose(0, -1)
+                if self.stream_weight is not None and self.stream_bias is not None:
+                    torch.cuda.current_stream().wait_stream(self.stream_weight)
+                    torch.cuda.current_stream().wait_stream(self.stream_bias)
                 input = weight * input + bias
 
         else:
             if self.elementwise_affine:
-                weight = self.allgather(self.weight.transpose(0, -1)).transpose(0, -1).squeeze()
-                bias = self.allgather(self.bias.transpose(0, -1)).transpose(0, -1).squeeze()
+                weight = weight.squeeze()
+                bias = bias.squeeze()
+                if self.stream_weight is not None and self.stream_bias is not None:
+                    torch.cuda.current_stream().wait_stream(self.stream_weight)
+                    torch.cuda.current_stream().wait_stream(self.stream_bias)
             else:
                 weight = None
                 bias = None

@@ -1,5 +1,6 @@
 __all__ = ["AllGatherFunction"]
 
+import cupy as cp
 import numpy as np
 import torch
 from einops import rearrange
@@ -104,7 +105,8 @@ class AllGatherFunction(torch.autograd.Function):
 
             # All-gather (Conversion from torch cuda tensor to cupy array is via pointers. No mem copy.)
             count = np.prod(input.shape).item()
-            P_allgather._nccl.all_gather(input.detach(), gathered_data, count, stream=None)
+            stream = cp.cuda.stream.get_current_stream()
+            P_allgather._nccl.all_gather(input.detach(), gathered_data, count, stream=stream)
 
             # Re-order flat output array from all-gather to correct cartesian shape
             gathered_cart_shape = [P_allgather.shape[axes[0]]] + list(input_tensor_shape)
@@ -221,7 +223,8 @@ class AllGatherFunction(torch.autograd.Function):
 
             # Reduce-scatter primitive
             count = np.prod(scattered_data.shape).item()
-            P_allgather._nccl.reduce_scatter(grad_output_flat, scattered_data, count, op='sum', stream=None)
+            stream = cp.cuda.stream.get_current_stream()
+            P_allgather._nccl.reduce_scatter(grad_output_flat, scattered_data, count, op='sum', stream=stream)
 
         # If we had to receive data, we need to tensorify it.
         if P_allgather.active:

@@ -1,5 +1,6 @@
 __all__ = ["ReduceScatterFunction"]
 
+import cupy as cp
 import numpy as np
 import torch
 from einops import rearrange
@@ -123,7 +124,8 @@ class ReduceScatterFunction(torch.autograd.Function):
 
             # Reduce-scatter operation
             count = np.prod(scattered_data.shape).item()
-            P_reducescatter._nccl.reduce_scatter(input_flat, scattered_data, count, op='sum', stream=None)
+            stream = cp.cuda.stream.get_current_stream()
+            P_reducescatter._nccl.reduce_scatter(input_flat, scattered_data, count, op='sum', stream=stream)
 
         # If we had to receive data, we need to tensorify it.
         if P_reducescatter.active:
@@ -195,7 +197,8 @@ class ReduceScatterFunction(torch.autograd.Function):
 
             # All-gather
             count = np.prod(grad_output.shape).item()
-            P_reducescatter._nccl.all_gather(grad_output.detach().contiguous(), gathered_data, count, stream=None)
+            stream = cp.cuda.stream.get_current_stream()
+            P_reducescatter._nccl.all_gather(grad_output.detach().contiguous(), gathered_data, count, stream=stream)
 
         # If we had to receive data, we need to tensorify it.
         if P_reducescatter.active:

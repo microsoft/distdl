@@ -1,6 +1,7 @@
 import numbers
 
 import numpy as np
+import pytorch_pfn_extras as ppe
 import torch
 
 from distdl.nn.all_gather import AllGather
@@ -129,6 +130,21 @@ class DistributedRMSNormZero(Module):
             self.weight = torch.nn.Parameter(torch.empty(normalized_shape_local, **factory_kwargs))
             if self.use_bias:
                 self.bias = torch.nn.Parameter(torch.empty(normalized_shape_local, **factory_kwargs))
+
+            # Buffers for weight prefetching
+            self.weight_buffer = None
+            if self.use_bias:
+                self.bias_buffer = None
+
+            # CUDA streams for weight prefetching
+            if not self.P_x.device == 'cpu':
+                self.stream_weight = torch.cuda.Stream(device=self.P_x.device)
+                if self.use_bias:
+                    self.stream_bias = torch.cuda.Stream(device=self.P_x.device)
+            else:
+                self.stream_weight = None
+                if self.use_bias:
+                    self.stream_bias = None
         else:
             self.register_parameter('weight', None)
         self.reset_parameters()
@@ -235,6 +251,21 @@ class DistributedRMSNormZero(Module):
 
         return input * torch.rsqrt(mean + self.eps)
 
+    def prefetch_weights(self):
+
+        if self.stream_weight is not None:
+            with ppe.cuda.stream(self.stream_weight):
+                self.weight_buffer = self.allgather(self.weight.transpose(0, -1)).transpose(0, -1)
+        else:
+            self.weight_buffer = self.allgather(self.weight.transpose(0, -1)).transpose(0, -1)
+
+        if self.use_bias:
+            if self.stream_bias is not None:
+                with ppe.cuda.stream(self.stream_bias):
+                    self.bias_buffer = self.allgather(self.bias.transpose(0, -1)).transpose(0, -1)
+            else:
+                self.bias_buffer = self.allgather(self.bias.transpose(0, -1)).transpose(0, -1)
+
     def forward(self, input):
         r"""Forward function interface.
 
@@ -252,10 +283,23 @@ class DistributedRMSNormZero(Module):
         input = self._rms_norm(input.float())
 
         if self.elementwise_affine:
-            weight = self.allgather(self.weight.transpose(0, -1)).transpose(0, -1)
+            if self.weight_buffer is None:
+                weight = self.allgather(self.weight.transpose(0, -1)).transpose(0, -1)
+            else:
+                weight = self.weight_buffer
+                self.weight_buffer = None
+
+            if self.stream_weight is not None:
+                torch.cuda.current_stream().wait_stream(self.stream_weight)
             input = weight * input
             if self.use_bias:
-                bias = self.allgather(self.bias.transpose(0, -1)).transpose(0, -1)
+                if self.bias_buffer is None:
+                    bias = self.allgather(self.bias.transpose(0, -1)).transpose(0, -1)
+                else:
+                    bias = self.bias_buffer
+                    self.bias_buffer = None
+                if self.stream_bias is not None:
+                    torch.cuda.current_stream().wait_stream(self.stream_bias)
                 input += bias
 
         return input.to(self.dtype)

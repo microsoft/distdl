@@ -1,6 +1,7 @@
 import math
 
 import numpy as np
+import pytorch_pfn_extras as ppe
 import torch
 from einops import rearrange
 
@@ -202,6 +203,21 @@ class DistributedLinearAllGather(Module):
         # All-gather operation
         gather_dim = torch.argmax(torch.tensor(self.P_x.shape[-2:])) + self.P_x.dim - 2
         self.all_gather = AllGather(self.P_x, axes_all_gather=(gather_dim,), scale_backward=scale_backward)
+
+        # CUDA streams for weight prefetching
+        if not self.P_y.device == 'cpu':
+            self.stream_weight = torch.cuda.Stream(device=self.P_y.device)
+            if self.use_bias:
+                self.stream_bias = torch.cuda.Stream(device=self.P_y.device)
+        else:
+            self.stream_weight = None
+            if self.use_bias:
+                self.stream_bias = None
+
+        # Buffers for weight prefetching
+        self.weight_buffer = None
+        if self.use_bias:
+            self.bias_buffer = None
 
         # State dict hooks for gather/scattering distributed weights
         self._register_state_dict_hook(self.gather_state_dict)
@@ -407,6 +423,21 @@ class DistributedLinearAllGather(Module):
 
         return destination
 
+    def prefetch_weights(self):
+
+        if self.stream_weight is not None:
+            with ppe.cuda.stream(self.stream_weight):
+                self.weight_buffer = self.broadcast_weight(self.weight).view(-1, self.in_features)
+        else:
+            self.weight_buffer = self.broadcast_weight(self.weight).view(-1, self.in_features)
+
+        if self.bias is not None:
+            if self.stream_bias is not None:
+                with ppe.cuda.stream(self.stream_bias):
+                    self.bias_buffer = self.broadcast_bias(self.bias).view(-1)
+            else:
+                self.bias_buffer = self.broadcast_bias(self.bias).view(-1)
+
     def forward(self, input):
         r"""Forward function interface.
 
@@ -424,13 +455,25 @@ class DistributedLinearAllGather(Module):
         input = self.all_gather(input)
 
         # Broadcast weights to everyone
-        weight = self.broadcast_weight(self.weight).view(-1, self.in_features)
+        if self.weight_buffer is None:
+            weight = self.broadcast_weight(self.weight).view(-1, self.in_features)
+        else:
+            weight = self.weight_buffer
+            self.weight_buffer = None
 
         # Broadcast bias
         if self.bias is not None:
-            bias = self.broadcast_bias(self.bias).view(weight.shape[-2])
+            if self.bias_buffer is None:
+                bias = self.broadcast_bias(self.bias).view(weight.shape[-2])
+            else:
+                bias = self.bias_buffer
+                self.bias_buffer = None
         else:
             bias = self.bias
+        if self.stream_weight is not None:
+            torch.cuda.current_stream().wait_stream(self.stream_weight)
+        if self.use_bias and self.stream_bias is not None:
+            torch.cuda.current_stream().wait_stream(self.stream_bias)
 
         # Affine/linear transform
         return torch.nn.functional.linear(input, weight, bias)

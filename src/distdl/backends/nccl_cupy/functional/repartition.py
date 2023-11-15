@@ -145,7 +145,8 @@ class RepartitionFunction(torch.autograd.Function):
             for (sl, sh, partner), buff in zip(P_y_to_x_overlaps, P_y_to_x_buffers):
                 if buff is not None:
                     xfer_buff = buff.get_view(sh)
-                    req = P_union._nccl.recv(xfer_buff, partner, stream=None)
+                    stream = cp.cuda.stream.get_current_stream()
+                    req = P_union._nccl.recv(xfer_buff, partner, stream=stream)
                     requests.append(req)
                 else:
                     # We add this if there is no recv so that the indices of
@@ -161,7 +162,8 @@ class RepartitionFunction(torch.autograd.Function):
                 if buff is not None:
                     xfer_buff = buff.get_view(sh)
                     xfer_buff.copy_(input.detach()[sl])
-                    req = P_union._nccl.send(xfer_buff, partner, stream=None)
+                    stream = cp.cuda.stream.get_current_stream()
+                    req = P_union._nccl.send(xfer_buff, partner, stream=stream)
                     requests.append(req)
                 else:
                     # We add this for symmetry, but don't really need it.
@@ -282,7 +284,8 @@ class RepartitionFunction(torch.autograd.Function):
             for (sl, sh, partner), buff in zip(P_x_to_y_overlaps, P_x_to_y_buffers):
                 if buff is not None:
                     xfer_buff = buff.get_view(sh)
-                    req = P_union._nccl.recv(xfer_buff, partner, stream=None)
+                    stream = cp.cuda.stream.get_current_stream()
+                    req = P_union._nccl.recv(xfer_buff, partner, stream=stream)
                     requests.append(req)
                 else:
                     # We add this if there is no recv so that the indices of
@@ -298,7 +301,8 @@ class RepartitionFunction(torch.autograd.Function):
                 if buff is not None:
                     xfer_buff = buff.get_view(sh)
                     xfer_buff.copy_(grad_output.detach()[sl])
-                    req = P_union._nccl.send(xfer_buff, partner, stream=None)
+                    stream = cp.cuda.stream.get_current_stream()
+                    req = P_union._nccl.send(xfer_buff, partner, stream=stream)
                     requests.append(req)
                 else:
                     # We add this for symmetry, but don't really need it.
