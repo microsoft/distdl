@@ -1,15 +1,12 @@
 __all__ = ["ReduceScatterFunction"]
 
-import threading
-import time
-import cupy as cp
 import numpy as np
 import torch
-from mpi4py import MPI
 from einops import rearrange
 
-from distdl.utilities.torch import zero_volume_tensor, distdl_padding_to_torch_padding
 from distdl.utilities.slicing import get_rearrange_ordering
+from distdl.utilities.torch import distdl_padding_to_torch_padding
+from distdl.utilities.torch import zero_volume_tensor
 
 
 class ReduceScatterFunction(torch.autograd.Function):
@@ -34,7 +31,7 @@ class ReduceScatterFunction(torch.autograd.Function):
 
     @staticmethod
     def forward(ctx, input, P_reducescatter, input_tensor_structure, output_tensor_structure,
-        axes, scale_backward):
+                axes, scale_backward):
         r"""Forward function of distributed reduce-scatter layer.
 
         This method implements the forward reduce-scatter operation using the
@@ -121,7 +118,8 @@ class ReduceScatterFunction(torch.autograd.Function):
 
             # Allocate output array
             scattered_data = torch.zeros(torch.Size(output_tensor_shape),
-                dtype=output_tensor_structure.dtype, device=device)
+                                         dtype=output_tensor_structure.dtype,
+                                         device=device)
 
             # Reduce-scatter operation
             count = np.prod(scattered_data.shape).item()

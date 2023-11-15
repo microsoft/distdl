@@ -1,12 +1,10 @@
-import os, sys, pytest
-sys.path.insert(1, os.path.join(sys.path[0], '..'))
-
 import numpy as np
+import pytest
 import torch
 from adjoint_test import check_adjoint_test_tight
 
 BACKEND_COMM = "mpi"
-BACKEND_ARRAY = "cupy"
+BACKEND_ARRAY = "numpy"
 
 adjoint_parametrizations = []
 

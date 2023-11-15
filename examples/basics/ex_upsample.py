@@ -1,14 +1,14 @@
 import numpy as np
 import torch
 from mpi4py import MPI
-from distdl.config import set_backend
 
 import distdl.utilities.slicing as slicing
 from distdl.backends.common.partition import MPIPartition
+from distdl.config import set_backend
 from distdl.nn.upsampling import DistributedUpsample
 from distdl.utilities.torch import zero_volume_tensor
 
-# Set backend. The GPU backend is currently supported. For upsampling 
+# Set backend. The GPU backend is currently supported. For upsampling
 # on GPUs, use the distdl.nn.ConvTranspose layer.
 set_backend(backend_comm="mpi", backend_array="numpy")
 

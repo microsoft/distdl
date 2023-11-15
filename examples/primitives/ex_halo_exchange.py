@@ -11,16 +11,18 @@ import torch.nn.functional as F
 from mpi4py import MPI
 
 from distdl.backends.common.partition import MPIPartition
+from distdl.config import set_backend
 from distdl.nn.halo_exchange import HaloExchange
 from distdl.nn.mixins.conv_mixin import ConvMixin
 from distdl.nn.mixins.halo_mixin import HaloMixin
 from distdl.utilities.slicing import compute_subshape
-from distdl.config import set_backend
+
 
 # We need a layer to induce the halo size.  To make this convenient, we mock
 # a layer that has the right mixins to do the trick.
 class MockConvLayer(HaloMixin, ConvMixin):
     pass
+
 
 # Set backend
 set_backend(backend_comm="mpi", backend_array="numpy")

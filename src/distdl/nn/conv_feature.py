@@ -123,15 +123,16 @@ class DistributedFeatureConvBase(Module, HaloMixin, ConvMixin):
         self.collect_state = collect_state
 
         self.conv_layer = self.TorchConvType(in_channels=in_channels,
-                                                out_channels=out_channels,
-                                                kernel_size=self.kernel_size,
-                                                stride=self.stride,
-                                                padding=0,
-                                                padding_mode='zeros',
-                                                dilation=self.dilation,
-                                                groups=groups,
-                                                bias=bias,
-                                                device=P_x.device)
+                                             out_channels=out_channels,
+                                             kernel_size=self.kernel_size,
+                                             stride=self.stride,
+                                             padding=0,
+                                             padding_mode='zeros',
+                                             dilation=self.dilation,
+                                             groups=groups,
+                                             bias=bias,
+                                             device=P_x.device
+                                             )
 
         dims = len(self.P_x.shape)
 
@@ -218,10 +219,10 @@ class DistributedFeatureConvBase(Module, HaloMixin, ConvMixin):
             # Remove entries from state dict on all ranks except root
             if self.conv_layer.bias is not None:
                 bias_key = next(reversed(destination))
-                bias = destination.pop(bias_key)
+                destination.pop(bias_key)
 
             weight_key = next(reversed(destination))
-            weight = destination.pop(weight_key)
+            destination.pop(weight_key)
 
         return destination
 

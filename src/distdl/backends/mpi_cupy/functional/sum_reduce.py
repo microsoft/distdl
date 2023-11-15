@@ -1,19 +1,20 @@
 __all__ = ["SumReduceFunction"]
 
 import threading
-# import time
+
 import cupy as cp
+import numpy as np
 import torch
 from mpi4py import MPI
 
 from distdl.utilities.dtype import torch_to_cupy_dtype_dict
 from distdl.utilities.torch import zero_volume_tensor
 
+
 # A better idea is to implement a progress engine for this purpose
-
-
 def reduce_function(partition, src, dst):
     partition._comm.Reduce(src, dst, root=0, op=MPI.SUM)
+
 
 class SumReduceFunction(torch.autograd.Function):
     r"""MPI-based functional implementation of a distributed sum-reduce layer.
@@ -110,8 +111,6 @@ class SumReduceFunction(torch.autograd.Function):
             output = zero_volume_tensor(input.shape[0], device=device)
         else:
             output = zero_volume_tensor(device=device)
-
-        requests = []
 
         # Creating threads (maybe moving them in the init only)
         helper_thread = threading.Thread(target=reduce_function)

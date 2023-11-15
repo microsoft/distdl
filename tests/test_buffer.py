@@ -4,11 +4,13 @@ from adjoint_test import check_adjoint_test_tight
 BACKEND_COMM = "mpi"
 BACKEND_ARRAY = "numpy"
 
+
 @pytest.mark.parametrize("comm_split_fixture", [1], indirect=["comm_split_fixture"])
 def test_buffer_expansion(barrier_fence_fixture,
                           comm_split_fixture):
 
     import numpy as np
+
     from distdl.backends import backend
     from distdl.config import set_backend
 
@@ -88,9 +90,10 @@ def test_buffer_management(barrier_fence_fixture,
                            comm_split_fixture):
 
     import numpy as np
+
     from distdl.backends import backend
     from distdl.config import set_backend
-    
+
     set_backend(backend_comm=BACKEND_COMM, backend_array=BACKEND_ARRAY)
 
     # Isolate the minimum needed ranks
@@ -132,11 +135,11 @@ def test_buffer_management_transpose_network(barrier_fence_fixture,
     import distdl
     from distdl.backends import backend
     from distdl.backends.common.partition import MPIPartition
-    from distdl.utilities.torch import zero_volume_tensor
     from distdl.config import set_backend
-    
+    from distdl.utilities.torch import zero_volume_tensor
+
     set_backend(backend_comm=BACKEND_COMM, backend_array=BACKEND_ARRAY)
-    
+
     # Isolate the minimum needed ranks
     base_comm, active = comm_split_fixture
     if not active:
@@ -202,7 +205,7 @@ def test_buffer_management_transpose_network(barrier_fence_fixture,
     assert len(buffer_manager.buffers_map[np.float32]) == n_buffers_by_rank[P_world.rank]
 
     # And adjointness is still preserved
-    
+
     x = x.detach()
     dx = dx.detach()
     dy = dy.detach()
@@ -229,9 +232,9 @@ def test_buffer_management_conv2d_network(barrier_fence_fixture,
     import distdl
     from distdl.backends import backend
     from distdl.backends.common.partition import MPIPartition
-    from distdl.utilities.torch import zero_volume_tensor
     from distdl.config import set_backend
-    
+    from distdl.utilities.torch import zero_volume_tensor
+
     set_backend(backend_comm=BACKEND_COMM, backend_array=BACKEND_ARRAY)
 
     # Isolate the minimum needed ranks
@@ -349,9 +352,9 @@ def test_buffer_management_mixed_network(barrier_fence_fixture,
     import distdl
     from distdl.backends import backend
     from distdl.backends.common.partition import MPIPartition
-    from distdl.utilities.torch import zero_volume_tensor
     from distdl.config import set_backend
-    
+    from distdl.utilities.torch import zero_volume_tensor
+
     set_backend(backend_comm=BACKEND_COMM, backend_array=BACKEND_ARRAY)
 
     # Isolate the minimum needed ranks

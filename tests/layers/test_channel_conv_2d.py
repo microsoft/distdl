@@ -1,6 +1,6 @@
+import numpy as np
 import pytest
 from adjoint_test import check_adjoint_test_tight
-import numpy as np
 
 BACKEND_COMM = "mpi"
 BACKEND_ARRAY = "numpy"
@@ -88,10 +88,10 @@ def test_channel_conv2d_adjoint_input(barrier_fence_fixture,
     import torch
 
     from distdl.backends.common.partition import MPIPartition
+    from distdl.config import set_backend
     from distdl.nn.conv_channel import DistributedChannelConv2d
     from distdl.utilities.slicing import compute_subshape
     from distdl.utilities.torch import zero_volume_tensor
-    from distdl.config import set_backend
 
     set_backend(backend_comm=BACKEND_COMM, backend_array=BACKEND_ARRAY)
 
@@ -171,10 +171,10 @@ def test_channel_conv2d_adjoint_weight(barrier_fence_fixture,
     import torch
 
     from distdl.backends.common.partition import MPIPartition
+    from distdl.config import set_backend
     from distdl.nn.conv_channel import DistributedChannelConv2d
     from distdl.utilities.slicing import compute_subshape
     from distdl.utilities.torch import zero_volume_tensor
-    from distdl.config import set_backend
 
     set_backend(backend_comm=BACKEND_COMM, backend_array=BACKEND_ARRAY)
 
@@ -257,10 +257,10 @@ def test_channel_conv2d_adjoint_bias(barrier_fence_fixture,
     import torch
 
     from distdl.backends.common.partition import MPIPartition
+    from distdl.config import set_backend
     from distdl.nn.conv_channel import DistributedChannelConv2d
     from distdl.utilities.slicing import compute_subshape
     from distdl.utilities.torch import zero_volume_tensor
-    from distdl.config import set_backend
 
     set_backend(backend_comm=BACKEND_COMM, backend_array=BACKEND_ARRAY)
 

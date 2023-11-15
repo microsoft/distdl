@@ -1,8 +1,6 @@
 from distdl.nn.module import Module
 from distdl.utilities.torch import TensorStructure
-from distdl.utilities.slicing import compute_subshape_along_axis, compute_subshape
-import numpy as np
-import torch
+
 
 class AllGather(Module):
     r"""A distributed allgather layer.
@@ -104,15 +102,16 @@ class AllGather(Module):
         if not self.identity:
 
             self.P_allgather = self.P_x.create_allreduction_partition(self.axes_all_gather,
-                initialize_backend_comm=True)
+                                                                      initialize_backend_comm=True
+                                                                      )
 
             self.input_tensor_structure = TensorStructure(input[0])
 
-
             self.output_tensor_structure = \
-            self._distdl_backend.assemble_global_tensor_structure_along_axis(self.input_tensor_structure,
-                                                                             self.P_x,
-                                                                             self.axes_all_gather)
+                self._distdl_backend.assemble_global_tensor_structure_along_axis(self.input_tensor_structure,
+                                                                                 self.P_x,
+                                                                                 self.axes_all_gather
+                                                                                 )
 
         self._distdl_is_setup = True
         self._input_tensor_structure = TensorStructure(input[0])
@@ -172,10 +171,10 @@ class AllGather(Module):
         Function = self._distdl_backend.functional.all_gather.AllGatherFunction
 
         if self.identity:
-            return input#.clone()
+            return input
 
         if not (self.P_x.active):
-            return input#.clone()
+            return input
 
         return Function.apply(input,
                               self.P_allgather,

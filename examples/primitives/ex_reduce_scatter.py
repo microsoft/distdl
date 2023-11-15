@@ -8,10 +8,10 @@
 import numpy as np
 import torch
 from mpi4py import MPI
-from distdl.config import set_backend
 
 import distdl.utilities.slicing as slicing
 from distdl.backends.common.partition import MPIPartition
+from distdl.config import set_backend
 from distdl.nn.reduce_scatter import ReduceScatter
 from distdl.utilities.torch import zero_volume_tensor
 
@@ -62,7 +62,7 @@ if P_x.active:
 
 x.requires_grad = True
 
-#print(f"P_world.rank {P_world.rank}; P_x.index {P_x.index}; x value: \n{x}\n")
+print(f"P_world.rank {P_world.rank}; P_x.index {P_x.index}; x value: \n{x}\n")
 
 # Create the reduce-scatter layer.  Note, only one of the keep/reduce axes is
 # required.  If they are both specified they must be mutually coherent.

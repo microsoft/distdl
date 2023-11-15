@@ -1,16 +1,15 @@
 __all__ = ["AllGatherFunction"]
 
-import threading
-import time
 import cupy as cp
 import numpy as np
 import torch
-from mpi4py import MPI
 from einops import rearrange
+from mpi4py import MPI
 
 from distdl.utilities.dtype import torch_to_cupy_dtype_dict
-from distdl.utilities.torch import zero_volume_tensor, distdl_padding_to_torch_padding
 from distdl.utilities.slicing import get_rearrange_ordering
+from distdl.utilities.torch import distdl_padding_to_torch_padding
+from distdl.utilities.torch import zero_volume_tensor
 
 
 class AllGatherFunction(torch.autograd.Function):
@@ -231,7 +230,7 @@ class AllGatherFunction(torch.autograd.Function):
         # If we had to receive data, we need to tensorify it.
         if P_allgather.active:
             grad_input = torch.as_tensor(scattered_data, dtype=input_tensor_structure.dtype,
-                                     device=device)
+                                         device=device)
             grad_input.requires_grad_(input_tensor_structure.requires_grad)
 
             # If we're one of the workers having received zero-padded data, remove padding

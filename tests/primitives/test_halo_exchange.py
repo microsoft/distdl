@@ -1,6 +1,3 @@
-import os, sys, pytest
-sys.path.insert(1, os.path.join(sys.path[0], '..'))
-
 import numpy as np
 import pytest
 import torch
@@ -17,6 +14,7 @@ class MockConvLayer(HaloMixin, ConvMixin):
 
 class MockPoolLayer(HaloMixin, PoolingMixin):
     pass
+
 
 BACKEND_COMM = "mpi"
 BACKEND_ARRAY = "numpy"

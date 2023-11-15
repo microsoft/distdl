@@ -48,10 +48,10 @@ def test_mixin():
             expected_send_buffer_shape = np.array([[0, 0], [0, 0], [0, 0]])
             expected_needed_ranges = np.array([[0, 1], [0, 1], [0, 4]])
 
-            assert(np.array_equal(halo_shape, expected_halo_shape))
-            assert(np.array_equal(recv_buffer_shape, expected_recv_buffer_shape))
-            assert(np.array_equal(send_buffer_shape, expected_send_buffer_shape))
-            assert(np.array_equal(needed_ranges, expected_needed_ranges))
+            assert np.array_equal(halo_shape, expected_halo_shape)
+            assert np.array_equal(recv_buffer_shape, expected_recv_buffer_shape)
+            assert np.array_equal(send_buffer_shape, expected_send_buffer_shape)
+            assert np.array_equal(needed_ranges, expected_needed_ranges)
 
         elif rank == 1:
             expected_halo_shape = np.array([[0, 0], [0, 0], [0, 0]])
@@ -59,10 +59,10 @@ def test_mixin():
             expected_send_buffer_shape = np.array([[0, 0], [0, 0], [1, 0]])
             expected_needed_ranges = np.array([[0, 1], [0, 1], [1, 3]])
 
-            assert(np.array_equal(halo_shape, expected_halo_shape))
-            assert(np.array_equal(recv_buffer_shape, expected_recv_buffer_shape))
-            assert(np.array_equal(send_buffer_shape, expected_send_buffer_shape))
-            assert(np.array_equal(needed_ranges, expected_needed_ranges))
+            assert np.array_equal(halo_shape, expected_halo_shape)
+            assert np.array_equal(recv_buffer_shape, expected_recv_buffer_shape)
+            assert np.array_equal(send_buffer_shape, expected_send_buffer_shape)
+            assert np.array_equal(needed_ranges, expected_needed_ranges)
 
         elif rank == 2:
             expected_halo_shape = np.array([[0, 0], [0, 0], [0, 0]])
@@ -70,10 +70,10 @@ def test_mixin():
             expected_send_buffer_shape = np.array([[0, 0], [0, 0], [0, 0]])
             expected_needed_ranges = np.array([[0, 1], [0, 1], [0, 2]])
 
-            assert(np.array_equal(halo_shape, expected_halo_shape))
-            assert(np.array_equal(recv_buffer_shape, expected_recv_buffer_shape))
-            assert(np.array_equal(send_buffer_shape, expected_send_buffer_shape))
-            assert(np.array_equal(needed_ranges, expected_needed_ranges))
+            assert np.array_equal(halo_shape, expected_halo_shape)
+            assert np.array_equal(recv_buffer_shape, expected_recv_buffer_shape)
+            assert np.array_equal(send_buffer_shape, expected_send_buffer_shape)
+            assert np.array_equal(needed_ranges, expected_needed_ranges)
 
         elif rank == 3:
             expected_halo_shape = np.array([[0, 0], [0, 0], [0, 0]])
@@ -81,17 +81,17 @@ def test_mixin():
             expected_send_buffer_shape = np.array([[0, 0], [0, 0], [0, 0]])
             expected_needed_ranges = np.array([[0, 1], [0, 1], [0, 2]])
 
-            assert(np.array_equal(halo_shape, expected_halo_shape))
-            assert(np.array_equal(recv_buffer_shape, expected_recv_buffer_shape))
-            assert(np.array_equal(send_buffer_shape, expected_send_buffer_shape))
-            assert(np.array_equal(needed_ranges, expected_needed_ranges))
+            assert np.array_equal(halo_shape, expected_halo_shape)
+            assert np.array_equal(recv_buffer_shape, expected_recv_buffer_shape)
+            assert np.array_equal(send_buffer_shape, expected_send_buffer_shape)
+            assert np.array_equal(needed_ranges, expected_needed_ranges)
 
     # Inactive ranks should get null results
     else:
-        assert(halo_shape is None)
-        assert(recv_buffer_shape is None)
-        assert(send_buffer_shape is None)
-        assert(needed_ranges is None)
+        assert halo_shape is None
+        assert recv_buffer_shape is None
+        assert send_buffer_shape is None
+        assert needed_ranges is None
 
     P_world.deactivate()
     P_x_base.deactivate()

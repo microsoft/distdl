@@ -1,6 +1,5 @@
 __all__ = ["HaloExchangeFunction"]
 
-import numpy as np
 import cupy as cp
 import torch
 from mpi4py import MPI
@@ -70,12 +69,8 @@ class HaloExchangeFunction(torch.autograd.Function):
 
                 if index != MPI.UNDEFINED:
                     if index == 0:
-                        ## input[lgs] = torch.tensor(lgb, device=device)
-                        #input[lgs] = torch.as_tensor(lgb, device=device)
                         output[lgs] = torch.as_tensor(lgb, device=device)
                     elif index == 1:
-                        ## input[rgs] = torch.tensor(rgb, device=device)
-                        #input[rgs] = torch.as_tensor(rgb, device=device)
                         output[rgs] = torch.as_tensor(rgb, device=device)
                 n_reqs_completed += 1
 

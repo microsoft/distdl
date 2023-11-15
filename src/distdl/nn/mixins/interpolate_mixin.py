@@ -339,7 +339,7 @@ class InterpolateMixin:
 
             # If I have a left neighbor, my left send buffer size is my left
             # neighbor's right halo size
-            if(lindex[i] > -1):
+            if lindex[i] > -1:
                 send_buffer_shape[i, 0] = nhalo[i, 1]
 
             rindex = [x + 1 if j == i else x for j, x in enumerate(P_x.index)]
@@ -347,7 +347,7 @@ class InterpolateMixin:
 
             # If I have a right neighbor, my right send buffer size is my right
             # neighbor's left halo size
-            if(rindex[i] < P_x.shape[i]):
+            if rindex[i] < P_x.shape[i]:
                 send_buffer_shape[i, 1] = nhalo[i, 0]
 
         x_local_shape = torch.from_numpy(x_subtensor_shapes[x_slice].squeeze())

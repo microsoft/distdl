@@ -1,6 +1,6 @@
-import sys
 import logging
 import os
+import sys
 
 LOG_FORMAT = 'DistDL-%(levelname)s: PID-%(process)d - %(pathname)s:%(lineno)d (%(funcName)s) - %(message)s'
 

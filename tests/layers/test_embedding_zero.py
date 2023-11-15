@@ -1,14 +1,10 @@
-import os
-
 import numpy as np
 import pytest
 import torch
 
-import distdl
-from distdl.utilities.torch import zero_volume_tensor
-from distdl.nn.repartition import Repartition
-from distdl.nn.embedding import DistributedEmbedding
 from distdl.nn.embedding_zero import DistributedEmbeddingZero
+from distdl.nn.repartition import Repartition
+from distdl.utilities.torch import zero_volume_tensor
 
 ERROR_THRESHOLD = 1e-4
 
@@ -37,6 +33,7 @@ parametrizations_affine.append(
         marks=[pytest.mark.mpi(min_size=4)]
         )
     )
+
 
 @pytest.mark.parametrize("P_x_ranks, P_x_shape,"
                          "embedding_shape,"
@@ -79,14 +76,14 @@ def test_batch_norm_with_training(barrier_fence_fixture,
     # Scatter/gather data
     scatter = Repartition(P_root, P_x)
     gather = Repartition(P_x, P_root)
-    
+
     # Sequential layer
     if P_root.active:
         seq_emb = torch.nn.Embedding(*embedding_shape, _weight=torch.clone(weight)).to(P_x.device)
 
     # Train sequential layer
     if P_root.active:
-        seq_emb.train() 
+        seq_emb.train()
         seq_out1 = seq_emb(input_range)
         seq_loss = ((seq_out1 - output)**2).sum()
         seq_loss.backward()
@@ -166,9 +163,9 @@ def test_batch_norm_with_training(barrier_fence_fixture,
                          parametrizations_affine,
                          indirect=["comm_split_fixture"])
 def test_batch_norm_without_training(barrier_fence_fixture,
-                                  P_x_ranks, P_x_shape,
-                                  embedding_shape,
-                                  comm_split_fixture):
+                                     P_x_ranks, P_x_shape,
+                                     embedding_shape,
+                                     comm_split_fixture):
 
     from distdl.backends.common.partition import MPIPartition
     from distdl.config import set_backend
@@ -201,14 +198,14 @@ def test_batch_norm_without_training(barrier_fence_fixture,
     # Scatter/gather data
     scatter = Repartition(P_root, P_x)
     gather = Repartition(P_x, P_root)
-    
+
     # Sequential layer
     if P_root.active:
         seq_emb = torch.nn.Embedding(*embedding_shape, _weight=torch.clone(weight)).to(P_x.device)
 
     # Train sequential layer
     if P_root.active:
-        seq_emb.eval() 
+        seq_emb.eval()
         seq_out1 = seq_emb(input_range)
         seq_loss = ((seq_out1 - output)**2).sum()
 
@@ -250,4 +247,3 @@ def test_batch_norm_without_training(barrier_fence_fixture,
     P_root.deactivate()
     P_x_base.deactivate()
     P_x.deactivate()
-

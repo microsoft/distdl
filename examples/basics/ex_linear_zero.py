@@ -1,15 +1,13 @@
 import numpy as np
 import torch
 from mpi4py import MPI
-from distdl.config import set_backend
 
-import distdl.utilities.slicing as slicing
 from distdl.backends.common.partition import MPIPartition
-from distdl.nn.linear_rs_zero import DistributedLinearReduceScatterZero
+from distdl.config import set_backend
 from distdl.nn.linear_ag_zero import DistributedLinearAllGatherZero
-from distdl.utilities.slicing import compute_subshape
-from distdl.utilities.torch import zero_volume_tensor
+from distdl.nn.linear_rs_zero import DistributedLinearReduceScatterZero
 from distdl.nn.repartition import Repartition
+from distdl.utilities.torch import zero_volume_tensor
 
 # Set backend
 set_backend(backend_comm="mpi", backend_array="numpy")
@@ -37,7 +35,7 @@ hidden_channels = int(4*128)
 out_channels = 128
 
 # Linear layers with 2D data- and weight partitioning (ZeRO-3, FDSP1)
-# The all-gather version is preferred if out_channels > in_channels. 
+# The all-gather version is preferred if out_channels > in_channels.
 # Otherwise, the reduce-scatter version is preferred.
 linear_in = DistributedLinearReduceScatterZero(P_x, in_channels, hidden_channels, checkpoint=True)
 linear_out = DistributedLinearAllGatherZero(P_x, hidden_channels, out_channels, checkpoint=True)

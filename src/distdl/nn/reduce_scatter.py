@@ -1,8 +1,7 @@
 from distdl.nn.module import Module
+from distdl.utilities.slicing import compute_subshape_along_axis
 from distdl.utilities.torch import TensorStructure
-from distdl.utilities.slicing import compute_subshape_along_axis, compute_subshape
-import numpy as np
-import torch
+
 
 class ReduceScatter(Module):
     r"""A distributed reduce-scatter layer.
@@ -105,12 +104,14 @@ class ReduceScatter(Module):
         if not self.identity:
 
             self.P_reducescatter = self.P_x.create_allreduction_partition(self.axes_reduce_scatter,
-                initialize_backend_comm=True)
+                                                                          initialize_backend_comm=True)
             self.input_tensor_structure = TensorStructure(input[0])
             self.output_tensor_structure = TensorStructure(input[0])
 
-            self.output_tensor_structure.shape = compute_subshape_along_axis(self.P_x.shape, 
-                self.P_x.index, self.input_tensor_structure.shape, self.axes_reduce_scatter)
+            self.output_tensor_structure.shape = compute_subshape_along_axis(self.P_x.shape,
+                                                                             self.P_x.index,
+                                                                             self.input_tensor_structure.shape,
+                                                                             self.axes_reduce_scatter)
 
         self._distdl_is_setup = True
         self._input_tensor_structure = TensorStructure(input[0])
@@ -170,10 +171,10 @@ class ReduceScatter(Module):
         Function = self._distdl_backend.functional.reduce_scatter.ReduceScatterFunction
 
         if self.identity:
-            return input#.clone()
+            return input
 
         if not (self.P_x.active):
-            return input#.clone()
+            return input
 
         return Function.apply(input,
                               self.P_reducescatter,

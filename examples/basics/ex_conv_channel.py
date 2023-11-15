@@ -1,10 +1,10 @@
 import numpy as np
 import torch
 from mpi4py import MPI
-from distdl.config import set_backend
 
 import distdl.utilities.slicing as slicing
 from distdl.backends.common.partition import MPIPartition
+from distdl.config import set_backend
 from distdl.nn.conv_channel_ag import DistributedChannelAllGatherConv2d
 from distdl.nn.conv_channel_rs import DistributedChannelReduceScatterConv2d
 from distdl.utilities.torch import zero_volume_tensor
@@ -17,7 +17,7 @@ P_world = MPIPartition(MPI.COMM_WORLD)
 P_world._comm.Barrier()
 
 # Data partition
-in_shape = (2, 4, 1, 1) # [ batch, channel, height, width ]
+in_shape = (2, 4, 1, 1)  # [ batch, channel, height, width ]
 in_size = np.prod(in_shape)
 in_workers = np.arange(0, in_size)
 
@@ -35,17 +35,19 @@ if P_x.active:
 x.requires_grad = True
 
 # Distributed conv layers: The all-gather version is preferrable to the reduce-scatter version when the
-# number of input channels is smaller than the number of output channels. 
+# number of input channels is smaller than the number of output channels.
 conv2d_in = DistributedChannelAllGatherConv2d(P_x, 16, 24, (3, 3), padding=(1, 1))
 conv2d_out = DistributedChannelReduceScatterConv2d(P_x, 24, 8, (3, 3), padding=(1, 1))
 
 # Forward pass
-if P_x.rank == 0: print("Forward")
+if P_x.rank == 0:
+    print("Forward")
 y = conv2d_in(x)
 y = conv2d_out(y)
 
 # Backward pass
-if P_x.rank == 0: print("Backward")
+if P_x.rank == 0:
+    print("Backward")
 y.sum().backward()
 
 print("y.shape from rank {}: {}".format(P_x.rank, y.shape))
