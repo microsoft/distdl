@@ -1,7 +1,8 @@
-import numpy as np
 import cupy as cp
+import numpy as np
 
-from ..common.buffer import MPIBufferManager, MPIExpandableBuffer
+from ..common.buffer import MPIBufferManager
+from ..common.buffer import MPIExpandableBuffer
 
 
 class MPIExpandableCupyBuffer(MPIExpandableBuffer):
@@ -83,6 +84,7 @@ class MPIExpandableCupyBuffer(MPIExpandableBuffer):
             new_views[view_shape] = self.raw_buffer[:view_volume].reshape(view_shape)
 
         self.views = new_views
+
 
 class MPICupyBufferManager(MPIBufferManager):
     r"""NumPy (mpi4py compatible) implementation of an expandable buffer

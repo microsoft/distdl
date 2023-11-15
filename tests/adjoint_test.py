@@ -41,7 +41,7 @@ def check_adjoint_test_tight(P, x1, x2, y1, y2):
     # each component into rank 0 and have rank 0 do all of the arithmetic.
     # This will be tricky because we don't guarantee anything about the
     # shapes of the tensors.
-    if(P.rank == 0):
+    if P.rank == 0:
         # Correct the norms from distributed calculation
         global_results[:4] = np.sqrt(global_results[:4])
 
@@ -50,10 +50,10 @@ def check_adjoint_test_tight(P, x1, x2, y1, y2):
 
         d = np.max([norm_y1*norm_y2, norm_x1*norm_x2])
         print(f"Adjoint test: {ipx/d} {ipy/d}")
-        assert(np.isclose(ipx/d, ipy/d))
+        assert np.isclose(ipx/d, ipy/d)
     else:
         # All other ranks pass the adjoint test
-        assert(True)
+        assert True
 
 
 def check_adjoint_test_tight_sequential(x1, x2, y1, y2):
@@ -91,4 +91,4 @@ def check_adjoint_test_tight_sequential(x1, x2, y1, y2):
 
     d = np.max([norm_y1*norm_y2, norm_x1*norm_x2])
     print(f"Adjoint test: {ipx/d} {ipy/d}")
-    assert(np.isclose(ipx/d, ipy/d))
+    assert np.isclose(ipx/d, ipy/d)

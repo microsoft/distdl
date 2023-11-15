@@ -157,7 +157,7 @@ class DistributedLossBase(Module):
         """
 
         if not self.P_x.active:
-            return input#.clone()
+            return input
 
         # Evaluate the local loss
         local_loss = self.local_loss_function(local_input, local_target)

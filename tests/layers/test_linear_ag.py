@@ -1,14 +1,13 @@
-import os, torch
-
 import numpy as np
 import pytest
+import torch
 from adjoint_test import check_adjoint_test_tight
 
 torch.set_printoptions(precision=8)
 torch.manual_seed(0)
 
-BACKEND_COMM = "nccl"
-BACKEND_ARRAY = "cupy"
+BACKEND_COMM = "mpi"
+BACKEND_ARRAY = "numpy"
 
 adjoint_parametrizations = []
 
@@ -201,9 +200,9 @@ def test_linear_adjoint_input(barrier_fence_fixture,
     import torch
 
     from distdl.backends.common.partition import MPIPartition
+    from distdl.config import set_backend
     from distdl.utilities.slicing import compute_subshape
     from distdl.utilities.torch import zero_volume_tensor
-    from distdl.config import set_backend
 
     if use_zero:
         from distdl.nn.linear_ag_zero import DistributedLinearAllGatherZero as Linear
@@ -279,9 +278,9 @@ def test_linear_adjoint_weight(barrier_fence_fixture,
     import torch
 
     from distdl.backends.common.partition import MPIPartition
+    from distdl.config import set_backend
     from distdl.utilities.slicing import compute_subshape
     from distdl.utilities.torch import zero_volume_tensor
-    from distdl.config import set_backend
 
     if use_zero:
         from distdl.nn.linear_ag_zero import DistributedLinearAllGatherZero as Linear
@@ -360,9 +359,9 @@ def test_linear_adjoint_bias(barrier_fence_fixture,
     import torch
 
     from distdl.backends.common.partition import MPIPartition
+    from distdl.config import set_backend
     from distdl.utilities.slicing import compute_subshape
     from distdl.utilities.torch import zero_volume_tensor
-    from distdl.config import set_backend
 
     if use_zero:
         from distdl.nn.linear_ag_zero import DistributedLinearAllGatherZero as Linear

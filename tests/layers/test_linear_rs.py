@@ -1,11 +1,9 @@
-import os
-
 import numpy as np
 import pytest
 from adjoint_test import check_adjoint_test_tight
 
-BACKEND_COMM = "nccl"
-BACKEND_ARRAY = "cupy"
+BACKEND_COMM = "mpi"
+BACKEND_ARRAY = "numpy"
 
 adjoint_parametrizations = []
 
@@ -178,6 +176,7 @@ adjoint_parametrizations.append(
         )
     )
 
+
 # For example of indirect, see https://stackoverflow.com/a/28570677
 @pytest.mark.parametrize("P_x_ranks, P_x_shape,"
                          "x_global_shape,"
@@ -197,9 +196,9 @@ def test_linear_adjoint_input(barrier_fence_fixture,
     import torch
 
     from distdl.backends.common.partition import MPIPartition
+    from distdl.config import set_backend
     from distdl.utilities.slicing import compute_subshape
     from distdl.utilities.torch import zero_volume_tensor
-    from distdl.config import set_backend
 
     if use_zero:
         from distdl.nn.linear_rs_zero import DistributedLinearReduceScatterZero as Linear
@@ -275,9 +274,9 @@ def test_linear_adjoint_weight(barrier_fence_fixture,
     import torch
 
     from distdl.backends.common.partition import MPIPartition
+    from distdl.config import set_backend
     from distdl.utilities.slicing import compute_subshape
     from distdl.utilities.torch import zero_volume_tensor
-    from distdl.config import set_backend
 
     if use_zero:
         from distdl.nn.linear_rs_zero import DistributedLinearReduceScatterZero as Linear
@@ -356,9 +355,9 @@ def test_linear_adjoint_bias(barrier_fence_fixture,
     import torch
 
     from distdl.backends.common.partition import MPIPartition
+    from distdl.config import set_backend
     from distdl.utilities.slicing import compute_subshape
     from distdl.utilities.torch import zero_volume_tensor
-    from distdl.config import set_backend
 
     if use_zero:
         from distdl.nn.linear_rs_zero import DistributedLinearReduceScatterZero as Linear

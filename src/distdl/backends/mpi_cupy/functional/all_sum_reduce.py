@@ -1,17 +1,15 @@
 __all__ = ["AllSumReduceFunction"]
 
-import threading
-import time
 import cupy as cp
+import numpy as np
 import torch
 from mpi4py import MPI
 
 from distdl.utilities.dtype import torch_to_cupy_dtype_dict
 from distdl.utilities.torch import zero_volume_tensor
 
+
 # A better idea is to implement a progress engine for this purpose
-
-
 def allreduce_function(partition, src, dst):
     partition._comm.Allreduce(src, dst, root=0, op=MPI.SUM)
     # print("In the helper thread!")
@@ -82,8 +80,6 @@ class AllSumReduceFunction(torch.autograd.Function):
 
         output = zero_volume_tensor(device=device)
 
-        requests = []
-
         # There is no need to specificy a root.
         if P_allreduce.active:
             cupy_dtype = torch_to_cupy_dtype_dict[input_tensor_structure.dtype]
@@ -132,8 +128,6 @@ class AllSumReduceFunction(torch.autograd.Function):
         # Scale by number of workers along the given dimension(s)
         if ctx.scale_backward is not None:
             grad_output.div_(np.prod(P_allreduce.shape[ctx.scale_backward]))
-
-        requests = []
 
         # All-sum-reduce is self-adjoint
         if P_allreduce.active:

@@ -1,9 +1,11 @@
 import numpy as np
-#import cupy as cp
 import torch
 
-from ..common.buffer import MPIBufferManager, MPIExpandableBuffer
 from distdl import backends
+
+from ..common.buffer import MPIBufferManager
+from ..common.buffer import MPIExpandableBuffer
+
 
 class MPIExpandableCupyBuffer(MPIExpandableBuffer):
     r"""NumPy (mpi4py compatible) implementation of expandable buffers.
@@ -43,8 +45,8 @@ class MPIExpandableCupyBuffer(MPIExpandableBuffer):
         self.capacity = initial_capacity
 
         # The actual storage buffer
-        self.raw_buffer = torch.zeros(self.capacity, dtype=dtype, 
-            device=backends.backend.get_device())
+        self.raw_buffer = torch.zeros(self.capacity, dtype=dtype,
+                                      device=backends.backend.get_device())
 
         # Map between array shapes and numpy views of contiguous chunks of the
         # raw buffer
@@ -69,11 +71,11 @@ class MPIExpandableCupyBuffer(MPIExpandableBuffer):
             return
 
         # Otherwise, create a new buffer.
-        new_buffer = torch.empty(new_capacity, dtype=self.dtype, 
-            device=backends.backend.get_device())
+        new_buffer = torch.empty(new_capacity, dtype=self.dtype,
+                                 device=backends.backend.get_device())
 
         # And copy the contents of the old buffer into the new one.
-        new_buffer[:len(self.raw_buffer)].copy_(self.raw_buffer) 
+        new_buffer[:len(self.raw_buffer)].copy_(self.raw_buffer)
 
         # The new buffer is now the current buffer
         self.capacity = new_capacity
@@ -86,6 +88,7 @@ class MPIExpandableCupyBuffer(MPIExpandableBuffer):
             new_views[view_shape] = self.raw_buffer[:view_volume].reshape(view_shape)
 
         self.views = new_views
+
 
 class MPICupyBufferManager(MPIBufferManager):
     r"""NumPy (mpi4py compatible) implementation of an expandable buffer

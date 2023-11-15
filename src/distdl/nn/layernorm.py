@@ -1,14 +1,16 @@
-import torch, numbers
+import numbers
 
-from distdl.backends.common.tensor_comm import assemble_global_tensor_structure
+import numpy as np
+import torch
+
+from distdl.nn.all_sum_reduce import AllSumReduce
+from distdl.nn.broadcast import Broadcast
+from distdl.nn.module import Module
+from distdl.nn.repartition import Repartition
 from distdl.utilities.slicing import compute_subshape
 from distdl.utilities.slicing import worker_layout
 from distdl.utilities.torch import zero_volume_tensor
-from distdl.nn.module import Module
-from distdl.nn.all_sum_reduce import AllSumReduce
-from distdl.nn.broadcast import Broadcast
-from distdl.nn.repartition import Repartition
-import numpy as np
+
 
 class DistributedLayerNorm(Module):
     r"""A distributed layer norm layer.
@@ -46,14 +48,16 @@ class DistributedLayerNorm(Module):
     """
 
     def __init__(self, P_x, normalized_shape, elementwise_affine=True, eps=1e-5,
-        collect_state=False, device=None, dtype=None, scale_backward=None):
+                 collect_state=False, device=None, dtype=None, scale_backward=None
+                 ):
         super(DistributedLayerNorm, self).__init__()
 
         self.P_x = P_x
         if not self.P_x.active:
             return
 
-        if device is None: device = P_x.device
+        if device is None:
+            device = P_x.device
         self.eps = eps
         self.elementwise_affine = elementwise_affine
         self.collect_state = collect_state
@@ -139,7 +143,7 @@ class DistributedLayerNorm(Module):
 
     def gather_state_dict(self, module, destination, prefix, *args):
         if self.collect_state and self.elementwise_affine and self.P_x.active:
- 
+
             # Pop bias from state dict and serialize it
             bias_key = next(reversed(destination))
             bias = self.gather(destination.pop(bias_key))
@@ -173,8 +177,10 @@ class DistributedLayerNorm(Module):
             # Load states
             if self.P_root.active:
                 # Bring from PyTorch into DistDL shape (add dimensions for broadcasting)
-                weight = weight.view(*self.weight.shape[self.dim_bcast_slice], -1)
-                bias = bias.view(*self.bias.shape[self.dim_bcast_slice], -1)
+                shape_expanded = [1] * self.P_x.dim
+                shape_expanded[self.dim_reduce_slice] = weight.shape
+                weight = weight.view(shape_expanded)
+                bias = bias.view(shape_expanded)
 
             else:
                 weight = zero_volume_tensor(device=self.P_x.device, requires_grad=True, dtype=self.dtype)
@@ -189,7 +195,6 @@ class DistributedLayerNorm(Module):
             destination[bias_key] = bias
 
         return destination
-
 
     def _compute_mean(self, input):
         r"""
@@ -221,7 +226,6 @@ class DistributedLayerNorm(Module):
         """
         input = (input - mean)**2
         return self._compute_mean(input)
-
 
     def forward(self, input):
         r"""Forward function interface.
