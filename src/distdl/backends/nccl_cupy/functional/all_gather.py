@@ -172,6 +172,9 @@ class AllGatherFunction(torch.autograd.Function):
         grad_input = zero_volume_tensor(device=device, dtype=input_tensor_structure.dtype)
         input_tensor_shape = np.array(input_tensor_structure.shape)
 
+        # Scale by number of partitions
+        grad_output.div_(P_allgather.size)
+
         # All-gather operation
         if P_allgather.active:
 
