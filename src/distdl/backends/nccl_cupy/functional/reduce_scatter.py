@@ -177,7 +177,7 @@ class ReduceScatterFunction(torch.autograd.Function):
 
         # Scale by number of workers along the given dimension(s)
         if ctx.scale_backward is not None:
-            grad_output.div_(P_reducescatter.shape[ctx.scale_backward])
+            grad_output.div_(np.prod(P_reducescatter.shape[ctx.scale_backward]))
 
         # All-gather operation
         if P_reducescatter.active:
