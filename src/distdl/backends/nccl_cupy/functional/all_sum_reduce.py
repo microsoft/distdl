@@ -33,7 +33,7 @@ class AllSumReduceFunction(torch.autograd.Function):
 
     @staticmethod
     def forward(ctx, input, P_allreduce,
-                input_tensor_structure, output_tensor_structure):
+                input_tensor_structure, output_tensor_structure, scale_backward):
         r"""Forward function of distributed all-sum-reduction layer.
 
         This method implements the forward all-sum-reduction operation using the
@@ -56,6 +56,8 @@ class AllSumReduceFunction(torch.autograd.Function):
         output_tensor_structure : tuple
             Tuple containing properties of the output tensor (dimension, shape,
             requires_grad).
+        scale_backward: Union[int, slice]
+            Scale the backward pass by the number of workers along the given dimension(s).
 
         Returns
         -------
@@ -69,6 +71,7 @@ class AllSumReduceFunction(torch.autograd.Function):
         ctx.input_tensor_structure = input_tensor_structure
         ctx.output_tensor_structure = output_tensor_structure
         ctx.device = device
+        ctx.scale_backward = scale_backward
         output = zero_volume_tensor(device=device)
 
         # There is no need to specificy a root.
@@ -113,6 +116,10 @@ class AllSumReduceFunction(torch.autograd.Function):
 
         grad_input = zero_volume_tensor(device=device)
 
+        # Scale by number of workers along the given dimension(s)
+        if ctx.scale_backward is not None:
+            grad_output.div_(np.prod(P_allreduce.shape[ctx.scale_backward]))
+
         # All-sum-reduce is self-adjoint
         if P_allreduce.active:
             reduced_data = torch.zeros(input_tensor_structure.shape, dtype=input_tensor_structure.dtype, device=device  )
@@ -123,4 +130,4 @@ class AllSumReduceFunction(torch.autograd.Function):
             grad_input =reduced_data
             grad_input.requires_grad_(input_tensor_structure.requires_grad)
 
-        return grad_input, None, None, None
+        return grad_input, None, None, None, None

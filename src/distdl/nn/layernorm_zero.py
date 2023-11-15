@@ -14,7 +14,7 @@ import numpy as np
 class DistributedLayerNormZero(Module):
     r"""A distributed layer norm layer with FSDP.
 
-    Applies Layer Normalization. This layer is a distributed and generalized 
+    Applies Layer Normalization. This layer is a distributed and generalized
     version of the PyTorch LayerNorm layer using fully-sharded data parallelism.
 
     Parameters
@@ -23,30 +23,33 @@ class DistributedLayerNormZero(Module):
         Partition of the input tensor.  Outputs are of the same shape,
         and therefore re-use the input partition.
     normalized_shape :
-        Input shape from an expected input of size. If a single integer is used, 
-        it is treated as a singleton list, and this module will normalize over the 
+        Input shape from an expected input of size. If a single integer is used,
+        it is treated as a singleton list, and this module will normalize over the
         last dimension which is expected to be of that specific size.
     eps : optional
         A value added to the denominator for numerical stability.
         Default is 1e-5.
     elementwise_affine : optional
-        A boolean value that when set to True, this module has learnable per-element affine 
-        parameters of size normalized_shape initialized to ones (for weights) and zeros (for biases). 
+        A boolean value that when set to True, this module has learnable per-element affine
+        parameters of size normalized_shape initialized to ones (for weights) and zeros (for biases).
         Default is True.
     collect_state : optional
         If True, weights and biases are gathered to the root worker and serialized to disk when the
-        state_dict() function is called. Instead of the weights and biases themselves, the state 
+        state_dict() function is called. Instead of the weights and biases themselves, the state
         dictionary will contain paths to the serialized files. Default is False.
     device: optional
         Computational device. Default is P_x.device.
     dtype: optional
         Data type of learnable parameters. Default is torch.float.
+    scale_backward : Union[int, slice], optional
+        Scale backward pass for AllGather operation by no. of workers along the given
+        dimension. Default is None.
     """
 
-    def __init__(self, P_x, normalized_shape, elementwise_affine=True, eps=1e-5, 
-        collect_state=False, device=None, dtype=None):
+    def __init__(self, P_x, normalized_shape, elementwise_affine=True, eps=1e-5,
+        collect_state=False, device=None, dtype=None, scale_backward=None):
         super(DistributedLayerNormZero, self).__init__()
-        
+
         self.P_x = P_x
         if not self.P_x.active:
             return
@@ -64,16 +67,16 @@ class DistributedLayerNormZero(Module):
         self.normalized_shape = normalized_shape
 
         # Number of dimensions across which mean/var is computed
-        num_dim = len(normalized_shape)    
-        
+        num_dim = len(normalized_shape)
+
         # Dimensions across which to reduce
-        self.dim_reduce = tuple(torch.arange(0, P_x.dim)[-num_dim:])    
+        self.dim_reduce = tuple(torch.arange(0, P_x.dim)[-num_dim:])
         self.allreduce = AllSumReduce(P_x, axes_reduce=self.dim_reduce)     # for computing mean/variance
-        
+
         # Number of workers across we reduce
         dim_reduce_slice = slice(P_x.dim - num_dim, P_x.dim)   # dimensions across which we compute mean/var over
         dim_bcast_slice = slice(0, P_x.dim - num_dim)  # dimensions across which we broadcast weights/biases over
-        self.num_reduce = np.prod(P_x.shape[dim_reduce_slice])   
+        self.num_reduce = np.prod(P_x.shape[dim_reduce_slice])
         self.dim_bcast_slice = dim_bcast_slice
         self.dim_reduce_slice = dim_reduce_slice
 
@@ -97,13 +100,13 @@ class DistributedLayerNormZero(Module):
             self.P_w = P_w
 
             # Allgather for collecting weights from data-parallel workers
-            self.allgather = AllGather(P_x, axes_all_gather=(0,))
+            self.allgather = AllGather(P_x, axes_all_gather=(0,), scale_backward=scale_backward)
 
             # Split normalized work along model-parallel workers
             normalized_shape_mp = [1] * P_x.dim
             normalized_shape_mp[dim_reduce_slice] = compute_subshape(
-                P_x.shape[dim_reduce_slice], 
-                P_x.index[dim_reduce_slice], 
+                P_x.shape[dim_reduce_slice],
+                P_x.index[dim_reduce_slice],
                 normalized_shape
                 )
             normalized_shape_mp = tuple(normalized_shape_mp)
@@ -111,8 +114,8 @@ class DistributedLayerNormZero(Module):
             # Additionally, shard the last dimension across data-parallel workers
             normalized_shape_local = list(normalized_shape_mp)
             normalized_shape_local[-1] = compute_subshape(
-                P_x.shape[0], 
-                P_x.index[0], 
+                P_x.shape[0],
+                P_x.index[0],
                 normalized_shape_mp[-1]
                 ).item()
             normalized_shape_local = tuple(normalized_shape_local)
@@ -120,7 +123,7 @@ class DistributedLayerNormZero(Module):
             # Weights and biases
             self.weight = torch.nn.Parameter(torch.empty(normalized_shape_local, **factory_kwargs))
             self.bias = torch.nn.Parameter(torch.empty(normalized_shape_local, **factory_kwargs))
- 
+
         else:
             self.register_parameter('weight', None)
             self.register_parameter('bias', None)
@@ -146,7 +149,7 @@ class DistributedLayerNormZero(Module):
 
     def gather_state_dict(self, module, destination, prefix, *args):
         if self.collect_state and self.elementwise_affine and self.P_x.active:
- 
+
             # Pop bias from state dict and serialize it
             bias_key = next(reversed(destination))
             bias = self.allgather(destination.pop(bias_key).transpose(0,-1)).transpose(0,-1)
@@ -172,7 +175,7 @@ class DistributedLayerNormZero(Module):
 
     def scatter_state_dict(self, destination, prefix, *args):
         if self.collect_state and self.elementwise_affine and self.P_x.active:
-            
+
             # Pop entries from state dict
             weight_key = next(iter(destination))
             weight = destination.pop(weight_key)
@@ -180,7 +183,7 @@ class DistributedLayerNormZero(Module):
             bias = destination.pop(bias_key)
 
             # Load states
-            if self.P_root.active:                
+            if self.P_root.active:
                 # Bring from PyTorch into DistDL shape (add dimensions for broadcasting)
                 weight = weight.view(*self.weight.shape[self.dim_bcast_slice], -1)
                 bias = bias.view(*self.bias.shape[self.dim_bcast_slice], -1)
@@ -188,7 +191,7 @@ class DistributedLayerNormZero(Module):
             else:
                 weight = zero_volume_tensor(device=self.P_x.device, requires_grad=True, dtype=weight.dtype)
                 bias = zero_volume_tensor(device=self.P_x.device, requires_grad=True, dtype=bias.dtype)
-            
+
             # Scatter states
             weight = self.scatter_mp(weight)
             bias = self.scatter_mp(bias)
@@ -231,7 +234,7 @@ class DistributedLayerNormZero(Module):
         """
         input = (input - mean)**2
         return self._compute_mean(input)
-    
+
 
     def forward(self, input):
         r"""Forward function interface.
@@ -244,8 +247,8 @@ class DistributedLayerNormZero(Module):
         """
 
         if not self.P_x.active:
-            return input#.clone()
-            
+            return input
+
         # If we compute mean/variance over more than one partition, we need to
         # use our custom mean/variance implementations with allreduce. Otherwise
         # just use the torch implementation.

@@ -30,7 +30,8 @@ class BroadcastFunction(torch.autograd.Function):
 
     @staticmethod
     def forward(ctx, input, P_send, P_recv, preserve_batch,
-                input_tensor_structure, output_tensor_structure):
+                input_tensor_structure, output_tensor_structure,
+                scale_backward):
         r"""Forward function of distributed broadcast layer.
 
         This method implements the forward broadcast operation using the
@@ -80,6 +81,8 @@ class BroadcastFunction(torch.autograd.Function):
         output_tensor_structure : tuple
             Tuple containing properties of the output tensor (dimension, shape,
             requires_grad).
+        scale_backward : Union[int, slice]
+            Scale the backward pass by the number of workers along the given dimension(s).
 
         Returns
         -------
@@ -94,6 +97,7 @@ class BroadcastFunction(torch.autograd.Function):
         ctx.preserve_batch = preserve_batch
         ctx.input_tensor_structure = input_tensor_structure
         ctx.output_tensor_structure = output_tensor_structure
+        ctx.scale_backward = scale_backward
         ctx.device = device
 
         # This allows all ranks to use the same exit path, so that we can be
@@ -201,6 +205,8 @@ class BroadcastFunction(torch.autograd.Function):
         # is OK, as the reduction accounts for the copy, unlike the broadcast
         # above.
         if P_recv.active:
+            if ctx.scale_backward is not None:
+                grad_output.div_(np.prod(P_recv.shape[ctx.scale_backward]))
             numpy_dtype = torch_to_numpy_dtype_dict[output_tensor_structure.dtype]
             reduced_data_recv = np.zeros(output_tensor_structure.shape, dtype=numpy_dtype)
             grad_output_numpy = grad_output.detach().cpu().contiguous().numpy()
@@ -228,4 +234,4 @@ class BroadcastFunction(torch.autograd.Function):
                                           requires_grad=input_tensor_structure.requires_grad,
                                           device=device)
 
-        return grad_input, None, None, None, None, None
+        return grad_input, None, None, None, None, None, None

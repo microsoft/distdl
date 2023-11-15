@@ -17,14 +17,14 @@ class DistributedExpertReduceScatter(Module):
     r"""A distributed linear for mixture of experts (MoE) with row parallelism.
 
     This class provides the user interface to a distributed linear layer for
-    Mixture of Experts. In contrast to the standard (distributed) linear layer, 
+    Mixture of Experts. In contrast to the standard (distributed) linear layer,
     weights and biases of this layer contain an additional expert dimension.
-    Supported partitionings for the input/output are along the expert dimension 
-    (dimension 0) and/or the feature/embedding dimension (dimension 2). 
+    Supported partitionings for the input/output are along the expert dimension
+    (dimension 0) and/or the feature/embedding dimension (dimension 2).
 
-    Weights are partitoned along the expert and input feature dimension. Therefore, 
-    the forward pass calls a ReduceScatter on the output of the matrix multiplication. 
-    For this reason, the row-parallel version is preferrable when the output feature 
+    Weights are partitoned along the expert and input feature dimension. Therefore,
+    the forward pass calls a ReduceScatter on the output of the matrix multiplication.
+    For this reason, the row-parallel version is preferrable when the output feature
     dimension is smaller than the intput feature dimension. For the reverse case, see
     DistributedExpertAllGather.
 
@@ -34,7 +34,7 @@ class DistributedExpertReduceScatter(Module):
     Parameters
     ----------
     P_x :
-        3D Partition of input/output tensor with shape [ E, 1, M ], where E is the no. 
+        3D Partition of input/output tensor with shape [ E, 1, M ], where E is the no.
         of expert-parallel workers and M is the no. of model parallel workers.
     num_experts :
         Number of experts in the *global* input tensor.
@@ -49,12 +49,15 @@ class DistributedExpertReduceScatter(Module):
     collect_state: bool, optional
         If true, collects the weights and biases to the root worker and
         serializes them to disk when the state_dict() function is called.
-        Instead of the weights and biases, the state dictionary contains 
+        Instead of the weights and biases, the state dictionary contains
         paths to those files. Default is false.
+    scale_backward : Union[int, slice], optional
+        Scale backward pass for AllGather operation by no. of workers along the given
+        dimension. Default is None.
     """
 
-    def __init__(self, P_x, num_experts, in_features, out_features, bias=True, device=None, dtype=None, 
-        P_bias=None, collect_state=False):
+    def __init__(self, P_x, num_experts, in_features, out_features, bias=True, device=None, dtype=None,
+        P_bias=None, collect_state=False, scale_backward=None):
 
         super(DistributedExpertReduceScatter, self).__init__()
 
@@ -62,7 +65,7 @@ class DistributedExpertReduceScatter(Module):
         self.P_x = P_x
         if not self.P_x.active:
             return
-        else:        
+        else:
             assert P_x.shape[-2] == 1 or P_x.shape[-1] == 1
 
         if device is None: device = P_x.device
@@ -88,7 +91,7 @@ class DistributedExpertReduceScatter(Module):
             for i in range(P_x.dim-2):
                 index_bias[i] = slice(0, P_x.shape[i])
             apply_bias_workers = worker_layout(P_x.shape)[tuple(index_bias)].reshape(-1).tolist()
-            
+
             P_bias_base = P_x.create_partition_inclusive(apply_bias_workers)
             P_bias = P_bias_base.create_cartesian_topology_partition(apply_bias_partition_shape)
             P_bias_base.deactivate()
@@ -133,7 +136,7 @@ class DistributedExpertReduceScatter(Module):
         self.reset_parameters()
 
         # Reduce-scatter operation
-        self.reduce_scatter = ReduceScatter(self.P_x, axes_reduce_scatter=(2,))
+        self.reduce_scatter = ReduceScatter(self.P_x, axes_reduce_scatter=(2,), scale_backward=scale_backward)
 
         # State dict hooks for gather/scattering distributed weights
         self._register_state_dict_hook(self.gather_state_dict)
@@ -162,7 +165,7 @@ class DistributedExpertReduceScatter(Module):
     def gather_state_dict(self, module, destination, prefix, *args):
         if self.collect_state and self.P_x.active:
             if self.use_bias and self.bias is not None:
-                
+
                 # Pop bias from state dict and serialize it
                 bias_key = next(reversed(destination))
                 bias = self.gather_bias(destination.pop(bias_key))
@@ -183,7 +186,7 @@ class DistributedExpertReduceScatter(Module):
 
                 if self.use_bias:
                     destination[bias_key] = bias_key
-                
+
         return destination
 
     def scatter_state_dict(self, destination, prefix, *args):

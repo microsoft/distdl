@@ -19,11 +19,11 @@ from einops import rearrange
 class LinearReduceScatterZeROFunc(torch.autograd.Function):
 
     @staticmethod
-    def forward(input, weight, bias, ag_input, rs_input, ag_weight, rs_weight, ag_bias, rs_bias, bias_active):
+    def forward(input, weight, bias, ag_input, rs_input, ag_weight, rs_weight, ag_bias, rs_bias, bias_active, scale_backward):
 
         # Gather weights    [ c_cout, 1, c_in]
         weight = ag_weight(weight).squeeze(1)   # -> [c_out, c_in]
-        
+
         # Broadcast bias [c_out, 1, 1]
         if bias is not None and bias_active:
             bias = ag_bias(bias).view(1, 1, -1) # -> [1, 1, c_out]
@@ -36,19 +36,21 @@ class LinearReduceScatterZeROFunc(torch.autograd.Function):
 
     @staticmethod
     def setup_context(ctx, inputs, output):
-        input, weight, bias, ag_input, rs_input, ag_weight, rs_weight, ag_bias, rs_bias, bias_active = inputs
+        input, weight, bias, ag_input, rs_input, ag_weight, rs_weight, ag_bias, rs_bias, bias_active, scale_backward = inputs
         ctx.save_for_backward(input, weight, bias)
-        ctx.constant = (ag_input, rs_input, ag_weight, rs_weight, ag_bias, rs_bias, bias_active)
+        ctx.constant = (ag_input, rs_input, ag_weight, rs_weight, ag_bias, rs_bias, bias_active, scale_backward)
 
     @staticmethod
     def backward(ctx, grad_output):
 
         # Load saved tensors and operators
         input, weight, bias  = ctx.saved_tensors
-        ag_input, rs_input, ag_weight, rs_weight, ag_bias, rs_bias, bias_active = ctx.constant
+        ag_input, rs_input, ag_weight, rs_weight, ag_bias, rs_bias, bias_active, scale_backward = ctx.constant
 
         # Gather input
         if ctx.needs_input_grad[0] or ctx.needs_input_grad[1] or ctx.needs_input_grad[2]:
+            if scale_backward is not None:
+                grad_output.div_(np.prod(ag_input.P_allgather.shape[scale_backward]))
             grad_output = ag_input(grad_output.contiguous())
 
         # Input gradient
@@ -61,6 +63,8 @@ class LinearReduceScatterZeROFunc(torch.autograd.Function):
         # Weight gradient
         if ctx.needs_input_grad[1]:
             grad_weight = torch.einsum('bij,bik->kj', input, grad_output).unsqueeze(1)
+            if scale_backward is not None:
+                grad_weight.div_(np.prod(rs_weight.P_reducescatter.shape[scale_backward]))
             grad_weight = rs_weight(grad_weight)
         else:
             grad_weight = None
@@ -68,26 +72,28 @@ class LinearReduceScatterZeROFunc(torch.autograd.Function):
         # Bias gradient
         if bias_active and ctx.needs_input_grad[2]:
             grad_bias = grad_output.sum((0,1)).view(-1, 1, 1)
+            if scale_backward is not None:
+                grad_bias.div_(np.prod(rs_bias.P_reducescatter.shape[scale_backward]))
             grad_bias = rs_bias(grad_bias)
         else:
             grad_bias = None
 
-        return grad_input, grad_weight, grad_bias, None, None, None, None, None, None, None
+        return grad_input, grad_weight, grad_bias, None, None, None, None, None, None, None, None
 
 
 class DistributedLinearReduceScatterZero(Module):
-    r"""A distributed linear or affine layer with 2D parallelism for weights 
+    r"""A distributed linear or affine layer with 2D parallelism for weights
     and input/outputs (also called ZeRO-3 or FSDP).
 
     This class provides the user interface to a distributed linear layer
-    with 2D partitioning of input/output data and 2D partitioning of weights 
-    and biases. Inputs can be partitioned along the batch dimension (dimension 0) 
+    with 2D partitioning of input/output data and 2D partitioning of weights
+    and biases. Inputs can be partitioned along the batch dimension (dimension 0)
     and/or the last dimension, as specified by the input partition P_x.
 
     Outputs can be partitioned along the batch dimension (dimension 0) plus either
-    the last dimension or second last dimension. If inputs are partitioned along 
+    the last dimension or second last dimension. If inputs are partitioned along
     the second last dimension, an additional output partition P_y must be specified.
-    If P_y is not supplied, the output partitoning is assumed to be the same as the 
+    If P_y is not supplied, the output partitoning is assumed to be the same as the
     intput partitioning.
 
     Weights and biases are partitoned along both the input and output feature dimension.
@@ -100,8 +106,8 @@ class DistributedLinearReduceScatterZero(Module):
     Parameters
     ----------
     P_x :
-        Partition of input/output tensor with shape of form: [ D, ..., 1, M ], where D 
-        is the number of data-parallel workers, and M is the number of model-parallel workers. 
+        Partition of input/output tensor with shape of form: [ D, ..., 1, M ], where D
+        is the number of data-parallel workers, and M is the number of model-parallel workers.
         Weights are distributed on the P_x partition as well.
     in_features :
         Number of features in the *global* input tensor.
@@ -110,22 +116,25 @@ class DistributedLinearReduceScatterZero(Module):
     bias : bool
         Indicates if a bias term should be used.
     P_y : optional
-        Partition of the output tensor if output is partitioned along the second last 
+        Partition of the output tensor if output is partitioned along the second last
         dimension. Shape must be of form: [ D, ..., M, 1 ].
     P_bias : optional
         Partition for biases of shape: [ D, ..., 1, 1 ].
     collect_state: bool, optional
         If true, collects the weights and biases to the root worker and
         serializes them to disk when the state_dict() function is called.
-        Instead of the weights and biases, the state dictionary contains 
+        Instead of the weights and biases, the state dictionary contains
         paths to those files. Default is false.
     checkpoint : bool, optional
         If true, use custom backward implementation that recomputes the
         all-gathers in the backward pass.
+    scale_backward : Union[int, slice], optional
+        Scale backward pass for AllGather operation by no. of workers along the given
+        dimension. Default is None.
     """
 
     def __init__(self, P_x, in_features, out_features, bias=True, device=None, dtype=None,
-        P_y=None, P_bias=None, collect_state=False, checkpoint=False):
+        P_y=None, P_bias=None, collect_state=False, checkpoint=False, scale_backward=None):
 
         super(DistributedLinearReduceScatterZero, self).__init__()
 
@@ -134,7 +143,7 @@ class DistributedLinearReduceScatterZero(Module):
         self.P_x = P_x
         if not self.P_x.active:
             return
-        else:        
+        else:
             assert P_x.shape[-2] == 1
 
         # Input partition can be different than output partition
@@ -156,6 +165,7 @@ class DistributedLinearReduceScatterZero(Module):
         self.use_bias = bias
         self.dtype = dtype
         self.checkpoint = checkpoint
+        self.scale_backward = scale_backward
 
         # Partition for applying bias
         if P_bias is not None:
@@ -171,7 +181,7 @@ class DistributedLinearReduceScatterZero(Module):
             for i in range(P_x.dim-2):
                 index_bias[i] = slice(0, P_x.shape[i])
             apply_bias_workers = worker_layout(P_x.shape)[tuple(index_bias)].reshape(-1).tolist()
-            
+
             P_bias_base = P_x.create_partition_inclusive(apply_bias_workers)
             P_bias = P_bias_base.create_cartesian_topology_partition(apply_bias_partition_shape)
             P_bias_base.deactivate()
@@ -181,10 +191,10 @@ class DistributedLinearReduceScatterZero(Module):
             self.P_bias = P_bias
 
         # Function to broadcast weights and biases
-        self.all_gather_weight = AllGather(P_x, axes_all_gather=(0,))
+        self.all_gather_weight = AllGather(P_x, axes_all_gather=(0,), scale_backward=scale_backward)
         self.reduce_scatter_weight = ReduceScatter(P_x, axes_reduce_scatter=(0,))
         if bias and self.P_bias.active:
-            self.all_gather_bias = AllGather(P_bias, axes_all_gather=(0,))
+            self.all_gather_bias = AllGather(P_bias, axes_all_gather=(0,), scale_backward=scale_backward)
             self.reduce_scatter_bias = ReduceScatter(P_bias, axes_reduce_scatter=(0,))
         else:
             self.all_gather_bias = None
@@ -224,8 +234,8 @@ class DistributedLinearReduceScatterZero(Module):
 
         # Reduce-scatter operation
         scatter_dim = torch.argmax(torch.tensor(self.P_y.shape[-2:])) + self.P_y.dim - 2
-        self.reduce_scatter = ReduceScatter(self.P_y, axes_reduce_scatter=(scatter_dim,))
-        self.all_gather = AllGather(self.P_y, axes_all_gather=(scatter_dim,))
+        self.reduce_scatter = ReduceScatter(self.P_y, axes_reduce_scatter=(scatter_dim,), scale_backward=scale_backward)
+        self.all_gather = AllGather(self.P_y, axes_all_gather=(scatter_dim,), scale_backward=scale_backward)
 
         # State dict hooks for gather/scattering distributed weights
         self._register_state_dict_hook(self.gather_state_dict)
@@ -275,7 +285,7 @@ class DistributedLinearReduceScatterZero(Module):
 
         if self.collect_state and self.P_x.active:
             if self.use_bias and self.P_bias.active:
-                
+
                 # Pop bias from state dict and serialize it
                 bias_key = next(reversed(destination))
                 bias = self.gather_bias(destination.pop(bias_key))
@@ -292,7 +302,7 @@ class DistributedLinearReduceScatterZero(Module):
 
                 if self.use_bias:
                     destination[bias_key] = self._squeeze_bias(bias)
-                
+
         return destination
 
     def scatter_state_dict(self, destination, prefix, *args):
@@ -349,7 +359,8 @@ class DistributedLinearReduceScatterZero(Module):
                 self.reduce_scatter_weight,
                 self.all_gather_bias,
                 self.reduce_scatter_bias,
-                self.P_bias.active
+                self.P_bias.active,
+                self.scale_backward
             )
 
         else:

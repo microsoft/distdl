@@ -7,11 +7,11 @@ import torch
 class AllGather(Module):
     r"""A distributed allgather layer.
 
-    This class provides the user interface to the allgather distributed data 
+    This class provides the user interface to the allgather distributed data
     movement primitive.  Implementation details are back-end specific.
 
-    The AllGather algorithm performs an allgather within a single partition. 
-    Thus, the standard DistDL sum-reduction/broadcast rules are implicitly 
+    The AllGather algorithm performs an allgather within a single partition.
+    Thus, the standard DistDL sum-reduction/broadcast rules are implicitly
     satisfied.
 
     Functionally, the input tensor is gathered along dimensions specified by
@@ -31,10 +31,12 @@ class AllGather(Module):
     axes_keep : tuple, optional
         Partition dimensions to reduce-scatter to.  Complement of `axes_all_gather`.
         Currently, only supportes all-gather operation along single dimension.
+    scale_backward: Union[int, slice], optional
+        Scale the backward pass by the number of workers along the given dimension(s).
 
     """
 
-    def __init__(self, P_x, axes_all_gather=None, axes_keep=None):
+    def __init__(self, P_x, axes_all_gather=None, axes_keep=None, scale_backward=None):
 
         super(AllGather, self).__init__()
 
@@ -69,6 +71,9 @@ class AllGather(Module):
         # Variables for tracking input changes and buffer construction
         self._distdl_is_setup = False
         self._input_tensor_structure = TensorStructure()
+
+        # Scale the backward pass by the number of workers along given dimension.
+        self.scale_backward = scale_backward
 
         # The identity case is if the partition is of size 1,
         if self.P_x.size == 1:
@@ -176,4 +181,5 @@ class AllGather(Module):
                               self.P_allgather,
                               self.input_tensor_structure,
                               self.output_tensor_structure,
-                              self.axes_all_gather)
+                              self.axes_all_gather,
+                              self.scale_backward)
