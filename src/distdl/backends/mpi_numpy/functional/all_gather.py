@@ -7,7 +7,7 @@ import torch
 from mpi4py import MPI
 from einops import rearrange
 
-from distdl.utilities.dtype import torch_to_numpy_dtype_dict
+from distdl.utilities.dtype import torch_to_numpy_dtype_dict, torch_to_mpi_dtype_dict
 from distdl.utilities.torch import zero_volume_tensor, distdl_padding_to_torch_padding
 from distdl.utilities.slicing import get_rearrange_ordering
 
@@ -30,7 +30,7 @@ class AllGatherFunction(torch.autograd.Function):
     -------
     The ``mpi4py`` interface currently used requires NumPy views of the tensors.
 
-    """    
+    """
 
     @staticmethod
     def forward(ctx, input, P_allgather,
@@ -104,14 +104,16 @@ class AllGatherFunction(torch.autograd.Function):
 
             # All-gather
             input_numpy = np.asarray(input.detach(), dtype=numpy_dtype)
-            req = P_allgather._comm.Iallgather(input_numpy, gathered_data)
+            input_dtype = torch_to_mpi_dtype_dict[input_tensor_structure.dtype]
+            output_dtype = torch_to_mpi_dtype_dict[output_tensor_structure.dtype]
+            req = P_allgather._comm.Iallgather((input_numpy, input_dtype), (gathered_data, output_dtype))
             requests.append(req)
 
         MPI.Request.Waitall(requests)
 
         # If we had to receive data, we need to tensorify it.
         if P_allgather.active:
-            
+
             # Re-order flat output array from all-gather to correct cartesian shape
             gathered_cart_shape = [P_allgather.shape[axes[0]]] + list(input_tensor_shape)
             output = torch.asarray(gathered_data, device=device).reshape(gathered_cart_shape)
@@ -131,7 +133,7 @@ class AllGatherFunction(torch.autograd.Function):
                 s[axes[0]+1] = slice(0, -1)
                 for i in range(ctx.remainder, P_allgather.shape[axes[0]]):
                     output_list[i] = output_list[i][s]
-            
+
                 # Rearrange
                 for i in range(P_allgather.shape[axes[0]]):
                     output_list[i] = rearrange(output_list[i], in_shape_char + ' -> ' + out_shape_char)
@@ -211,7 +213,7 @@ class AllGatherFunction(torch.autograd.Function):
 
                 # Concatenate and flatten
                 grad_output_flat = torch.cat(grad_output_list, dim=0).reshape(-1)
-                
+
                 # Update output shape for ranks that received zero-padded data
                 if P_allgather.rank >= ctx.remainder:
                     input_tensor_shape[axes[0]] += 1
@@ -224,7 +226,10 @@ class AllGatherFunction(torch.autograd.Function):
             grad_output_flat = np.asarray(grad_output_flat.detach(), dtype=numpy_dtype)
 
             # Reduce-scatter primitive
-            req = P_allgather._comm.Ireduce_scatter(grad_output_flat, scattered_data, op=MPI.SUM)
+            input_dtype = torch_to_mpi_dtype_dict[input_tensor_structure.dtype]
+            output_dtype = torch_to_mpi_dtype_dict[output_tensor_structure.dtype]
+            req = P_allgather._comm.Ireduce_scatter((grad_output_flat, output_dtype),
+                (scattered_data, input_dtype), op=MPI.SUM)
             requests.append(req)
 
         MPI.Request.Waitall(requests)
@@ -240,5 +245,5 @@ class AllGatherFunction(torch.autograd.Function):
                 s = [slice(None)]*(P_allgather.dim)
                 s[axes[0]] = slice(0, -1)
                 grad_input = grad_input[s]
-                
+
         return grad_input, None, None, None, None
