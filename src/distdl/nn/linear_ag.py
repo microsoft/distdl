@@ -17,35 +17,35 @@ class DistributedLinearAllGather(Module):
     r"""A distributed linear or affine layer with weight column parallelism.
 
     This class provides the user interface to a distributed linear layer
-    with 2D partitioning of input/output data and 1D partitioning of weights 
-    and biases. Outputs can be partitioned along the batch dimension (dimension 0) 
+    with 2D partitioning of input/output data and 1D partitioning of weights
+    and biases. Outputs can be partitioned along the batch dimension (dimension 0)
     and/or the last dimension, as specified by the output partition P_y.
 
     Inputs can be partitioned along the batch dimension (dimension 0) plus either
-    the last dimension or second last dimension. If inputs are partitioned along 
+    the last dimension or second last dimension. If inputs are partitioned along
     the second last dimension, an additional input partition P_x must be specified.
-    If P_x is not supplied, the input partitoning is assumed to be the same as the 
+    If P_x is not supplied, the input partitoning is assumed to be the same as the
     output partitioning.
 
     Weights and biases are partitoned along the output feature dimension. Therefore,
-    an allgather is performed on the input prior to the matrix multiplication. For 
+    an allgather is performed on the input prior to the matrix multiplication. For
     this reason, this layer is preferrable when the input feature dimension is
-    smaller than the output feature dimension. For the reverse case, see 
+    smaller than the output feature dimension. For the reverse case, see
     DistributedLinearReduceScatter. Weights and biases are stored on the 1st data-
     parallel worker only.
 
-    This class supports computing QKV tensors for multi-head attention. If 
-    collect_state is set to true, the number of attention heads must be specified, 
-    as well as the number of output variables (3 for QKV, 2 for QK, 1 for Q only). 
+    This class supports computing QKV tensors for multi-head attention. If
+    collect_state is set to true, the number of attention heads must be specified,
+    as well as the number of output variables (3 for QKV, 2 for QK, 1 for Q only).
     Supplying the no. of heads and output variables is required to rearrange
-    the weights and biases such that they yield the same result if the layer is 
-    called for a different number of (model-parallel) workers (e.g., if we load 
+    the weights and biases such that they yield the same result if the layer is
+    called for a different number of (model-parallel) workers (e.g., if we load
     trained weights on a single GPU for inference).
 
     Parameters
     ----------
     P_y :
-        Partition of input/output tensor with shape [ D, ..., 1, M ], where D is 
+        Partition of input/output tensor with shape [ D, ..., 1, M ], where D is
         the no. of data parallel workers and M is the no. of model parallel workers.
     in_features :
         Number of features in the *global* input tensor.
@@ -63,10 +63,10 @@ class DistributedLinearAllGather(Module):
     collect_state: bool, optional
         If true, collects the weights and biases to the root worker and
         serializes them to disk when the state_dict() function is called.
-        Instead of the weights and biases, the state dictionary contains 
+        Instead of the weights and biases, the state dictionary contains
         paths to those files. Default is false.
     num_heads: int, optional
-        Total number of attention heads across all workers for multi-head attention. 
+        Total number of attention heads across all workers for multi-head attention.
         Only required if collect_state=True. Default is None.
     num_vars: int, optional
         Number of output variables if used as a linear layer for QKV computations.
@@ -75,11 +75,14 @@ class DistributedLinearAllGather(Module):
     geglu: bool, optional
         Set to true if a gated linear unit is used directly after the linear layer and
         collect_state=True. Default is False.
+    scale_backward : Union[int, slice], optional
+        Scale backward pass for AllGather operation by no. of workers along the given
+        dimension. Default is None.
     """
 
-    def __init__(self, P_y, in_features, out_features, bias=True, device=None, dtype=None, 
-        P_x=None, P_store_weight=None, P_apply_weight=None, collect_state=False, num_heads=None, 
-        num_vars=3, geglu=False):
+    def __init__(self, P_y, in_features, out_features, bias=True, device=None, dtype=None,
+        P_x=None, P_store_weight=None, P_apply_weight=None, collect_state=False, num_heads=None,
+        num_vars=3, geglu=False, scale_backward=None):
 
         super(DistributedLinearAllGather, self).__init__()
 
@@ -88,7 +91,7 @@ class DistributedLinearAllGather(Module):
         self.P_y = P_y
         if not self.P_y.active:
             return
-        else:        
+        else:
             assert P_y.shape[-2] == 1 or P_y.shape[-1] == 1
 
         # Input partition can be different than output partition
@@ -156,9 +159,9 @@ class DistributedLinearAllGather(Module):
         self.P_apply_weight = P_apply_weight
 
         # Function to broadcast weights and biases
-        self.broadcast_weight = Broadcast(P_store_weight, P_apply_weight)
+        self.broadcast_weight = Broadcast(P_store_weight, P_apply_weight, scale_backward=scale_backward)
         if bias:
-            self.broadcast_bias = Broadcast(P_store_weight, P_apply_weight)
+            self.broadcast_bias = Broadcast(P_store_weight, P_apply_weight, scale_backward=scale_backward)
 
         # Create weights
         if P_store_weight.active:
@@ -191,7 +194,7 @@ class DistributedLinearAllGather(Module):
 
         # All-gather operation
         gather_dim = torch.argmax(torch.tensor(self.P_x.shape[-2:])) + self.P_x.dim - 2
-        self.all_gather = AllGather(self.P_x, axes_all_gather=(gather_dim,))
+        self.all_gather = AllGather(self.P_x, axes_all_gather=(gather_dim,), scale_backward=scale_backward)
 
         # State dict hooks for gather/scattering distributed weights
         self._register_state_dict_hook(self.gather_state_dict)
@@ -238,23 +241,23 @@ class DistributedLinearAllGather(Module):
         c_out = bias.shape[-2]
         return bias.view(c_out)
 
-    # If we collect the weights on the root worker, we need to rearrange the weights, 
+    # If we collect the weights on the root worker, we need to rearrange the weights,
     # such that the split into QKV occurs in the slowest (dim 0) dimension. This enables
     # us to load weights for a different partitioning scheme than they were saved in.
     def qkv_weight_to_serial(self, weight):
         head_size = weight.shape[-2] // self.num_vars // self.num_heads
         num_gpu = self.P_store_weight.shape[-2]
-        weight = rearrange(self._squeeze_weight(weight), "(p v h) n -> (v p h) n", 
+        weight = rearrange(self._squeeze_weight(weight), "(p v h) n -> (v p h) n",
             p=num_gpu, v=self.num_vars, h=self.num_heads//num_gpu*head_size)
         return self._unsqueeze_weight(weight)
 
-    # Similarly, if we want to load weights from a serial partitioning scheme and 
-    # use them in a parallel scheme, we need to rearrange the weights to move the 
+    # Similarly, if we want to load weights from a serial partitioning scheme and
+    # use them in a parallel scheme, we need to rearrange the weights to move the
     # QKV/QK split into the 2nd slowest dimension (dim 1).
     def qkv_weight_to_parallel(self, weight):
         head_size = weight.shape[-2] // self.num_vars // self.num_heads
         num_gpu = self.P_store_weight.shape[-2]
-        weight = rearrange(self._squeeze_weight(weight), "(v p h) n -> (p v h) n", 
+        weight = rearrange(self._squeeze_weight(weight), "(v p h) n -> (p v h) n",
             p=num_gpu, v=self.num_vars, h=self.num_heads//num_gpu*head_size)
         return self._unsqueeze_weight(weight)
 
@@ -264,7 +267,7 @@ class DistributedLinearAllGather(Module):
     def geglu_weight_to_serial(self, weight):
         num_gpu = self.P_store_weight.shape[-2]
         weight_size = weight.shape[-2] // 2 // num_gpu
-        weight = rearrange(self._squeeze_weight(weight), "(p v h) n -> (v p h) n", 
+        weight = rearrange(self._squeeze_weight(weight), "(p v h) n -> (v p h) n",
             p=num_gpu, v=2, h=weight_size)
         return self._unsqueeze_weight(weight)
 
@@ -273,15 +276,15 @@ class DistributedLinearAllGather(Module):
     def geglu_weight_to_parallel(self, weight):
         num_gpu = self.P_store_weight.shape[-2]
         weight_size = weight.shape[-2] // 2 // num_gpu
-        weight = rearrange(self._squeeze_weight(weight), "(v p h) n -> (p v h) n", 
+        weight = rearrange(self._squeeze_weight(weight), "(v p h) n -> (p v h) n",
             p=num_gpu, v=2, h=weight_size)
         return self._unsqueeze_weight(weight)
-        
+
     def gather_state_dict(self, module, destination, prefix, *args):
 
         if self.collect_state and self.P_y.active:
             if self.use_bias:
-                
+
                 # Collect bias and serialize (last entry added to dict).
                 # All workers should pop their bias from the state dict.
                 bias_key = next(reversed(destination))
@@ -337,11 +340,11 @@ class DistributedLinearAllGather(Module):
                     bias = self.scatter_bias(bias)
                 if self.P_apply_weight.active:
                     destination[bias_key] = bias
-            
+
             # Add scattered weight to state dict
             if self.P_y.active:
                 destination[weight_key] = weight
-                
+
         return destination
 
     def forward(self, input):

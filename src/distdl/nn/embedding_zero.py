@@ -18,7 +18,7 @@ class DistributedEmbeddingZero(Module):
     a fixed fixed dictionary and size. Embeddings are partitioned along the first
     and the last dimension (i.e., the embedding dimension). Sequence parallelism
     (partitioning the 2nd last dimension) is currently not supported.
-    
+
     Parameters
     ----------
     P_x :
@@ -29,22 +29,22 @@ class DistributedEmbeddingZero(Module):
     embedding_dim  : int
         The size of each embedding vector.
     padding_idx : int, optional
-        If specified, the entries at padding_idx do not contribute to the gradient; 
-        therefore, the embedding vector at padding_idx is not updated during training, 
-        i.e. it remains as a fixed “pad”. 
+        If specified, the entries at padding_idx do not contribute to the gradient;
+        therefore, the embedding vector at padding_idx is not updated during training,
+        i.e. it remains as a fixed “pad”.
     max_norm : float, optional
         If given, each embedding vector with norm larger than max_norm is renormalized
         to have norm max_norm.
     norm_type : float, optional
         The p of the p-norm to compute for the max_norm option. Default 2.
     scale_grad_by_freq : bool, optional
-        If given, this will scale gradients by the inverse of frequency of the words 
+        If given, this will scale gradients by the inverse of frequency of the words
         in the mini-batch. Default False.
     sparse : bool, optional
-        If True, gradient w.r.t. weight matrix will be a sparse tensor. 
+        If True, gradient w.r.t. weight matrix will be a sparse tensor.
         See Notes for more details regarding sparse gradients.
     collect_state : bool, optional
-        If True, the entire embedding matrix is gathered to the root worker and 
+        If True, the entire embedding matrix is gathered to the root worker and
         serialized to disk when the state_dict() function is called. Instead
         of the weight itself, the state dictionary will contain a path to the
         serialized file. Default False.
@@ -53,12 +53,15 @@ class DistributedEmbeddingZero(Module):
         as specified by the input partition P_x.
     dtype : torch.dtype, optional
         Data type of the embedding matrix. Default is torch.float32.
+    scale_backward : Union[int, slice], optional
+        Scale backward pass for AllGather operation by no. of workers along the given
+        dimension. Default is None.
     """
 
     def __init__(self, P_x, num_embeddings, embedding_dim, padding_idx=None,
         max_norm=None, norm_type=2., scale_grad_by_freq=False, sparse=False,
-        _weight=None, _freeze=False, collect_state=False, device=None, 
-        dtype=None):
+        _weight=None, _freeze=False, collect_state=False, device=None,
+        dtype=None, scale_backward=None):
 
         factory_kwargs = {'device': P_x.device, 'dtype': dtype}
         super(DistributedEmbeddingZero, self).__init__()
@@ -90,7 +93,7 @@ class DistributedEmbeddingZero(Module):
         P_root_base.deactivate()
 
         # Allgather
-        self.allgather = AllGather(self.P_x, axes_all_gather=(0,))
+        self.allgather = AllGather(self.P_x, axes_all_gather=(0,), scale_backward=scale_backward)
         self.init_scatter = Repartition(self.P_root, self.P_x)
 
         # Local embedding size
@@ -107,11 +110,11 @@ class DistributedEmbeddingZero(Module):
             if self.P_x.active:
                 self.weight = torch.nn.Parameter(_weight, requires_grad=not _freeze)
         elif self.P_x.active:
-            self.weight = torch.nn.Parameter(torch.empty((num_embeddings_local, 
+            self.weight = torch.nn.Parameter(torch.empty((num_embeddings_local,
                 embedding_dim_local), **factory_kwargs), requires_grad=not _freeze)
             self.reset_parameters()
         else:
-            self.register_buffer('weight', zero_volume_tensor(device=P_x.device, 
+            self.register_buffer('weight', zero_volume_tensor(device=P_x.device,
                 requires_grad=True, dtype=self.dtype))
 
         # State dict hooks for gather/scattering distributed weights
@@ -152,7 +155,7 @@ class DistributedEmbeddingZero(Module):
         return weight
 
     def _squeeze(self, weight):
-        weight = weight.view(weight.shape[0], weight.shape[-1])        
+        weight = weight.view(weight.shape[0], weight.shape[-1])
         return weight
 
     def gather_state_dict(self, module, destination, prefix, *args):
