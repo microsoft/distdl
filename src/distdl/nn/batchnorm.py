@@ -4,6 +4,7 @@ import torch
 from distdl.backends.common.tensor_comm import assemble_global_tensor_structure
 from distdl.nn.broadcast import Broadcast
 from distdl.nn.module import Module
+from distdl.nn.repartition import Repartition
 from distdl.nn.sum_reduce import SumReduce
 from distdl.utilities.slicing import compute_start_index
 from distdl.utilities.slicing import compute_stop_index
@@ -48,7 +49,7 @@ class DistributedBatchNorm(Module):
     def __init__(self, P_x,
                  num_features, eps=1e-05, momentum=0.1, affine=True,
                  track_running_stats=True, device=None, dtype=None,
-                 scale_backward=None):
+                 collect_state=False, scale_backward=None):
         super(DistributedBatchNorm, self).__init__()
 
         self.num_dimensions = len(P_x.shape)
@@ -60,6 +61,7 @@ class DistributedBatchNorm(Module):
         self.affine = affine
         self.track_running_stats = track_running_stats
         self.inputs_seen = 0
+        self.collect_state = collect_state
 
         if device is None:
             device = P_x.device
@@ -120,6 +122,79 @@ class DistributedBatchNorm(Module):
             else:
                 self.stream_gamma = None
                 self.stream_beta = None
+
+        # State dict hooks for gather/scattering distributed weights
+        self._register_state_dict_hook(self.gather_state_dict)
+        self._register_load_state_dict_pre_hook(self.scatter_state_dict)
+
+        # Functions to collect/scatter weights
+        P_root_base = self.P_sum.create_partition_inclusive([0])
+        self.P_root = P_root_base.create_cartesian_topology_partition([1] * self.P_sum.dim)
+        if self.affine:
+            self.gather_affine = Repartition(self.P_sum, self.P_root, preserve_batch=False)
+            self.scatter_affine = Repartition(self.P_root, self.P_sum, preserve_batch=False)
+
+    def gather_state_dict(self, module, destination, prefix, *args):
+        if self.collect_state and self.P_x.active:
+            if self.affine:
+
+                # Collect parameters
+                beta_key = next(reversed(destination))
+                beta = self.gather_affine(destination.pop(beta_key))
+
+                gamma_key = next(reversed(destination))
+                gamma = self.gather_affine(destination.pop(gamma_key))
+
+            # Remove entries for running stats everywhere but from root
+            if not self.P_root.active and self.track_running_stats:
+
+                mean_key = next(iter(destination))
+                destination.pop(mean_key)
+
+                var_key = next(iter(destination))
+                destination.pop(var_key)
+
+            # On root, keep track of collected parameters
+            if self.P_root.active and self.affine:
+                destination[gamma_key] = gamma
+                destination[beta_key] = beta
+
+        return destination
+
+    def scatter_state_dict(self, destination, prefix, *args):
+        if self.collect_state and self.P_x.active:
+            if self.affine:
+
+                # Scatter parameters
+                gamma_key = next(iter(destination))
+                gamma = destination.pop(gamma_key)
+
+                beta_key = next(iter(destination))
+                beta = destination.pop(beta_key)
+
+                if self.P_sum.active:
+                    gamma = self.scatter_affine(gamma)
+                    beta = self.scatter_affine(beta)
+                else:
+                    gamma = zero_volume_tensor(device=self.P_x.device, requires_grad=True, dtype=gamma.dtype)
+                    beta = zero_volume_tensor(device=self.P_x.device, requires_grad=True, dtype=beta.dtype)
+
+            # Load statitics on all ranks
+            mean_key = next(iter(destination))
+            mean = destination.pop(mean_key)
+
+            var_key = next(iter(destination))
+            var = destination.pop(var_key)
+
+            destination[var_key] = var
+            destination[mean_key] = mean
+
+            # Replace with zero-volume tensors
+            if self.affine:
+                destination[beta_key] = beta
+                destination[gamma_key] = gamma
+
+        return destination
 
     def _distdl_module_setup(self, input):
         r"""Distributed batch norm module setup function.
