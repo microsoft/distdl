@@ -202,7 +202,7 @@ class DistributedLinearAllGather(Module):
 
         # All-gather operation
         gather_dim = torch.argmax(torch.tensor(self.P_x.shape[-2:])) + self.P_x.dim - 2
-        self.all_gather = AllGather(self.P_x, axes_all_gather=(gather_dim,), scale_backward=scale_backward)
+        self.all_gather = AllGather(self.P_x, axes_all_gather=(gather_dim,))
 
         # CUDA streams for weight prefetching
         if not self.P_y.device == 'cpu':

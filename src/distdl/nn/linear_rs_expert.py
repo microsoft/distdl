@@ -1,5 +1,6 @@
 import math
 
+import numpy as np
 import torch
 
 import distdl.nn.init as init
@@ -163,7 +164,7 @@ class DistributedExpertReduceScatter(Module):
         self.reset_parameters()
 
         # Reduce-scatter operation
-        self.reduce_scatter = ReduceScatter(self.P_e, axes_reduce_scatter=(2,), scale_backward=scale_backward)
+        self.reduce_scatter = ReduceScatter(self.P_e, axes_reduce_scatter=(2,))
         self.all_gather_weight = AllGather(self.P_e, axes_all_gather=(1,), scale_backward=scale_backward)
         if self.use_bias:
             self.broadcast_bias = Broadcast(self.P_store_bias, self.P_apply_bias, scale_backward=scale_backward)

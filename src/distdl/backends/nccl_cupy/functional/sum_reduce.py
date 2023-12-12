@@ -36,7 +36,7 @@ class SumReduceFunction(torch.autograd.Function):
     @staticmethod
     def forward(ctx, input, P_send, P_recv, preserve_batch,
                 input_tensor_structure, output_tensor_structure,
-                scale_backward):
+                ):
         r"""Forward function of distributed sum-reduction layer.
 
         This method implements the forward sum-reduction operation using the
@@ -83,8 +83,6 @@ class SumReduceFunction(torch.autograd.Function):
         output_tensor_structure : tuple
             Tuple containing properties of the output tensor (dimension, shape,
             requires_grad).
-        scale_backward : Union[int, slice]
-            Scale the backward pass by the number of workers along the given dimension(s).
 
         Returns
         -------
@@ -98,7 +96,6 @@ class SumReduceFunction(torch.autograd.Function):
         ctx.preserve_batch = preserve_batch
         ctx.input_tensor_structure = input_tensor_structure
         ctx.output_tensor_structure = output_tensor_structure
-        ctx.scale_backward = scale_backward
         ctx.device = device
 
         # This allows all ranks to use the same exit path, so that we can be
@@ -205,8 +202,6 @@ class SumReduceFunction(torch.autograd.Function):
 
         # If I received the reduction in the forward call, I broadcast my data
         if P_recv.active:
-            if ctx.scale_backward is not None:
-                grad_output.div_(np.prod(P_recv.shape[ctx.scale_backward]))
             stream = cp.cuda.stream.get_current_stream()
             P_recv._nccl.broadcast(grad_output.detach().contiguous(), root=0, stream=stream)
 
@@ -214,8 +209,6 @@ class SumReduceFunction(torch.autograd.Function):
         if P_send.active:
             # If I both sent and received reduction data, then I copy the "input"
             if P_send == P_recv:
-                if ctx.scale_backward is not None:
-                    grad_output.div_(np.prod(P_send.shape[ctx.scale_backward]))
                 grad_input = grad_output
             else:
                 grad_input = torch.zeros(input_tensor_structure.shape, dtype=input_tensor_structure.dtype,

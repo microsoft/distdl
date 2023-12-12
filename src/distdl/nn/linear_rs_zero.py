@@ -51,8 +51,6 @@ class LinearReduceScatterZeROFunc(torch.autograd.Function):
 
         # Gather input
         if ctx.needs_input_grad[0] or ctx.needs_input_grad[1] or ctx.needs_input_grad[2]:
-            if scale_backward is not None:
-                grad_output.div_(np.prod(ag_input.P_allgather.shape[scale_backward]))
             grad_output = ag_input(grad_output.contiguous())
 
         # Input gradient
@@ -237,8 +235,8 @@ class DistributedLinearReduceScatterZero(Module):
 
         # Reduce-scatter operation
         scatter_dim = torch.argmax(torch.tensor(self.P_y.shape[-2:])) + self.P_y.dim - 2
-        self.reduce_scatter = ReduceScatter(self.P_y, axes_reduce_scatter=(scatter_dim,), scale_backward=scale_backward)
-        self.all_gather = AllGather(self.P_y, axes_all_gather=(scatter_dim,), scale_backward=scale_backward)
+        self.reduce_scatter = ReduceScatter(self.P_y, axes_reduce_scatter=(scatter_dim,))
+        self.all_gather = AllGather(self.P_y, axes_all_gather=(scatter_dim,))
 
         # CUDA streams for weight prefetching
         if not self.P_x.device == 'cpu':

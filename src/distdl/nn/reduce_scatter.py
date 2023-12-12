@@ -31,12 +31,10 @@ class ReduceScatter(Module):
     axes_keep : tuple, optional
         Partition dimensions to reduce-scatter to.  Complement of `axes_reduce_scatter`.
         Currently, only supportes reduce-scatter operation along single dimension.
-    scale_backward: Union[int, slice], optional
-        Scale the backward pass by the number of workers along the given dimension(s).
 
     """
 
-    def __init__(self, P_x, axes_reduce_scatter=None, axes_keep=None, scale_backward=None):
+    def __init__(self, P_x, axes_reduce_scatter=None, axes_keep=None):
 
         super(ReduceScatter, self).__init__()
 
@@ -71,9 +69,6 @@ class ReduceScatter(Module):
         # Variables for tracking input changes and buffer construction
         self._distdl_is_setup = False
         self._input_tensor_structure = TensorStructure()
-
-        # Scale the backward pass by the number of workers along given dimension.
-        self.scale_backward = scale_backward
 
         # The identity case is if the partition is of size 1,
         if self.P_x.size == 1:
@@ -181,4 +176,4 @@ class ReduceScatter(Module):
                               self.input_tensor_structure,
                               self.output_tensor_structure,
                               self.axes_reduce_scatter,
-                              self.scale_backward)
+                              )

@@ -188,7 +188,7 @@ class DistributedLinearReduceScatter(Module):
 
         # Reduce-scatter operation
         scatter_dim = torch.argmax(torch.tensor(self.P_y.shape[-2:])) + self.P_y.dim - 2
-        self.reduce_scatter = ReduceScatter(self.P_y, axes_reduce_scatter=(scatter_dim,), scale_backward=scale_backward)
+        self.reduce_scatter = ReduceScatter(self.P_y, axes_reduce_scatter=(scatter_dim,))
 
         # CUDA streams for weight prefetching
         if not self.P_x.device == 'cpu':

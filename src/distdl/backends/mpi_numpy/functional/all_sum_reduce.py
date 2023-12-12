@@ -53,8 +53,8 @@ class AllSumReduceFunction(torch.autograd.Function):
         output_tensor_structure : tuple
             Tuple containing properties of the output tensor (dimension, shape,
             requires_grad).
-        scale_backward: Union[int, slice]
-            Scale the backward pass by the number of workers along the given dimension(s).
+        scale_backward: int
+            Scale the backward pass by given scalar.
 
         Returns
         -------
@@ -123,9 +123,9 @@ class AllSumReduceFunction(torch.autograd.Function):
 
         grad_input = zero_volume_tensor(device=device)
 
-        # Scale by number of workers along the given dimension(s)
+        # Scale gradient by given scalar
         if ctx.scale_backward is not None:
-            grad_output.div_(np.prod(P_allreduce.shape[ctx.scale_backward]))
+            grad_output.div_(ctx.scale_backward)
         requests = []
 
         # All-sum-reduce is self-adjoint

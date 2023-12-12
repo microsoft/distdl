@@ -1,5 +1,6 @@
 import math
 
+import numpy as np
 import torch
 
 import distdl.nn.init as init
@@ -144,7 +145,7 @@ class DistributedExpertAllGather(Module):
         self.reset_parameters()
 
         # All-gather operation
-        self.all_gather_hidden = AllGather(self.P_e, axes_all_gather=(2,), scale_backward=scale_backward)
+        self.all_gather_hidden = AllGather(self.P_e, axes_all_gather=(2,))
         self.all_gather_weight = AllGather(self.P_e, axes_all_gather=(1,), scale_backward=scale_backward)
         if self.use_bias:
             self.broadcast_bias = Broadcast(self.P_bias, self.P_e, scale_backward=scale_backward)

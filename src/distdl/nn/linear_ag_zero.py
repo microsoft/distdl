@@ -50,8 +50,6 @@ class LinearAllGatherZeROFunc(torch.autograd.Function):
         if ctx.needs_input_grad[0]:
             weight = ag_weight(weight).squeeze(2)
             grad_input = torch.einsum('bij,kj->bik', grad_output, weight)
-            if scale_backward is not None:
-                grad_input.div_(np.prod(rs_input.P_reducescatter.shape[scale_backward]))
             grad_input = rs_input(grad_input)
         else:
             grad_input = None
@@ -280,8 +278,8 @@ class DistributedLinearAllGatherZero(Module):
 
         # All-gather operation
         gather_dim = torch.argmax(torch.tensor(self.P_x.shape[-2:])) + self.P_x.dim - 2
-        self.all_gather = AllGather(self.P_x, axes_all_gather=(gather_dim,), scale_backward=scale_backward)
-        self.reduce_scatter = ReduceScatter(self.P_x, axes_reduce_scatter=(gather_dim,), scale_backward=scale_backward)
+        self.all_gather = AllGather(self.P_x, axes_all_gather=(gather_dim,))
+        self.reduce_scatter = ReduceScatter(self.P_x, axes_reduce_scatter=(gather_dim,))
 
         # CUDA streams for weight prefetching
         if not self.P_y.device == 'cpu':
