@@ -86,8 +86,8 @@ class BroadcastFunction(torch.autograd.Function):
         output_tensor_structure : tuple
             Tuple containing properties of the output tensor (dimension, shape,
             requires_grad).
-        scale_backward : Union[int, slice]
-            Scale the backward pass by the number of workers along the given dimension(s).
+        scale_backward : int
+            Divide the backward pass by this number.
 
         Returns
         -------
@@ -200,7 +200,7 @@ class BroadcastFunction(torch.autograd.Function):
 
         if P_recv.active:
             if ctx.scale_backward is not None:
-                grad_output.div_(np.prod(P_recv.shape[ctx.scale_backward]))
+                grad_output.div_(ctx.scale_backward)
             reduced_data_recv = torch.zeros(output_tensor_structure.shape, dtype=output_tensor_structure.dtype,
                                             device=device)
             stream = cp.cuda.stream.get_current_stream()

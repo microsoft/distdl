@@ -57,8 +57,8 @@ class AllGatherFunction(torch.autograd.Function):
             requires_grad).
         axes : tuple
             Axes along which to all-gather.
-        scale_backward : Union[int, slice]
-            Scale the backward pass by the number of workers along the given dimension(s).
+        scale_backward : int
+            Divide the backward pass by this number.
 
         Returns
         -------
@@ -175,9 +175,9 @@ class AllGatherFunction(torch.autograd.Function):
         grad_input = zero_volume_tensor(device=device, dtype=input_tensor_structure.dtype)
         input_tensor_shape = np.array(input_tensor_structure.shape)
 
-        # Scale by number of workers along the given dimension(s)
+        # Scale gradient by given scalar
         if ctx.scale_backward is not None:
-            grad_output.div_(np.prod(P_allgather.shape[ctx.scale_backward]))
+            grad_output.div_(ctx.scale_backward)
 
         # All-gather operation
         if P_allgather.active:

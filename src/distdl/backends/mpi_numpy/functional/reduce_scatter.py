@@ -33,8 +33,8 @@ class ReduceScatterFunction(torch.autograd.Function):
 
     @staticmethod
     def forward(ctx, input, P_reducescatter,
-                input_tensor_structure, output_tensor_structure, axes,
-                scale_backward):
+                input_tensor_structure, output_tensor_structure, axes
+                ):
         r"""Forward function of distributed reduce-scatter layer.
 
         This method implements the forward reduce-scatter operation using the
@@ -59,8 +59,6 @@ class ReduceScatterFunction(torch.autograd.Function):
             requires_grad).
         axes : tuple
             Axes along which to reduce-scatter.
-        scale_backward : Union[int, slice]
-            Scale the backward pass by the number of workers along the given dimension(s).
 
         Returns
         -------
@@ -75,7 +73,6 @@ class ReduceScatterFunction(torch.autograd.Function):
         ctx.output_tensor_structure = output_tensor_structure
         ctx.device = device
         ctx.axes = axes
-        ctx.scale_backward = scale_backward
         ctx.remainder = 0
 
         output = zero_volume_tensor(device=device, dtype=output_tensor_structure.dtype)
@@ -180,10 +177,6 @@ class ReduceScatterFunction(torch.autograd.Function):
         grad_input = zero_volume_tensor(device=device, dtype=input_tensor_structure.dtype)
         input_tensor_shape = np.array(input_tensor_structure.shape)
         output_tensor_shape = np.array(output_tensor_structure.shape)
-
-        # Scale by number of workers along the given dimension(s)
-        if ctx.scale_backward is not None:
-            grad_output.div_(np.prod(P_reducescatter.shape[ctx.scale_backward]))
 
         requests = []
 
