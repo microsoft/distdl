@@ -352,8 +352,10 @@ class DistributedLinearReduceScatterZero(Module):
         return destination
 
     def prefetch_weights(self):
+        if self.P_x.size == 1:
+            return
 
-        if self.stream_weight is not None:
+        if self.stream_weight is not None and self.P_x.size > 1:
             with ppe.cuda.stream(self.stream_weight):
                 self.weight_buffer = self.all_gather_weight(self.weight)
                 self.weight_buffer = self.weight_buffer.view(self.out_features, -1)
@@ -362,7 +364,7 @@ class DistributedLinearReduceScatterZero(Module):
             self.weight_buffer = self.weight_buffer.view(self.out_features, -1)
 
         if self.bias is not None and self.P_bias.active:
-            if self.stream_bias is not None:
+            if self.stream_bias is not None and self.P_x.size > 1:
                 with ppe.cuda.stream(self.stream_bias):
                     self.bias_buffer = self.all_gather_bias(self.bias).view(self.out_features)
             else:
