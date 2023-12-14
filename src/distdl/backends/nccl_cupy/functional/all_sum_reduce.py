@@ -1,7 +1,6 @@
 __all__ = ["AllSumReduceFunction"]
 
 import cupy as cp
-import numpy as np
 import torch
 
 from distdl.utilities.torch import zero_volume_tensor

@@ -1,7 +1,6 @@
 __all__ = ["SumReduceFunction"]
 
 import cupy as cp
-import numpy as np
 import torch
 from mpi4py import MPI
 
