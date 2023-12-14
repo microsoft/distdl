@@ -505,6 +505,8 @@ class DistributedLinearAllGatherZero(Module):
         return destination
 
     def prefetch_weights(self):
+        if self.P_x.size == 1:
+            return
 
         if self.stream_weight is not None:
             with ppe.cuda.stream(self.stream_weight):

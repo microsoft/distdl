@@ -282,6 +282,8 @@ class DistributedBatchNorm(Module):
                 self.inputs_seen += 1
 
     def prefetch_weights(self):
+        if self.P_x.size == 1:
+            return
         if self.stream_gamma is not None:
             with ppe.cuda.stream(self.stream_gamma):
                 self.gamma_buffer = self.bc_affine(self.gamma)

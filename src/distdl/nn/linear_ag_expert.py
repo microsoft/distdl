@@ -1,6 +1,5 @@
 import math
 
-import numpy as np
 import torch
 
 import distdl.nn.init as init
