@@ -229,10 +229,10 @@ class DistributedExpertReduceScatter(Module):
             if self.use_bias:
                 bias_key = next(iter(destination))
                 bias = destination.pop(bias_key)
-                if not self.P_root.active and self.P_store_bias.active:
+                if not self.P_root.active and self.P_apply_bias.active:
                     bias = zero_volume_tensor(device=self.P_e.device, dtype=bias.dtype, requires_grad=True)
 
-                if self.P_store_bias.active:
+                if self.P_apply_bias.active:
                     bias = self.scatter_bias(bias)
                     destination[bias_key] = bias
 
