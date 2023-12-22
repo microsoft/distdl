@@ -66,14 +66,6 @@ from .sum_reduce import SumReduce  # noqa: F401
 from .transpose import DistributedTranspose  # noqa: F401
 from .upsampling import DistributedUpsample  # noqa: F401
 
-# Module imports that require optional dependencies
-try:
-    from .layernorm_zero_fused import DistributedFusedLayerNormZero  # noqa: F401
-    from .rmsnorm_zero_fused import DistributedFusedRMSNormZero  # noqa: F401
-except ImportError:
-    DistributedFusedLayerNormZero = None
-    DistributedFusedRMSNormZero = None
-
 
 __all__ = ["AllGather",
            "AllSumReduce",
@@ -111,9 +103,7 @@ __all__ = ["AllGather",
            "DistributedEmbedding",
            "DistributedLayerNormZero",
            "DistributedLayerNorm",
-           "DistributedFusedLayerNormZero",
            "DistributedRMSNormZero",
-           "DistributedFusedRMSNormZero",
            "DistributedLinear",
            "DistributedLinearAllGather",
            "DistributedLinearAllGatherZero",

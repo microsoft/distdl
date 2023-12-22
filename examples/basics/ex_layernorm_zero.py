@@ -19,8 +19,8 @@ P_world._comm.Barrier()
 P_root_base = P_world.create_partition_inclusive([0])
 P_root = P_root_base.create_cartesian_topology_partition([1, 1, 1])
 
-# Data partition
-in_shape = (4, 1, 2)    # [ data-parallel workers, 1, model-parallel workers ]
+# Data partition (only supports sequence parallelism)
+in_shape = (4, 2, 1)    # [ data-parallel workers, model-parallel workers, 1 ]
 in_size = np.prod(in_shape)
 in_workers = np.arange(0, in_size)
 
