@@ -52,6 +52,8 @@ class DistributedRMSNormZero(Module):
     scale_backward : Union[int, slice], optional
         Scale backward pass for AllGather operation by no. of workers along the given
         dimension. Default is None.
+    use_fused : optional
+        Use fused RMS Norm implementation from flash attention if available. Default is True.
     """
 
     def __init__(self, P_x, normalized_shape, elementwise_affine=True, bias=False, eps=1e-5,
@@ -78,7 +80,7 @@ class DistributedRMSNormZero(Module):
 
         self.use_flash = (flash_rms_norm is not None and
                           backends.backend == backends.nccl_cupy and
-                          bias is False and elementwise_affine is True)
+                          bias is False and elementwise_affine)
 
         # Number of dimensions across which mean/var is computed
         num_dim = len(normalized_shape)
@@ -291,7 +293,7 @@ class DistributedRMSNormZero(Module):
 
         # Forward pass. Use flash attention implementation if available.
         if self.use_flash:
-            input = flash_rms_norm(input, self.weight, self.eps)
+            input = flash_rms_norm(input, weight, self.eps)
         else:
             input = self._rms_norm(input.float())
             if self.elementwise_affine:

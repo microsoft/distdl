@@ -19,8 +19,8 @@ P_world._comm.Barrier()
 P_root_base = P_world.create_partition_inclusive([0])
 P_root = P_root_base.create_cartesian_topology_partition([1, 1, 1])
 
-# Data partition (only supports sequence parallelism)
-in_shape = (4, 2, 1)    # [ data-parallel workers, model-parallel workers, 1 ]
+# Data partition
+in_shape = (4, 1, 2)    # [ data-parallel workers, 1, model-parallel workers ]
 in_size = np.prod(in_shape)
 in_workers = np.arange(0, in_size)
 
@@ -35,7 +35,6 @@ normalized_shape = (num_features)
 
 # Layer norm
 layer_norm = DistributedRMSNormZero(P_x, normalized_shape, elementwise_affine=True, collect_state=True)
-state = layer_norm.state_dict()
 
 # Scatter data
 scatter = Repartition(P_root, P_x, preserve_batch=False)

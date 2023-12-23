@@ -49,6 +49,8 @@ class DistributedLayerNormZero(Module):
     scale_backward : Union[int, slice], optional
         Scale backward pass for AllGather operation by no. of workers along the given
         dimension. Default is None.
+    use_fused: optional
+        Use fused implementation of layer norm from flash attention if available. Default is True.
     """
 
     def __init__(self, P_x, normalized_shape, elementwise_affine=True, eps=1e-5,
