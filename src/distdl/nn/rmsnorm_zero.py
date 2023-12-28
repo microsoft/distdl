@@ -4,13 +4,17 @@ import numpy as np
 import pytorch_pfn_extras as ppe
 import torch
 
+from distdl import backends
 from distdl.nn.all_gather import AllGather
-from distdl.nn.all_sum_reduce import AllSumReduce
 from distdl.nn.module import Module
 from distdl.nn.repartition import Repartition
 from distdl.utilities.slicing import compute_subshape
-from distdl.utilities.slicing import worker_layout
 from distdl.utilities.torch import zero_volume_tensor
+
+try:
+    from flash_attn.ops.rms_norm import rms_norm as flash_rms_norm  # noqa: F401
+except ImportError:
+    flash_rms_norm = None
 
 
 class DistributedRMSNormZero(Module):
@@ -48,6 +52,8 @@ class DistributedRMSNormZero(Module):
     scale_backward : Union[int, slice], optional
         Scale backward pass for AllGather operation by no. of workers along the given
         dimension. Default is None.
+    use_fused : optional
+        Use fused RMS Norm implementation from flash attention if available. Default is True.
     """
 
     def __init__(self, P_x, normalized_shape, elementwise_affine=True, bias=False, eps=1e-5,
@@ -72,57 +78,47 @@ class DistributedRMSNormZero(Module):
         normalized_shape = tuple(normalized_shape)
         self.normalized_shape = normalized_shape
 
+        self.use_flash = (flash_rms_norm is not None and
+                          backends.backend == backends.nccl_cupy and
+                          bias is False and elementwise_affine)
+
         # Number of dimensions across which mean/var is computed
         num_dim = len(normalized_shape)
 
         # Dimensions across which to reduce
         self.dim_reduce = tuple(torch.arange(0, P_x.dim)[-num_dim:])
-        self.allreduce = AllSumReduce(P_x, axes_reduce=self.dim_reduce)     # for computing mean/variance
 
         # Number of workers across we reduce
         dim_reduce_slice = slice(P_x.dim - num_dim, P_x.dim)   # dimensions across which we compute mean/var over
         dim_bcast_slice = slice(0, P_x.dim - num_dim)  # dimensions across which we broadcast weights/biases over
-        self.num_reduce = np.prod(P_x.shape[dim_reduce_slice])
         self.dim_bcast_slice = dim_bcast_slice
         self.dim_reduce_slice = dim_reduce_slice
+
+        self.num_reduce = np.prod(P_x.shape[self.dim_reduce_slice])
+        if self.num_reduce > 1:
+            raise ValueError("RMSNormZero does not support normalized_shape spanning partitioned dimensions.")
 
         if self.elementwise_affine:
 
             # Weight/bias partition
-            weight_partition_shape = np.copy(P_x.shape)
-            weight_partition_shape[dim_bcast_slice] = 1
-
-            # Ranks of workers storing weights
-            index = [0] * P_x.dim
-            for i in range(dim_reduce_slice.start, dim_reduce_slice.stop):
-                index[i] = slice(0, P_x.shape[i])
-            index = tuple(index)
-            storage_workers = worker_layout(P_x.shape)[index].reshape(-1).tolist()
+            weight_partition_shape = [1] * P_x.dim
+            weight_partition_shape[0] = P_x.size
 
             # Weight partition and broadcast
-            P_w_base = P_x.create_partition_inclusive(storage_workers)
+            P_w_base = P_x.create_partition_inclusive(range(P_x.size))
             P_w = P_w_base.create_cartesian_topology_partition(weight_partition_shape)
             P_w_base.deactivate()
             self.P_w = P_w
 
             # Allgather for collecting weights from data-parallel workers
-            self.allgather = AllGather(P_x, axes_all_gather=(0,), scale_backward=scale_backward)
+            self.allgather = AllGather(P_w, axes_all_gather=(0,), scale_backward=scale_backward)
 
-            # Split normalized work along model-parallel workers
-            normalized_shape_mp = [1] * P_x.dim
-            normalized_shape_mp[dim_reduce_slice] = compute_subshape(
-                P_x.shape[dim_reduce_slice],
-                P_x.index[dim_reduce_slice],
-                normalized_shape
-            )
-            normalized_shape_mp = tuple(normalized_shape_mp)
-
-            # Additionally, shard the last dimension across data-parallel workers
-            normalized_shape_local = list(normalized_shape_mp)
+            # Split normalized work along all workers
+            normalized_shape_local = [1] * P_x.dim
             normalized_shape_local[-1] = compute_subshape(
-                P_x.shape[0],
-                P_x.index[0],
-                normalized_shape_mp[-1]
+                P_w.shape[0],
+                P_w.index[0],
+                normalized_shape[-1],
             ).item()
             normalized_shape_local = tuple(normalized_shape_local)
 
@@ -157,9 +153,8 @@ class DistributedRMSNormZero(Module):
         if self.elementwise_affine:
             P_root_base = P_x.create_partition_inclusive([0])
             self.P_root = P_root_base.create_cartesian_topology_partition([1] * P_x.dim)
-            self.gather = Repartition(self.P_w, self.P_root, preserve_batch=False)
-            self.scatter_mp = Repartition(self.P_root, self.P_w, preserve_batch=False)
-            self.scatter_dp = Repartition(self.P_w, self.P_x, preserve_batch=False)
+            self.gather_affine = Repartition(self.P_w, self.P_root, preserve_batch=False)
+            self.scatter_affine = Repartition(self.P_root, self.P_w, preserve_batch=False)
 
     # Initializer for parameters
     def reset_parameters(self):
@@ -174,13 +169,11 @@ class DistributedRMSNormZero(Module):
             # Pop bias from state dict and serialize it
             if self.use_bias:
                 bias_key = next(reversed(destination))
-                bias = self.allgather(destination.pop(bias_key).transpose(0, -1)).transpose(0, -1)
-                bias = self.gather(bias)
+                bias = self.gather_affine(destination.pop(bias_key).transpose(0, -1)).transpose(0, -1)
 
             # Pop weight from state dict and serialize it
             weight_key = next(reversed(destination))
-            weight = self.allgather(destination.pop(weight_key).transpose(0, -1)).transpose(0, -1)
-            weight = self.gather(weight)
+            weight = self.gather_affine(destination.pop(weight_key).transpose(0, -1)).transpose(0, -1)
 
             # Serialize weights
             if self.P_root.active:
@@ -221,11 +214,9 @@ class DistributedRMSNormZero(Module):
                     bias = zero_volume_tensor(device=self.P_x.device, requires_grad=True, dtype=bias.dtype)
 
             # Scatter states
-            weight = self.scatter_mp(weight)
-            weight = self.scatter_dp(weight.transpose(0, -1)).transpose(0, -1)
+            weight = self.scatter_affine(weight.transpose(0, -1)).transpose(0, -1)
             if self.use_bias:
-                bias = self.scatter_mp(bias)
-                bias = self.scatter_dp(bias.transpose(0, -1)).transpose(0, -1)
+                bias = self.scatter_affine(bias.transpose(0, -1)).transpose(0, -1)
 
             # Add data back to state dict
             destination[weight_key] = weight
@@ -245,10 +236,8 @@ class DistributedRMSNormZero(Module):
         input :
             PyTorch Tensor of values that should be summed.
         """
-        # Mean across all workers
+        # Mean across local workers
         mean = input.pow(2).mean(dim=self.dim_reduce, keepdim=True)
-        mean = self.allreduce(mean) / self.num_reduce
-
         return input * torch.rsqrt(mean + self.eps)
 
     def prefetch_weights(self):
@@ -281,9 +270,7 @@ class DistributedRMSNormZero(Module):
         if not self.P_x.active:
             return input
 
-        # Calculate RMS
-        input = self._rms_norm(input.float())
-
+        # All-gather weights
         if self.elementwise_affine:
             if self.weight_buffer is None:
                 weight = self.allgather(self.weight.transpose(0, -1)).transpose(0, -1)
@@ -293,7 +280,8 @@ class DistributedRMSNormZero(Module):
 
             if self.stream_weight is not None:
                 torch.cuda.current_stream().wait_stream(self.stream_weight)
-            input = weight * input
+
+            # All-gather biases
             if self.use_bias:
                 if self.bias_buffer is None:
                     bias = self.allgather(self.bias.transpose(0, -1)).transpose(0, -1)
@@ -302,6 +290,16 @@ class DistributedRMSNormZero(Module):
                     self.bias_buffer = None
                 if self.stream_bias is not None:
                     torch.cuda.current_stream().wait_stream(self.stream_bias)
-                input += bias
 
-        return input.to(self.dtype)
+        # Forward pass. Use flash attention implementation if available.
+        if self.use_flash:
+            input = flash_rms_norm(input, weight, self.eps)
+        else:
+            input = self._rms_norm(input.float())
+            if self.elementwise_affine:
+                input = weight * input
+                if self.use_bias:
+                    input += bias
+            input = input.to(self.dtype)
+
+        return input

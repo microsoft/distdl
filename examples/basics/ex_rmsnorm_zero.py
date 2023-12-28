@@ -35,7 +35,6 @@ normalized_shape = (num_features)
 
 # Layer norm
 layer_norm = DistributedRMSNormZero(P_x, normalized_shape, elementwise_affine=True, collect_state=True)
-state = layer_norm.state_dict()
 
 # Scatter data
 scatter = Repartition(P_root, P_x, preserve_batch=False)

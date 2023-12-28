@@ -1,16 +1,19 @@
 import numbers
 
-import numpy as np
 import pytorch_pfn_extras as ppe
 import torch
 
+from distdl import backends
 from distdl.nn.all_gather import AllGather
-from distdl.nn.all_sum_reduce import AllSumReduce
 from distdl.nn.module import Module
 from distdl.nn.repartition import Repartition
 from distdl.utilities.slicing import compute_subshape
-from distdl.utilities.slicing import worker_layout
 from distdl.utilities.torch import zero_volume_tensor
+
+try:
+    from flash_attn.ops.layer_norm import layer_norm as flash_layer_norm  # noqa: F401
+except ImportError:
+    flash_layer_norm = None
 
 
 class DistributedLayerNormZero(Module):
@@ -46,6 +49,8 @@ class DistributedLayerNormZero(Module):
     scale_backward : Union[int, slice], optional
         Scale backward pass for AllGather operation by no. of workers along the given
         dimension. Default is None.
+    use_fused: optional
+        Use fused implementation of layer norm from flash attention if available. Default is True.
     """
 
     def __init__(self, P_x, normalized_shape, elementwise_affine=True, eps=1e-5,
@@ -69,57 +74,43 @@ class DistributedLayerNormZero(Module):
         normalized_shape = tuple(normalized_shape)
         self.normalized_shape = normalized_shape
 
+        self.use_flash = (flash_layer_norm is not None and
+                          backends.backend == backends.nccl_cupy and
+                          elementwise_affine)
+
         # Number of dimensions across which mean/var is computed
         num_dim = len(normalized_shape)
 
         # Dimensions across which to reduce
         self.dim_reduce = tuple(torch.arange(0, P_x.dim)[-num_dim:])
-        self.allreduce = AllSumReduce(P_x, axes_reduce=self.dim_reduce)     # for computing mean/variance
 
         # Number of workers across we reduce
         dim_reduce_slice = slice(P_x.dim - num_dim, P_x.dim)   # dimensions across which we compute mean/var over
         dim_bcast_slice = slice(0, P_x.dim - num_dim)  # dimensions across which we broadcast weights/biases over
-        self.num_reduce = np.prod(P_x.shape[dim_reduce_slice])
         self.dim_bcast_slice = dim_bcast_slice
         self.dim_reduce_slice = dim_reduce_slice
 
         if self.elementwise_affine:
 
             # Weight/bias partition
-            weight_partition_shape = np.copy(P_x.shape)
-            weight_partition_shape[dim_bcast_slice] = 1
-
-            # Ranks of workers storing weights
-            index = [0] * P_x.dim
-            for i in range(dim_reduce_slice.start, dim_reduce_slice.stop):
-                index[i] = slice(0, P_x.shape[i])
-            index = tuple(index)
-            storage_workers = worker_layout(P_x.shape)[index].reshape(-1).tolist()
+            weight_partition_shape = [1] * P_x.dim
+            weight_partition_shape[0] = P_x.size
 
             # Weight partition and broadcast
-            P_w_base = P_x.create_partition_inclusive(storage_workers)
+            P_w_base = P_x.create_partition_inclusive(range(P_x.size))
             P_w = P_w_base.create_cartesian_topology_partition(weight_partition_shape)
             P_w_base.deactivate()
             self.P_w = P_w
 
             # Allgather for collecting weights from data-parallel workers
-            self.allgather = AllGather(P_x, axes_all_gather=(0,), scale_backward=scale_backward)
+            self.allgather = AllGather(P_w, axes_all_gather=(0,), scale_backward=scale_backward)
 
-            # Split normalized work along model-parallel workers
-            normalized_shape_mp = [1] * P_x.dim
-            normalized_shape_mp[dim_reduce_slice] = compute_subshape(
-                P_x.shape[dim_reduce_slice],
-                P_x.index[dim_reduce_slice],
-                normalized_shape
-            )
-            normalized_shape_mp = tuple(normalized_shape_mp)
-
-            # Additionally, shard the last dimension across data-parallel workers
-            normalized_shape_local = list(normalized_shape_mp)
+            # Split normalized work along all workers
+            normalized_shape_local = [1] * P_x.dim
             normalized_shape_local[-1] = compute_subshape(
-                P_x.shape[0],
-                P_x.index[0],
-                normalized_shape_mp[-1]
+                P_w.shape[0],
+                P_w.index[0],
+                normalized_shape[-1],
             ).item()
             normalized_shape_local = tuple(normalized_shape_local)
 
@@ -151,9 +142,8 @@ class DistributedLayerNormZero(Module):
         if self.elementwise_affine:
             P_root_base = P_x.create_partition_inclusive([0])
             self.P_root = P_root_base.create_cartesian_topology_partition([1] * P_x.dim)
-            self.gather = Repartition(self.P_w, self.P_root, preserve_batch=False)
-            self.scatter_mp = Repartition(self.P_root, self.P_w, preserve_batch=False)
-            self.scatter_dp = Repartition(self.P_w, self.P_x, preserve_batch=False)
+            self.gather_affine = Repartition(self.P_w, self.P_root, preserve_batch=False)
+            self.scatter_affine = Repartition(self.P_root, self.P_w, preserve_batch=False)
 
     # Initializer for parameters
     def reset_parameters(self):
@@ -166,13 +156,11 @@ class DistributedLayerNormZero(Module):
 
             # Pop bias from state dict and serialize it
             bias_key = next(reversed(destination))
-            bias = self.allgather(destination.pop(bias_key).transpose(0, -1)).transpose(0, -1)
-            bias = self.gather(bias)
+            bias = self.gather_affine(destination.pop(bias_key).transpose(0, -1)).transpose(0, -1)
 
             # Pop weight from state dict and serialize it
             weight_key = next(reversed(destination))
-            weight = self.allgather(destination.pop(weight_key).transpose(0, -1)).transpose(0, -1)
-            weight = self.gather(weight)
+            weight = self.gather_affine(destination.pop(weight_key).transpose(0, -1)).transpose(0, -1)
 
             # Serialize weights
             if self.P_root.active:
@@ -209,47 +197,14 @@ class DistributedLayerNormZero(Module):
                 bias = zero_volume_tensor(device=self.P_x.device, requires_grad=True, dtype=bias.dtype)
 
             # Scatter states
-            weight = self.scatter_mp(weight)
-            bias = self.scatter_mp(bias)
-            weight = self.scatter_dp(weight.transpose(0, -1)).transpose(0, -1)
-            bias = self.scatter_dp(bias.transpose(0, -1)).transpose(0, -1)
+            weight = self.scatter_affine(weight.transpose(0, -1)).transpose(0, -1)
+            bias = self.scatter_affine(bias.transpose(0, -1)).transpose(0, -1)
 
             # Add data back to state dict
             destination[weight_key] = weight
             destination[bias_key] = bias
 
         return destination
-
-    def _compute_mean(self, input):
-        r"""
-        Compute global feature mean (i.e., across the last d dimensions,
-        where d is the dimension of self.normalized_shape).
-        Ensures all ranks have the mean tensor.
-
-        Parameters
-        ----------
-        input :
-            PyTorch Tensor of values that should be summed.
-        """
-        # Local mean
-        output = input.mean(dim=self.dim_reduce, keepdim=True)
-
-        # Average across MP-workers
-        return self.allreduce(output) / self.num_reduce
-
-    def _compute_var(self, input, mean):
-        r"""
-        Compute global variance across last d dimensions,
-        where d is the dimension of self.normalized_shape.
-        Ensures all ranks have the variance tensor.
-
-        Parameters
-        ----------
-        input :
-            PyTorch Tensor of values for which variance should be computed.
-        """
-        input = (input - mean)**2
-        return self._compute_mean(input)
 
     def prefetch_weights(self):
         if self.P_x.size == 1:
@@ -290,34 +245,19 @@ class DistributedLayerNormZero(Module):
                 self.weight_buffer = None
                 self.bias_buffer = None
 
-        # If we compute mean/variance over more than one partition, we need to
-        # use our custom mean/variance implementations with allreduce. Otherwise
-        # just use the torch implementation.
-        if self.num_reduce > 1:
-
-            # Calculate mean and variance
-            mean = self._compute_mean(input)
-            var = self._compute_var(input, mean)
-
-            # Re-scale
-            input = (input - mean) / torch.sqrt(var + self.eps)
-
-            if self.elementwise_affine:
-                if self.stream_weight is not None and self.stream_bias is not None:
-                    torch.cuda.current_stream().wait_stream(self.stream_weight)
-                    torch.cuda.current_stream().wait_stream(self.stream_bias)
-                input = weight * input + bias
-
+        if self.elementwise_affine:
+            weight = weight.squeeze()
+            bias = bias.squeeze()
+            if self.stream_weight is not None and self.stream_bias is not None:
+                torch.cuda.current_stream().wait_stream(self.stream_weight)
+                torch.cuda.current_stream().wait_stream(self.stream_bias)
         else:
-            if self.elementwise_affine:
-                weight = weight.squeeze()
-                bias = bias.squeeze()
-                if self.stream_weight is not None and self.stream_bias is not None:
-                    torch.cuda.current_stream().wait_stream(self.stream_weight)
-                    torch.cuda.current_stream().wait_stream(self.stream_bias)
-            else:
-                weight = None
-                bias = None
+            weight = None
+            bias = None
+
+        if self.use_flash:
+            input = flash_layer_norm(input, weight, bias, self.eps)
+        else:
             input = torch.nn.functional.layer_norm(input, self.normalized_shape, weight, bias, self.eps)
 
         return input
