@@ -1,6 +1,7 @@
 import math
 
 import einops
+import pytorch_pfn_extras as ppe
 import torch
 
 import distdl.nn.init as init
@@ -195,6 +196,21 @@ class DistributedExpertReduceScatter(Module):
         if self.use_bias:
             self.broadcast_bias = Broadcast(self.P_store_bias, self.P_apply_bias, scale_backward=scale_backward)
 
+        # CUDA streams for weight prefetching
+        if not self.P_expert_emb.device == 'cpu':
+            self.stream_weight = torch.cuda.Stream(device=self.P_expert_emb.device)
+            if self.use_bias:
+                self.stream_bias = torch.cuda.Stream(device=self.P_expert_emb.device)
+        else:
+            self.stream_weight = None
+            if self.use_bias:
+                self.stream_bias = None
+
+        # Buffers for weight prefetching
+        self.weight_buffer = None
+        if self.use_bias:
+            self.bias_buffer = None
+
         # State dict hooks for gather/scattering distributed weights
         self._register_state_dict_hook(self.gather_state_dict)
         self._register_load_state_dict_pre_hook(self.scatter_state_dict)
@@ -268,6 +284,23 @@ class DistributedExpertReduceScatter(Module):
 
         return destination
 
+    def prefetch_weights(self):
+        if self.P_expert_emb.size == 1:
+            return
+
+        if self.stream_weight is not None:
+            with ppe.cuda.stream(self.stream_weight):
+                self.weight_buffer = self.all_gather_weight(self.weight)
+        else:
+            self.weight_buffer = self.all_gather_weight(self.weight)
+
+        if self.use_bias:
+            if self.stream_bias is not None:
+                with ppe.cuda.stream(self.stream_bias):
+                    self.bias_buffer = self.broadcast_bias(self.bias)
+            else:
+                self.bias_buffer = self.broadcast_bias(self.bias)
+
     def forward(self, input):
         r"""Forward function interface.
 
@@ -282,17 +315,32 @@ class DistributedExpertReduceScatter(Module):
             return input
 
         # Gather weights
-        weight = self.all_gather_weight(self.weight)
+        if self.weight_buffer is None:
+            weight = self.all_gather_weight(self.weight)
+        else:
+            weight = self.weight_buffer
+            self.weight_buffer = None
 
         # Broadcast bias to capacity-parallel workers
         if self.use_bias:
-            bias = self.broadcast_bias(self.bias)
+            if self.bias_buffer is None:
+                bias = self.broadcast_bias(self.bias)
+            else:
+                bias = self.bias_buffer
+                self.bias_buffer = None
+
             if self.P_apply_bias.active:
                 bias = bias.view(bias.shape[0], 1, -1)
 
         # Merge capacity and sequence dimension
         local_capacity = input.shape[1]
         input = einops.rearrange(input, 'e c s m -> e (c s) m')
+
+        # Wait for prefetching to finish
+        if self.stream_weight is not None:
+            torch.cuda.current_stream().wait_stream(self.stream_weight)
+        if self.use_bias and self.stream_bias is not None:
+            torch.cuda.current_stream().wait_stream(self.stream_bias)
 
         if self.use_bias and self.P_apply_bias.active:
             y = torch.einsum('ecm,enm->ecn', input, weight) + bias
