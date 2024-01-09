@@ -1,4 +1,10 @@
 from torch.autograd.function import _ContextMethodMixin
+from torch.cuda import current_stream
+
+
+def stream_barrier(stream):
+    if stream is not None:
+        current_stream().wait_stream(stream)
 
 
 class Bunch(dict):
