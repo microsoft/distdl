@@ -384,6 +384,11 @@ class DistributedLinearReduceScatterZero(Module):
         self.weight_buffer = None
         self.bias_buffer = None
 
+    def wait_for_streams(self):
+        stream_barrier(self.stream_weight)
+        if self.use_bias:
+            stream_barrier(self.stream_bias)
+
     def forward(self, input):
         r"""Forward function interface.
 
@@ -419,9 +424,7 @@ class DistributedLinearReduceScatterZero(Module):
             self.collect_weights()
 
             # Wait for all-gathers to finish
-            stream_barrier(self.stream_weight)
-            if self.use_bias:
-                stream_barrier(self.stream_bias)
+            self.wait_for_streams()
 
             # Affine/linear transform
             input = torch.nn.functional.linear(input, self.weight_buffer, self.bias_buffer)

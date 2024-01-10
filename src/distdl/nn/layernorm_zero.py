@@ -238,6 +238,10 @@ class DistributedLayerNormZero(Module):
         self.weight_buffer = None
         self.bias_buffer = None
 
+    def wait_for_streams(self):
+        stream_barrier(self.stream_weight)
+        stream_barrier(self.stream_bias)
+
     def forward(self, input):
         r"""Forward function interface.
 
@@ -255,8 +259,7 @@ class DistributedLayerNormZero(Module):
 
             # All-gather weights if prefetch was not previously called.
             self.collect_weights()
-            stream_barrier(self.stream_weight)
-            stream_barrier(self.stream_bias)
+            self.wait_for_streams()
 
             self.weight_buffer = self.weight_buffer.squeeze()
             self.bias_buffer = self.bias_buffer.squeeze()

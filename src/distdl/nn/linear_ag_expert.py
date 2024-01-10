@@ -302,6 +302,11 @@ class DistributedExpertAllGather(Module):
         self.weight_buffer = None
         self.bias_buffer = None
 
+    def wait_for_streams(self):
+        stream_barrier(self.stream_weight)
+        if self.use_bias:
+            stream_barrier(self.stream_bias)
+
     def forward(self, input):
         r"""Forward function interface.
 
@@ -327,9 +332,7 @@ class DistributedExpertAllGather(Module):
         input = einops.rearrange(input, 'e c s m -> e (c s) m')
 
         # Wait for weight and bias prefetching to finish
-        stream_barrier(self.stream_weight)
-        if self.use_bias:
-            stream_barrier(self.stream_bias)
+        self.wait_for_streams()
 
         # Perform matrix multiplication
         if self.bias is not None:

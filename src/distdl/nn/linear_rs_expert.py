@@ -314,6 +314,11 @@ class DistributedExpertReduceScatter(Module):
         self.weight_buffer = None
         self.bias_buffer = None
 
+    def wait_for_streams(self):
+        stream_barrier(self.stream_weight)
+        if self.use_bias:
+            stream_barrier(self.stream_bias)
+
     def forward(self, input):
         r"""Forward function interface.
 
@@ -336,9 +341,7 @@ class DistributedExpertReduceScatter(Module):
         input = einops.rearrange(input, 'e c s m -> e (c s) m')
 
         # Wait for weight and bias prefetching to finish
-        stream_barrier(self.stream_weight)
-        if self.use_bias:
-            stream_barrier(self.stream_bias)
+        self.wait_for_streams()
 
         if self.use_bias and self.P_apply_bias.active:
             self.bias_buffer = self.bias_buffer.view(self.bias_buffer.shape[0], 1, -1)
