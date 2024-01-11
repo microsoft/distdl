@@ -1,4 +1,5 @@
 import numbers
+from contextlib import nullcontext
 
 import numpy as np
 import pytorch_pfn_extras as ppe
@@ -8,6 +9,7 @@ from distdl import backends
 from distdl.nn.all_gather import AllGather
 from distdl.nn.module import Module
 from distdl.nn.repartition import Repartition
+from distdl.utilities.misc import stream_barrier
 from distdl.utilities.slicing import compute_subshape
 from distdl.utilities.torch import zero_volume_tensor
 
@@ -54,10 +56,15 @@ class DistributedRMSNormZero(Module):
         dimension. Default is None.
     use_fused : optional
         Use fused RMS Norm implementation from flash attention if available. Default is True.
+    auto_clear_buffer: bool, optional
+        If true, clears the weight buffers after each forward pass. Default is True.
+        For ZeRO stage 1 and to take advantage of gradient accumulation, set this
+        to False and call clear_weight_buffer() manually after the optimizer step.
     """
 
     def __init__(self, P_x, normalized_shape, elementwise_affine=True, bias=False, eps=1e-5,
-                 collect_state=False, device=None, dtype=None, scale_backward=None):
+                 collect_state=False, device=None, dtype=None, scale_backward=None,
+                 auto_clear_buffer=True):
         super(DistributedRMSNormZero, self).__init__()
 
         self.P_x = P_x
@@ -72,6 +79,7 @@ class DistributedRMSNormZero(Module):
         self.collect_state = collect_state
         factory_kwargs = {'device': device, 'dtype': dtype}
         self.dtype = dtype
+        self.auto_clear_buffer = auto_clear_buffer
 
         if isinstance(normalized_shape, numbers.Integral):
             normalized_shape = (normalized_shape,)
@@ -129,15 +137,16 @@ class DistributedRMSNormZero(Module):
 
             # Buffers for weight prefetching
             self.weight_buffer = None
-            if self.use_bias:
-                self.bias_buffer = None
+            self.bias_buffer = None
 
             # CUDA streams for weight prefetching
             if not self.P_x.device == 'cpu':
+                self.stream_context = ppe.cuda.stream
                 self.stream_weight = torch.cuda.Stream(device=self.P_x.device)
                 if self.use_bias:
                     self.stream_bias = torch.cuda.Stream(device=self.P_x.device)
             else:
+                self.stream_context = nullcontext
                 self.stream_weight = None
                 if self.use_bias:
                     self.stream_bias = None
@@ -240,22 +249,31 @@ class DistributedRMSNormZero(Module):
         mean = input.pow(2).mean(dim=self.dim_reduce, keepdim=True)
         return input * torch.rsqrt(mean + self.eps)
 
-    def prefetch_weights(self):
+    def collect_weights(self):
         if self.P_x.size == 1:
             return
 
-        if self.stream_weight is not None:
-            with ppe.cuda.stream(self.stream_weight):
+        # If weight buffer is not already filled, start an allgather call. If cuda is used,
+        # this call will be asynchronously executed in a separate stream.
+        if self.weight_buffer is None:
+            with self.stream_context(self.stream_weight):
                 self.weight_buffer = self.allgather(self.weight.transpose(0, -1)).transpose(0, -1)
-        else:
-            self.weight_buffer = self.allgather(self.weight.transpose(0, -1)).transpose(0, -1)
 
-        if self.use_bias:
-            if self.stream_bias is not None:
-                with ppe.cuda.stream(self.stream_bias):
-                    self.bias_buffer = self.allgather(self.bias.transpose(0, -1)).transpose(0, -1)
-            else:
+        if self.use_bias and self.bias_buffer is None:
+            with self.stream_context(self.stream_bias):
                 self.bias_buffer = self.allgather(self.bias.transpose(0, -1)).transpose(0, -1)
+
+    def prefetch_weights(self):     # for backward compatibility
+        self.collect_weights()
+
+    def clear_weight_buffer(self):
+        self.weight_buffer = None
+        self.bias_buffer = None
+
+    def wait_for_streams(self):
+        stream_barrier(self.stream_weight)
+        if self.use_bias:
+            stream_barrier(self.stream_bias)
 
     def forward(self, input):
         r"""Forward function interface.
@@ -272,34 +290,21 @@ class DistributedRMSNormZero(Module):
 
         # All-gather weights
         if self.elementwise_affine:
-            if self.weight_buffer is None:
-                weight = self.allgather(self.weight.transpose(0, -1)).transpose(0, -1)
-            else:
-                weight = self.weight_buffer
-                self.weight_buffer = None
-
-            if self.stream_weight is not None:
-                torch.cuda.current_stream().wait_stream(self.stream_weight)
-
-            # All-gather biases
-            if self.use_bias:
-                if self.bias_buffer is None:
-                    bias = self.allgather(self.bias.transpose(0, -1)).transpose(0, -1)
-                else:
-                    bias = self.bias_buffer
-                    self.bias_buffer = None
-                if self.stream_bias is not None:
-                    torch.cuda.current_stream().wait_stream(self.stream_bias)
+            self.collect_weights()
+            self.wait_for_streams()
 
         # Forward pass. Use flash attention implementation if available.
         if self.use_flash:
-            input = flash_rms_norm(input, weight, self.eps)
+            input = flash_rms_norm(input, self.weight_buffer, self.eps)
         else:
             input = self._rms_norm(input.float())
             if self.elementwise_affine:
-                input = weight * input
+                input = self.weight_buffer * input
                 if self.use_bias:
-                    input += bias
+                    input += self.bias_buffer
             input = input.to(self.dtype)
+
+        if self.auto_clear_buffer:
+            self.clear_weight_buffer()
 
         return input

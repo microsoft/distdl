@@ -1,4 +1,5 @@
 import numbers
+from contextlib import nullcontext
 
 import pytorch_pfn_extras as ppe
 import torch
@@ -7,6 +8,7 @@ from distdl import backends
 from distdl.nn.all_gather import AllGather
 from distdl.nn.module import Module
 from distdl.nn.repartition import Repartition
+from distdl.utilities.misc import stream_barrier
 from distdl.utilities.slicing import compute_subshape
 from distdl.utilities.torch import zero_volume_tensor
 
@@ -51,10 +53,15 @@ class DistributedLayerNormZero(Module):
         dimension. Default is None.
     use_fused: optional
         Use fused implementation of layer norm from flash attention if available. Default is True.
+    auto_clear_buffer: bool, optional
+        If true, clears the weight buffers after each forward pass. Default is True.
+        For ZeRO stage 1 and to take advantage of gradient accumulation, set this
+        to False and call clear_weight_buffer() manually after the optimizer step.
     """
 
     def __init__(self, P_x, normalized_shape, elementwise_affine=True, eps=1e-5,
-                 collect_state=False, device=None, dtype=None, scale_backward=None):
+                 collect_state=False, device=None, dtype=None, scale_backward=None,
+                 auto_clear_buffer=True):
         super(DistributedLayerNormZero, self).__init__()
 
         self.P_x = P_x
@@ -68,6 +75,7 @@ class DistributedLayerNormZero(Module):
         self.collect_state = collect_state
         factory_kwargs = {'device': device, 'dtype': dtype}
         self.dtype = dtype
+        self.auto_clear_buffer = auto_clear_buffer
 
         if isinstance(normalized_shape, numbers.Integral):
             normalized_shape = (normalized_shape,)
@@ -124,9 +132,11 @@ class DistributedLayerNormZero(Module):
 
             # CUDA streams for weight prefetching
             if not self.P_x.device == 'cpu':
+                self.stream_context = ppe.cuda.stream
                 self.stream_weight = torch.cuda.Stream(device=self.P_x.device)
                 self.stream_bias = torch.cuda.Stream(device=self.P_x.device)
             else:
+                self.stream_context = nullcontext
                 self.stream_weight = None
                 self.stream_bias = None
         else:
@@ -206,20 +216,31 @@ class DistributedLayerNormZero(Module):
 
         return destination
 
-    def prefetch_weights(self):
+    def collect_weights(self):
         if self.P_x.size == 1:
             return
-        if self.stream_weight is not None:
-            with ppe.cuda.stream(self.stream_weight):
-                self.weight_buffer = self.allgather(self.weight.transpose(0, -1)).transpose(0, -1)
-        else:
-            self.weight_buffer = self.allgather(self.weight.transpose(0, -1)).transpose(0, -1)
 
-        if self.stream_bias is not None:
-            with ppe.cuda.stream(self.stream_bias):
+        # If weight buffer is not already filled, start an allgather call. If cuda is used,
+        # this call will be asynchronously executed in a separate stream.
+        if self.weight_buffer is None:
+            with self.stream_context(self.stream_weight):
+                self.weight_buffer = self.allgather(self.weight.transpose(0, -1)).transpose(0, -1)
+
+        # Same for this bias buffer.
+        if self.bias_buffer is None:
+            with self.stream_context(self.stream_bias):
                 self.bias_buffer = self.allgather(self.bias.transpose(0, -1)).transpose(0, -1)
-        else:
-            self.bias_buffer = self.allgather(self.bias.transpose(0, -1)).transpose(0, -1)
+
+    def prefetch_weights(self):     # for backward compatibility
+        self.collect_weights()
+
+    def clear_weight_buffer(self):
+        self.weight_buffer = None
+        self.bias_buffer = None
+
+    def wait_for_streams(self):
+        stream_barrier(self.stream_weight)
+        stream_barrier(self.stream_bias)
 
     def forward(self, input):
         r"""Forward function interface.
@@ -234,30 +255,22 @@ class DistributedLayerNormZero(Module):
         if not self.P_x.active:
             return input
 
-        # Collect weights and biases
         if self.elementwise_affine:
-            if self.weight_buffer is None:
-                weight = self.allgather(self.weight.transpose(0, -1)).transpose(0, -1)
-                bias = self.allgather(self.bias.transpose(0, -1)).transpose(0, -1)
-            else:
-                weight = self.weight_buffer
-                bias = self.bias_buffer
-                self.weight_buffer = None
-                self.bias_buffer = None
 
-        if self.elementwise_affine:
-            weight = weight.squeeze()
-            bias = bias.squeeze()
-            if self.stream_weight is not None and self.stream_bias is not None:
-                torch.cuda.current_stream().wait_stream(self.stream_weight)
-                torch.cuda.current_stream().wait_stream(self.stream_bias)
-        else:
-            weight = None
-            bias = None
+            # All-gather weights if prefetch was not previously called.
+            self.collect_weights()
+            self.wait_for_streams()
+
+            self.weight_buffer = self.weight_buffer.squeeze()
+            self.bias_buffer = self.bias_buffer.squeeze()
 
         if self.use_flash:
-            input = flash_layer_norm(input, weight, bias, self.eps)
+            input = flash_layer_norm(input, self.weight_buffer, self.bias_buffer, self.eps)
         else:
-            input = torch.nn.functional.layer_norm(input, self.normalized_shape, weight, bias, self.eps)
+            input = torch.nn.functional.layer_norm(input, self.normalized_shape, self.weight_buffer,
+                                                   self.bias_buffer, self.eps)
+
+        if self.auto_clear_buffer:
+            self.clear_weight_buffer()
 
         return input

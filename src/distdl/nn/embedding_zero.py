@@ -1,3 +1,5 @@
+from contextlib import nullcontext
+
 import pytorch_pfn_extras as ppe
 import torch
 
@@ -5,6 +7,7 @@ import distdl.nn.init as init
 from distdl.nn.all_gather import AllGather
 from distdl.nn.module import Module
 from distdl.nn.repartition import Repartition
+from distdl.utilities.misc import stream_barrier
 from distdl.utilities.slicing import compute_subshape
 from distdl.utilities.torch import zero_volume_tensor
 
@@ -54,12 +57,16 @@ class DistributedEmbeddingZero(Module):
     scale_backward : Union[int, slice], optional
         Scale backward pass for AllGather operation by no. of workers along the given
         dimension. Default is None.
+    auto_clear_buffer: bool, optional
+        If true, clears the weight buffers after each forward pass. Default is True.
+        For ZeRO stage 1 and to take advantage of gradient accumulation, set this
+        to False and call clear_weight_buffer() manually after the optimizer step.
     """
 
     def __init__(self, P_x, num_embeddings, embedding_dim, padding_idx=None,
                  max_norm=None, norm_type=2., scale_grad_by_freq=False, sparse=False,
                  _weight=None, _freeze=False, collect_state=False, device=None,
-                 dtype=None, scale_backward=None):
+                 dtype=None, scale_backward=None, auto_clear_buffer=True):
 
         factory_kwargs = {'device': P_x.device, 'dtype': dtype}
         super(DistributedEmbeddingZero, self).__init__()
@@ -80,6 +87,7 @@ class DistributedEmbeddingZero(Module):
         self.sparse = sparse
         self.collect_state = collect_state
         self.dtype = dtype
+        self.auto_clear_buffer = auto_clear_buffer
 
         self.P_x = P_x
         if not self.P_x.active:
@@ -119,8 +127,10 @@ class DistributedEmbeddingZero(Module):
         # Buffer and stream for weight prefetching
         self.weight_buffer = None
         if not self.P_x.device == 'cpu':
+            self.stream_context = ppe.cuda.stream
             self.stream_weight = torch.cuda.Stream(device=self.P_x.device)
         else:
+            self.stream_context = nullcontext
             self.stream_weight = None
 
         # State dict hooks for gather/scattering distributed weights
@@ -196,14 +206,21 @@ class DistributedEmbeddingZero(Module):
 
         return destination
 
-    def prefetch_weights(self):
+    def collect_weights(self):
         if self.P_x.size == 1:
             return
-        if self.stream_weight is not None:
-            with ppe.cuda.stream(self.stream_weight):
+
+        # If weight buffer is not already filled, start an allgather call. If cuda is used,
+        # this call will be asynchronously executed in a separate stream.
+        if self.weight_buffer is None:
+            with self.stream_context(self.stream_weight):
                 self.weight_buffer = self._squeeze(self.allgather(self._expand(self.weight)))
-        else:
-            self.weight_buffer = self._squeeze(self.allgather(self._expand(self.weight)))
+
+    def prefetch_weights(self):
+        self.collect_weights()
+
+    def clear_weight_buffer(self):
+        self.weight_buffer = None
 
     def forward(self, input):
         r"""Forward function interface.
@@ -217,16 +234,16 @@ class DistributedEmbeddingZero(Module):
         if not self.P_x.active:
             return zero_volume_tensor(device=self.P_x.device, dtype=self.dtype)
 
-        # Gather weights from data-parallel workers (FSDP/ZeRO-3)
-        if self.weight_buffer is None:
-            weight = self._squeeze(self.allgather(self._expand(self.weight)))
-        else:
-            weight = self.weight_buffer
-            self.weight_buffer = None
+        # All-gather weights into the weight buffer. If prefetch_weights() has been
+        # called previously, this doesn't do anything.
+        self.collect_weights()
+        stream_barrier(self.stream_weight)
 
-        if self.stream_weight is not None:
-            torch.cuda.current_stream().wait_stream(self.stream_weight)
+        input = torch.nn.functional.embedding(input, self.weight_buffer, self.padding_idx, self.max_norm,
+                                              self.norm_type, self.scale_grad_by_freq, self.sparse
+                                              )
+        # Clear weight buffers
+        if self.auto_clear_buffer:
+            self.clear_weight_buffer()
 
-        return torch.nn.functional.embedding(input, weight, self.padding_idx, self.max_norm,
-                                             self.norm_type, self.scale_grad_by_freq, self.sparse
-                                             )
+        return input

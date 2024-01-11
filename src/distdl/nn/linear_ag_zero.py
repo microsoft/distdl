@@ -1,4 +1,5 @@
 import math
+from contextlib import nullcontext
 
 import numpy as np
 import pytorch_pfn_extras as ppe
@@ -11,6 +12,7 @@ from distdl.nn.all_gather import AllGather
 from distdl.nn.module import Module
 from distdl.nn.reduce_scatter import ReduceScatter
 from distdl.nn.repartition import Repartition
+from distdl.utilities.misc import stream_barrier
 from distdl.utilities.slicing import compute_subshape
 from distdl.utilities.slicing import worker_layout
 from distdl.utilities.torch import zero_volume_tensor
@@ -149,11 +151,16 @@ class DistributedLinearAllGatherZero(Module):
     scale_backward : Union[int, slice], optional
         Scale backward pass for AllGather operation by no. of workers along the given
         dimension. Default is None.
+    auto_clear_buffer: bool, optional
+        If true, clears the weight buffers after each forward pass. Default is True.
+        For ZeRO stage 1 and to take advantage of gradient accumulation, set this
+        to False and call clear_weight_buffer() manually after the optimizer step.
     """
 
     def __init__(self, P_y, in_features, out_features, bias=True, device=None, dtype=None,
                  P_x=None, P_store_bias=None, P_weight=None, collect_state=False, num_heads=None,
-                 num_heads_kv=None, num_vars=3, geglu=False, checkpoint=False, scale_backward=None):
+                 num_heads_kv=None, num_vars=3, geglu=False, checkpoint=False, scale_backward=None,
+                 auto_clear_buffer=True):
 
         super(DistributedLinearAllGatherZero, self).__init__()
 
@@ -190,6 +197,7 @@ class DistributedLinearAllGatherZero(Module):
         self.dtype = dtype
         self.checkpoint = checkpoint
         self.scale_backward = scale_backward
+        self.auto_clear_buffer = auto_clear_buffer
 
         # Partition for storing weights & biases
         if P_store_bias is not None:
@@ -281,20 +289,21 @@ class DistributedLinearAllGatherZero(Module):
         self.all_gather = AllGather(self.P_x, axes_all_gather=(gather_dim,))
         self.reduce_scatter = ReduceScatter(self.P_x, axes_reduce_scatter=(gather_dim,))
 
-        # CUDA streams for weight prefetching
+        # CUDA streams for weight prefetching. Only used if cuda is enabled.
         if not self.P_y.device == 'cpu':
+            self.stream_context = ppe.cuda.stream
             self.stream_weight = torch.cuda.Stream(device=self.P_y.device)
             if self.use_bias:
                 self.stream_bias = torch.cuda.Stream(device=self.P_y.device)
         else:
+            self.stream_context = nullcontext
             self.stream_weight = None
             if self.use_bias:
                 self.stream_bias = None
 
         # Buffers for weight prefetching
         self.weight_buffer = None
-        if self.use_bias:
-            self.bias_buffer = None
+        self.bias_buffer = None
 
         # State dict hooks for gather/scattering distributed weights
         self._register_state_dict_hook(self.gather_state_dict)
@@ -504,26 +513,34 @@ class DistributedLinearAllGatherZero(Module):
 
         return destination
 
-    def prefetch_weights(self):
+    def collect_weights(self):
         if self.P_x.size == 1:
             return
 
-        if self.stream_weight is not None:
-            with ppe.cuda.stream(self.stream_weight):
+        # If weight buffer is not already filled, start an allgather call. If cuda is used,
+        # this call will be asynchronously executed in a separate stream.
+        if self.weight_buffer is None:
+            with self.stream_context(self.stream_weight):
                 self.weight_buffer = self.allgather_weight(self.weight)
                 self.weight_buffer = self.weight_buffer.transpose(-1, 0).view(-1, self.in_features)
-        else:
-            self.weight_buffer = self.allgather_weight(self.weight)
-            self.weight_buffer = self.weight_buffer.transpose(-1, 0).view(-1, self.in_features)
 
-        if self.bias is not None:
-            if self.stream_bias is not None:
-                with ppe.cuda.stream(self.stream_bias):
-                    self.bias_buffer = self.allgather_bias(self.bias.transpose(0, -2)).transpose(0, -2)
-                    self.bias_buffer = self.bias_buffer.view(-1)
-            else:
+        # Same for this bias buffer if bias is used.
+        if self.bias is not None and self.bias_buffer is None:
+            with self.stream_context(self.stream_bias):
                 self.bias_buffer = self.allgather_bias(self.bias.transpose(0, -2)).transpose(0, -2)
                 self.bias_buffer = self.bias_buffer.view(-1)
+
+    def prefetch_weights(self):     # for backward compatibility
+        self.collect_weights()
+
+    def clear_weight_buffer(self):
+        self.weight_buffer = None
+        self.bias_buffer = None
+
+    def wait_for_streams(self):
+        stream_barrier(self.stream_weight)
+        if self.use_bias:
+            stream_barrier(self.stream_bias)
 
     def forward(self, input):
         r"""Forward function interface.
@@ -552,31 +569,22 @@ class DistributedLinearAllGatherZero(Module):
                 self.scale_backward
             )
         else:
-            # All-gather input
+
+            # All-gather weights & bias. If prefetch_weights() has been called before,
+            # this call doesn't do anything.
+            self.collect_weights()
+
+            # All-gather input (tensor parallelism)
             input = self.all_gather(input)
 
-            # All-gather weights if prefetching function was not previously called
-            if self.weight_buffer is None:
-                weight = self.allgather_weight(self.weight)
-                weight = weight.transpose(-1, 0).view(-1, self.in_features)
-            else:
-                weight = self.weight_buffer
-                self.weight_buffer = None
-
-            # All-gather bias if prefetching function was not previously called
-            if self.bias is not None:
-                if self.bias_buffer is None:
-                    bias = self.allgather_bias(self.bias.transpose(0, -2)).transpose(0, -2)
-                    bias = bias.view(weight.shape[-2])
-                else:
-                    bias = self.bias_buffer
-                    self.bias_buffer = None
-            else:
-                bias = self.bias
-            if self.stream_weight is not None:
-                torch.cuda.current_stream().wait_stream(self.stream_weight)
-            if self.use_bias and self.stream_bias is not None:
-                torch.cuda.current_stream().wait_stream(self.stream_bias)
+            # Wait for all-gathers to finish
+            self.wait_for_streams()
 
             # Affine/linear transform
-            return torch.nn.functional.linear(input, weight, bias)
+            input = torch.nn.functional.linear(input, self.weight_buffer, self.bias_buffer)
+
+            # Clear weight buffers
+            if self.auto_clear_buffer:
+                self.clear_weight_buffer()
+
+            return input
