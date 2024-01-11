@@ -140,7 +140,7 @@ class DistributedLinearReduceScatterZero(Module):
     """
 
     def __init__(self, P_x, in_features, out_features, bias=True, device=None, dtype=None,
-                 P_y=None, P_bias=None, collect_state=False, checkpoint=False, scale_backward=None, 
+                 P_y=None, P_bias=None, collect_state=False, checkpoint=False, scale_backward=None,
                  auto_clear_buffer=True):
 
         super(DistributedLinearReduceScatterZero, self).__init__()
