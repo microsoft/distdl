@@ -361,15 +361,12 @@ class DistributedLinearReduceScatterZero(Module):
         return destination
 
     def collect_weights(self):
-        if self.P_x.size == 1:
-            return
 
         # If weight buffer is not already filled, start an allgather call. If cuda is used,
         # this call will be asynchronously executed in a separate stream.
         if self.weight_buffer is None:
             with self.stream_context(self.stream_weight):
-                self.weight_buffer = self.all_gather_weight(self.weight)
-                self.weight_buffer = self.weight_buffer.view(self.out_features, -1)
+                self.weight_buffer = self.all_gather_weight(self.weight).view(self.out_features, -1)
 
         # Same for this bias buffer if bias is used.
         if self.bias is not None and self.P_bias.active:

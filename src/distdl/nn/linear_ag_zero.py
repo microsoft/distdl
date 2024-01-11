@@ -514,21 +514,17 @@ class DistributedLinearAllGatherZero(Module):
         return destination
 
     def collect_weights(self):
-        if self.P_x.size == 1:
-            return
 
         # If weight buffer is not already filled, start an allgather call. If cuda is used,
         # this call will be asynchronously executed in a separate stream.
         if self.weight_buffer is None:
             with self.stream_context(self.stream_weight):
-                self.weight_buffer = self.allgather_weight(self.weight)
-                self.weight_buffer = self.weight_buffer.transpose(-1, 0).view(-1, self.in_features)
+                self.weight_buffer = self.allgather_weight(self.weight).transpose(-1, 0).view(-1, self.in_features)
 
         # Same for this bias buffer if bias is used.
         if self.bias is not None and self.bias_buffer is None:
             with self.stream_context(self.stream_bias):
-                self.bias_buffer = self.allgather_bias(self.bias.transpose(0, -2)).transpose(0, -2)
-                self.bias_buffer = self.bias_buffer.view(-1)
+                self.bias_buffer = self.allgather_bias(self.bias.transpose(0, -2)).transpose(0, -2).view(-1)
 
     def prefetch_weights(self):     # for backward compatibility
         self.collect_weights()

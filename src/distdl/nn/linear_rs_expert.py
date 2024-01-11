@@ -293,8 +293,6 @@ class DistributedExpertReduceScatter(Module):
         return destination
 
     def collect_weights(self):
-        if self.P_expert_emb.size == 1:
-            return
 
         # If weight buffer is not already filled, start an allgather call. If cuda is used,
         # this call will be asynchronously executed in a separate stream.
