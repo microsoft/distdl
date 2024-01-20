@@ -4,6 +4,7 @@ from contextlib import nullcontext
 import einops
 import pytorch_pfn_extras as ppe
 import torch
+from einops import rearrange
 
 import distdl.nn.init as init
 from distdl.backends.common.tensor_comm import assemble_global_tensor_structure
@@ -69,11 +70,14 @@ class DistributedExpertAllGather(Module):
         If true, clears the weight buffers after each forward pass. Default is True.
         For ZeRO stage 1 and to take advantage of gradient accumulation, set this
         to False and call clear_weight_buffer() manually after the optimizer step.
+    geglu: bool, optional
+        Set to true if a gated linear unit is used directly after the linear layer and
+        collect_state=True. Default is False.
     """
 
     def __init__(self, P_expert_emb, num_experts, in_features, out_features, bias=True, device=None, dtype=None,
                  P_weight=None, P_bias=None, collect_state=False, scale_backward=None, P_expert_seq=None,
-                 auto_clear_buffer=True):
+                 auto_clear_buffer=True, geglu=False):
 
         super(DistributedExpertAllGather, self).__init__()
 
@@ -91,6 +95,7 @@ class DistributedExpertAllGather(Module):
         self.collect_state = collect_state
         self.auto_clear_buffer = auto_clear_buffer
         self.use_bias = bias
+        self.geglu = geglu
 
         # Partition for weights (3D partition of size [ E, N, M ]).
         if P_weight is not None:
@@ -228,6 +233,25 @@ class DistributedExpertAllGather(Module):
                 bound = 1 / math.sqrt(fan_in) if fan_in > 0 else 0
                 init.uniform_(self.bias, -bound, bound)
 
+    # If we collect the weights on the root worker and want to use a gated linear
+    # unit right after the linear layer, we need to rearrange the weights, such that
+    # the behavior on a single GPU is the same as on multiple GPUs.
+    def geglu_weight_to_serial(self, weight):
+        num_gpu = self.P_weight.shape[-1]
+        weight_size = weight.shape[-1] // 2 // num_gpu
+        weight = rearrange(weight, "e n (p v h) -> e n (v p h)",
+                           p=num_gpu, v=2, h=weight_size)
+        return weight
+
+    # Rearrangment function for loading weights from a serial partitioning scheme
+    # if a gated linear unit is used right after the linear layer.
+    def geglu_weight_to_parallel(self, weight):
+        num_gpu = self.P_weight.shape[-1]
+        weight_size = weight.shape[-1] // 2 // num_gpu
+        weight = rearrange(weight, "e n (v p h) -> e n (p v h)",
+                           p=num_gpu, v=2, h=weight_size)
+        return weight
+
     def gather_state_dict(self, module, destination, prefix, *args):
 
         if self.collect_state:
@@ -247,9 +271,13 @@ class DistributedExpertAllGather(Module):
 
                 # Save filenames in state dict rather than the full weights. Only the root
                 # should have the keys in the end.
+                if self.geglu:
+                    weight = self.geglu_weight_to_serial(weight)
                 destination[weight_key] = weight
 
                 if self.use_bias:
+                    if self.geglu:
+                        bias = self.geglu_weight_to_serial(bias)
                     destination[bias_key] = bias
 
         return destination
@@ -261,7 +289,10 @@ class DistributedExpertAllGather(Module):
                 # Scatter weights
                 weight_key = next(iter(destination))
                 weight = destination.pop(weight_key)
-                if not self.P_root.active:
+                if self.P_root.active:
+                    if self.geglu:
+                        weight = self.geglu_weight_to_parallel(weight)
+                else:
                     weight = zero_volume_tensor(device=self.P_weight.device, dtype=weight.dtype, requires_grad=True)
                 weight = self.scatter_weight(weight)
 
@@ -269,7 +300,10 @@ class DistributedExpertAllGather(Module):
             if self.use_bias and self.P_weight.active:
                 bias_key = next(iter(destination))
                 bias = destination.pop(bias_key)
-                if not self.P_root.active:
+                if self.P_root.active:
+                    if self.geglu:
+                        bias = self.geglu_weight_to_parallel(bias)
+                else:
                     bias = zero_volume_tensor(device=self.P_weight.device, dtype=bias.dtype, requires_grad=True)
                 bias = self.scatter_bias(bias)
                 destination[bias_key] = bias
