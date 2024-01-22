@@ -52,7 +52,7 @@ def get_default_pre_hook_setting():
         else:
             logger.logger.warning("Specified setting for check input changed does not exist. Default to False.")
     else:
-        check_input_changed = False
+        check_input_changed = True
     return check_input_changed
 
 
