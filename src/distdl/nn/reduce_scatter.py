@@ -74,6 +74,9 @@ class ReduceScatter(Module):
         if self.P_x.size == 1:
             self.identity = True
 
+    def extra_repr(self) -> str:
+        return f'P_x.shape={self.P_x.shape}, axis={self.axes_reduce_scatter}'
+
     def _distdl_module_setup(self, input):
         r"""ReduceScatter module setup function.
 

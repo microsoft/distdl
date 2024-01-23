@@ -91,6 +91,7 @@ class DistributedExpertReduceScatter(Module):
         self.num_experts = num_experts
         self.in_features = in_features
         self.out_features = out_features
+        self.num_experts = num_experts
         self.collect_state = collect_state
         self.auto_clear_buffer = auto_clear_buffer
         self.use_bias = bias
@@ -242,6 +243,9 @@ class DistributedExpertReduceScatter(Module):
             fan_in, _ = init._calculate_fan_in_and_fan_out(weight_global_shape)
             bound = 1 / math.sqrt(fan_in) if fan_in > 0 else 0
             init.uniform_(self.bias, -bound, bound)
+
+    def extra_repr(self) -> str:
+        return f'in_features={self.in_features}, out_features={self.out_features}, num_experts={self.num_experts}, bias={self.bias is not None}'
 
     def gather_state_dict(self, module, destination, prefix, *args):
         if self.collect_state and self.P_weight.active:

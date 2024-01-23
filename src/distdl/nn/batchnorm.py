@@ -134,6 +134,9 @@ class DistributedBatchNorm(Module):
             self.gather_affine = Repartition(self.P_sum, self.P_root, preserve_batch=False)
             self.scatter_affine = Repartition(self.P_root, self.P_sum, preserve_batch=False)
 
+    def extra_repr(self) -> str:
+        return f'num_features={self.num_features}'
+
     def gather_state_dict(self, module, destination, prefix, *args):
         if self.collect_state and self.P_x.active:
             if self.affine:

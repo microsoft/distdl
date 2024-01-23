@@ -154,6 +154,9 @@ class DistributedLayerNorm(Module):
             torch.nn.init.ones_(self.weight)
             torch.nn.init.zeros_(self.bias)
 
+    def extra_repr(self) -> str:
+        return f'normalized_shape={self.normalized_shape}'
+
     def gather_state_dict(self, module, destination, prefix, *args):
         if self.collect_state and self.elementwise_affine and self.P_x.active:
 

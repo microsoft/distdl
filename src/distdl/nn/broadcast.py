@@ -105,6 +105,9 @@ class Broadcast(Module):
                  (not self.transpose_dest and not self.transpose_src):
                 self.identity = True
 
+    def extra_repr(self) -> str:
+        return f'P_x.shape={self.P_x.shape}, P_y.shape={self.P_y.shape}'
+
     def _distdl_module_setup(self, input):
         r"""Broadcast module setup function.
 

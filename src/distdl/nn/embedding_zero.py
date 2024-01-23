@@ -156,6 +156,9 @@ class DistributedEmbeddingZero(Module):
                 self.weight[:] = weight
         self._fill_padding_idx_with_zero()
 
+    def extra_repr(self) -> str:
+        return f'num_embeddings={self.num_embeddings}, embedding_dim={self.embedding_dim}'
+
     def _fill_padding_idx_with_zero(self):
         if self.padding_idx is not None and self.P_x.active:
             with torch.no_grad():

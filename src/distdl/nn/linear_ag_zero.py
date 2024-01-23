@@ -331,6 +331,9 @@ class DistributedLinearAllGatherZero(Module):
             bound = 1 / math.sqrt(fan_in) if fan_in > 0 else 0
             init.uniform_(self.bias, -bound, bound)
 
+    def extra_repr(self) -> str:
+        return f'in_features={self.in_features}, out_features={self.out_features}, bias={self.bias is not None}'
+
     def _unsqueeze_weight(self, weight):
         shape = [1] * self.P_y.dim
         shape[0] = weight.shape[0]
