@@ -129,6 +129,9 @@ class Repartition(Module):
         # Get some types and functions from the back-end
         self.allocate_repartition_buffers = self._distdl_backend.buffer_allocator.allocate_repartition_buffers
 
+    def extra_repr(self) -> str:
+        return f'P_x.shape={self.P_x.shape}, P_y.shape={self.P_y.shape}'
+
     def _distdl_module_setup(self, input):
         r"""Repartition module setup function.
 

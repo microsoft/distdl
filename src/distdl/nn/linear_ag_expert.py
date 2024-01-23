@@ -92,6 +92,7 @@ class DistributedExpertAllGather(Module):
 
         self.in_features = in_features
         self.out_features = out_features
+        self.num_experts = num_experts
         self.collect_state = collect_state
         self.auto_clear_buffer = auto_clear_buffer
         self.use_bias = bias
@@ -232,6 +233,9 @@ class DistributedExpertAllGather(Module):
                 fan_in, _ = init._calculate_fan_in_and_fan_out(weight_global_shape)
                 bound = 1 / math.sqrt(fan_in) if fan_in > 0 else 0
                 init.uniform_(self.bias, -bound, bound)
+
+    def extra_repr(self) -> str:
+        return f'in_features={self.in_features}, out_features={self.out_features}, num_experts={self.num_experts}, bias={self.bias is not None}'
 
     # If we collect the weights on the root worker and want to use a gated linear
     # unit right after the linear layer, we need to rearrange the weights, such that
