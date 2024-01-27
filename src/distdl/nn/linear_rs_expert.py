@@ -297,29 +297,34 @@ class DistributedExpertReduceScatter(Module):
         return destination
 
     def collect_weights(self):
+        pass
+        # TODO Fix this
+        # # If weight buffer is not already filled, start an allgather call. If cuda is used,
+        # # this call will be asynchronously executed in a separate stream.
+        # if self.weight_buffer is None:
+        #     with self.stream_context(self.stream_weight):
+        #         self.weight_buffer = self.all_gather_weight(self.weight)
 
-        # If weight buffer is not already filled, start an allgather call. If cuda is used,
-        # this call will be asynchronously executed in a separate stream.
-        if self.weight_buffer is None:
-            with self.stream_context(self.stream_weight):
-                self.weight_buffer = self.all_gather_weight(self.weight)
-
-        # Same for this bias buffer if bias is used.
-        if self.use_bias and self.bias_buffer is None:
-            with self.stream_context(self.stream_bias):
-                self.bias_buffer = self.broadcast_bias(self.bias)
+        # # Same for this bias buffer if bias is used.
+        # if self.use_bias and self.bias_buffer is None:
+        #     with self.stream_context(self.stream_bias):
+        #         self.bias_buffer = self.broadcast_bias(self.bias)
 
     def prefetch_weights(self):     # for backward compatibility
-        self.collect_weights()
+        pass
+        # self.collect_weights()
 
     def clear_weight_buffer(self):
-        self.weight_buffer = None
-        self.bias_buffer = None
+        pass
+        # self.weight_buffer = None
+        # self.bias_buffer = None
 
     def wait_for_streams(self):
-        stream_barrier(self.stream_weight)
-        if self.use_bias:
-            stream_barrier(self.stream_bias)
+        pass
+        # TODO Fix this
+        # stream_barrier(self.stream_weight)
+        # if self.use_bias:
+        #     stream_barrier(self.stream_bias)
 
     def forward(self, input):
         r"""Forward function interface.
@@ -336,26 +341,31 @@ class DistributedExpertReduceScatter(Module):
 
         # If weight buffer is not already filled, start an allgather call. If cuda is used,
         # this call will be asynchronously executed in a separate stream.
-        self.collect_weights()
+        # self.collect_weights()
+        weight = self.all_gather_weight(self.weight)
+        if self.use_bias:
+            bias = self.broadcast_bias(self.bias)
+        else:
+            bias = None
 
         # Merge capacity and sequence dimension
         local_capacity = input.shape[1]
         input = einops.rearrange(input, 'e c s m -> e (c s) m')
 
         # Wait for weight and bias prefetching to finish
-        self.wait_for_streams()
+        # self.wait_for_streams()
 
         if self.use_bias and self.P_apply_bias.active:
-            self.bias_buffer = self.bias_buffer.view(self.bias_buffer.shape[0], 1, -1)
-            y = torch.einsum('ecm,enm->ecn', input, self.weight_buffer) + self.bias_buffer
+            #self.bias_buffer = self.bias_buffer.view(self.bias_buffer.shape[0], 1, -1)
+            y = torch.einsum('ecm,enm->ecn', input, weight) + bias
         else:
-            y = torch.einsum('ecm,enm->ecn', input, self.weight_buffer)
+            y = torch.einsum('ecm,enm->ecn', input, weight)
 
         # Reduce-scatter
         y = einops.rearrange(y, 'e (c s) n -> e c s n', c=local_capacity)
         y = self.reduce_scatter(y)
 
-        if self.auto_clear_buffer:
-            self.clear_weight_buffer()
+        # if self.auto_clear_buffer:
+        #     self.clear_weight_buffer()
 
         return y

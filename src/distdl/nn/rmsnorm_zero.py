@@ -253,16 +253,17 @@ class DistributedRMSNormZero(Module):
         return input * torch.rsqrt(mean + self.eps)
 
     def collect_weights(self):
+        pass
+        # TODO Fix this
+        # # If weight buffer is not already filled, start an allgather call. If cuda is used,
+        # # this call will be asynchronously executed in a separate stream.
+        # if self.weight_buffer is None:
+        #     with self.stream_context(self.stream_weight):
+        #         self.weight_buffer = self.allgather(self.weight.transpose(0, -1)).transpose(0, -1)
 
-        # If weight buffer is not already filled, start an allgather call. If cuda is used,
-        # this call will be asynchronously executed in a separate stream.
-        if self.weight_buffer is None:
-            with self.stream_context(self.stream_weight):
-                self.weight_buffer = self.allgather(self.weight.transpose(0, -1)).transpose(0, -1)
-
-        if self.use_bias and self.bias_buffer is None:
-            with self.stream_context(self.stream_bias):
-                self.bias_buffer = self.allgather(self.bias.transpose(0, -1)).transpose(0, -1)
+        # if self.use_bias and self.bias_buffer is None:
+        #     with self.stream_context(self.stream_bias):
+        #         self.bias_buffer = self.allgather(self.bias.transpose(0, -1)).transpose(0, -1)
 
     def prefetch_weights(self):     # for backward compatibility
         self.collect_weights()
@@ -272,9 +273,11 @@ class DistributedRMSNormZero(Module):
         self.bias_buffer = None
 
     def wait_for_streams(self):
-        stream_barrier(self.stream_weight)
-        if self.use_bias:
-            stream_barrier(self.stream_bias)
+        pass
+        # TODO Fix this
+        # stream_barrier(self.stream_weight)
+        # if self.use_bias:
+        #     stream_barrier(self.stream_bias)
 
     def forward(self, input):
         r"""Forward function interface.
@@ -291,18 +294,23 @@ class DistributedRMSNormZero(Module):
 
         # All-gather weights
         if self.elementwise_affine:
-            self.collect_weights()
-            self.wait_for_streams()
+            # self.collect_weights()
+            # self.wait_for_streams()
+            weight = self.allgather(self.weight.transpose(0, -1)).transpose(0, -1)
+            if self.use_bias:
+                bias = self.allgather(self.bias.transpose(0, -1)).transpose(0, -1)
+            else:
+                bias = None
 
         # Forward pass. Use flash attention implementation if available.
         if self.use_flash:
-            input = flash_rms_norm(input, self.weight_buffer, self.eps)
+            input = flash_rms_norm(input, weight, self.eps)
         else:
             input = self._rms_norm(input.float())
             if self.elementwise_affine:
-                input = self.weight_buffer * input
+                input = weight * input
                 if self.use_bias:
-                    input += self.bias_buffer
+                    input += bias
             input = input.to(self.dtype)
 
         if self.auto_clear_buffer:

@@ -210,18 +210,21 @@ class DistributedEmbeddingZero(Module):
         return destination
 
     def collect_weights(self):
-
-        # If weight buffer is not already filled, start an allgather call. If cuda is used,
-        # this call will be asynchronously executed in a separate stream.
-        if self.weight_buffer is None:
-            with self.stream_context(self.stream_weight):
-                self.weight_buffer = self._squeeze(self.allgather(self._expand(self.weight)))
+        pass
+        # TODO Fix this
+        # # If weight buffer is not already filled, start an allgather call. If cuda is used,
+        # # this call will be asynchronously executed in a separate stream.
+        # if self.weight_buffer is None:
+        #     with self.stream_context(self.stream_weight):
+        #         self.weight_buffer = self._squeeze(self.allgather(self._expand(self.weight)))
 
     def prefetch_weights(self):
-        self.collect_weights()
+        pass
+        # self.collect_weights()
 
     def clear_weight_buffer(self):
-        self.weight_buffer = None
+        pass
+        # self.weight_buffer = None
 
     def forward(self, input):
         r"""Forward function interface.
@@ -237,14 +240,15 @@ class DistributedEmbeddingZero(Module):
 
         # All-gather weights into the weight buffer. If prefetch_weights() has been
         # called previously, this doesn't do anything.
-        self.collect_weights()
-        stream_barrier(self.stream_weight)
+        # self.collect_weights()
+        # stream_barrier(self.stream_weight)
+        weight = self._squeeze(self.allgather(self._expand(self.weight)))
 
-        input = torch.nn.functional.embedding(input, self.weight_buffer, self.padding_idx, self.max_norm,
+        input = torch.nn.functional.embedding(input, weight, self.padding_idx, self.max_norm,
                                               self.norm_type, self.scale_grad_by_freq, self.sparse
                                               )
         # Clear weight buffers
-        if self.auto_clear_buffer:
-            self.clear_weight_buffer()
+        # if self.auto_clear_buffer:
+        #     self.clear_weight_buffer()
 
         return input

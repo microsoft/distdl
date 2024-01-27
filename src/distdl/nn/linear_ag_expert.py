@@ -319,29 +319,34 @@ class DistributedExpertAllGather(Module):
         return destination
 
     def collect_weights(self):
+        pass
+        # TODO Fix this
+        # # If weight buffer is not already filled, start an allgather call. If cuda is used,
+        # # this call will be asynchronously executed in a separate stream.
+        # if self.weight_buffer is None:
+        #     with self.stream_context(self.stream_weight):
+        #         self.weight_buffer = self.all_gather_weight(self.weight).transpose(1, 2)
 
-        # If weight buffer is not already filled, start an allgather call. If cuda is used,
-        # this call will be asynchronously executed in a separate stream.
-        if self.weight_buffer is None:
-            with self.stream_context(self.stream_weight):
-                self.weight_buffer = self.all_gather_weight(self.weight).transpose(1, 2)
-
-        # Same for this bias buffer if bias is used.
-        if self.bias is not None and self.bias_buffer is None:
-            with self.stream_context(self.stream_bias):
-                self.bias_buffer = self.broadcast_bias(self.bias)
+        # # Same for this bias buffer if bias is used.
+        # if self.bias is not None and self.bias_buffer is None:
+        #     with self.stream_context(self.stream_bias):
+        #         self.bias_buffer = self.broadcast_bias(self.bias)
 
     def prefetch_weights(self):     # for backward compatibility
-        self.collect_weights()
+        pass
+        # self.collect_weights()
 
     def clear_weight_buffer(self):
-        self.weight_buffer = None
-        self.bias_buffer = None
+        pass
+        # self.weight_buffer = None
+        # self.bias_buffer = None
 
     def wait_for_streams(self):
-        stream_barrier(self.stream_weight)
-        if self.use_bias:
-            stream_barrier(self.stream_bias)
+        pass
+        # TODO Fix this
+        # stream_barrier(self.stream_weight)
+        # if self.use_bias:
+        #     stream_barrier(self.stream_bias)
 
     def forward(self, input):
         r"""Forward function interface.
@@ -358,7 +363,12 @@ class DistributedExpertAllGather(Module):
 
         # Collect weights & biases. If prefetch_weights() has been called before,
         # this call doesn't do anything.
-        self.collect_weights()
+        #self.collect_weights()
+        weight = self.all_gather_weight(self.weight).transpose(1, 2)
+        if self.bias is not None:
+            bias = self.broadcast_bias(self.bias)
+        else:
+            bias = None
 
         # All-gather input along model-parallel dimension
         input = self.all_gather_hidden(input)
@@ -368,18 +378,18 @@ class DistributedExpertAllGather(Module):
         input = einops.rearrange(input, 'e c s m -> e (c s) m')
 
         # Wait for weight and bias prefetching to finish
-        self.wait_for_streams()
+        # self.wait_for_streams()
 
         # Perform matrix multiplication
         if self.bias is not None:
-            y = torch.einsum('ecm,enm->ecn', input, self.weight_buffer) + self.bias_buffer
+            y = torch.einsum('ecm,enm->ecn', input, weight) + bias
         else:
-            y = torch.einsum('ecm,enm->ecn', input, self.weight_buffer)
+            y = torch.einsum('ecm,enm->ecn', input, weight)
 
         # Split capacity and sequence dimensions again
         y = einops.rearrange(y, 'e (c s) n -> e c s n', c=local_capacity)
 
-        if self.auto_clear_buffer:
-            self.clear_weight_buffer()
+        # if self.auto_clear_buffer:
+        #     self.clear_weight_buffer()
 
         return y
