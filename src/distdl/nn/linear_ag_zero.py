@@ -289,21 +289,21 @@ class DistributedLinearAllGatherZero(Module):
         self.all_gather = AllGather(self.P_x, axes_all_gather=(gather_dim,))
         self.reduce_scatter = ReduceScatter(self.P_x, axes_reduce_scatter=(gather_dim,))
 
-        # CUDA streams for weight prefetching. Only used if cuda is enabled.
-        if not self.P_y.device == 'cpu':
-            self.stream_context = ppe.cuda.stream
-            self.stream_weight = torch.cuda.Stream(device=self.P_y.device)
-            if self.use_bias:
-                self.stream_bias = torch.cuda.Stream(device=self.P_y.device)
-        else:
-            self.stream_context = nullcontext
-            self.stream_weight = None
-            if self.use_bias:
-                self.stream_bias = None
+        # # CUDA streams for weight prefetching. Only used if cuda is enabled.
+        # if not self.P_y.device == 'cpu':
+        #     self.stream_context = ppe.cuda.stream
+        #     self.stream_weight = torch.cuda.Stream(device=self.P_y.device)
+        #     if self.use_bias:
+        #         self.stream_bias = torch.cuda.Stream(device=self.P_y.device)
+        # else:
+        #     self.stream_context = nullcontext
+        #     self.stream_weight = None
+        #     if self.use_bias:
+        #         self.stream_bias = None
 
-        # Buffers for weight prefetching
-        self.weight_buffer = None
-        self.bias_buffer = None
+        # # Buffers for weight prefetching
+        # self.weight_buffer = None
+        # self.bias_buffer = None
 
         # State dict hooks for gather/scattering distributed weights
         self._register_state_dict_hook(self.gather_state_dict)
@@ -516,30 +516,30 @@ class DistributedLinearAllGatherZero(Module):
 
         return destination
 
-    def collect_weights(self):
+    # def collect_weights(self):
 
-        # If weight buffer is not already filled, start an allgather call. If cuda is used,
-        # this call will be asynchronously executed in a separate stream.
-        if self.weight_buffer is None:
-            with self.stream_context(self.stream_weight):
-                self.weight_buffer = self.allgather_weight(self.weight).transpose(-1, 0).view(-1, self.in_features)
+    #     # If weight buffer is not already filled, start an allgather call. If cuda is used,
+    #     # this call will be asynchronously executed in a separate stream.
+    #     if self.weight_buffer is None:
+    #         with self.stream_context(self.stream_weight):
+    #             self.weight_buffer = self.allgather_weight(self.weight).transpose(-1, 0).view(-1, self.in_features)
 
-        # Same for this bias buffer if bias is used.
-        if self.bias is not None and self.bias_buffer is None:
-            with self.stream_context(self.stream_bias):
-                self.bias_buffer = self.allgather_bias(self.bias.transpose(0, -2)).transpose(0, -2).view(-1)
+    #     # Same for this bias buffer if bias is used.
+    #     if self.bias is not None and self.bias_buffer is None:
+    #         with self.stream_context(self.stream_bias):
+    #             self.bias_buffer = self.allgather_bias(self.bias.transpose(0, -2)).transpose(0, -2).view(-1)
 
-    def prefetch_weights(self):     # for backward compatibility
-        self.collect_weights()
+    # def prefetch_weights(self):     # for backward compatibility
+    #     self.collect_weights()
 
-    def clear_weight_buffer(self):
-        self.weight_buffer = None
-        self.bias_buffer = None
+    # def clear_weight_buffer(self):
+    #     self.weight_buffer = None
+    #     self.bias_buffer = None
 
-    def wait_for_streams(self):
-        stream_barrier(self.stream_weight)
-        if self.use_bias:
-            stream_barrier(self.stream_bias)
+    # def wait_for_streams(self):
+    #     stream_barrier(self.stream_weight)
+    #     if self.use_bias:
+    #         stream_barrier(self.stream_bias)
 
     def forward(self, input):
         r"""Forward function interface.
@@ -571,19 +571,24 @@ class DistributedLinearAllGatherZero(Module):
 
             # All-gather weights & bias. If prefetch_weights() has been called before,
             # this call doesn't do anything.
-            self.collect_weights()
+            #self.collect_weights()
+            weight = self.allgather_weight(self.weight).transpose(-1, 0).view(-1, self.in_features)
+            if self.bias is not None:
+                bias = self.allgather_bias(self.bias.transpose(0, -2)).transpose(0, -2).view(-1)
+            else:
+                bias = None
 
             # All-gather input (tensor parallelism)
             input = self.all_gather(input)
 
             # Wait for all-gathers to finish
-            self.wait_for_streams()
+            #self.wait_for_streams()
 
             # Affine/linear transform
-            input = torch.nn.functional.linear(input, self.weight_buffer, self.bias_buffer)
+            input = torch.nn.functional.linear(input, weight, bias)
 
-            # Clear weight buffers
-            if self.auto_clear_buffer:
-                self.clear_weight_buffer()
+            # # Clear weight buffers
+            # if self.auto_clear_buffer:
+            #     self.clear_weight_buffer()
 
             return input
