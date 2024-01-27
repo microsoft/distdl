@@ -425,6 +425,8 @@ class DistributedLinearReduceScatterZero(Module):
             weight = self.all_gather_weight(self.weight).view(self.out_features, -1)
             if self.bias is not None and self.P_bias.active:
                 bias = self.all_gather_bias(self.bias).view(self.out_features)
+            else:
+                bias = None
 
             # Wait for all-gathers to finish
             #self.wait_for_streams()
