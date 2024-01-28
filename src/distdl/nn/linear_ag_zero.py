@@ -291,7 +291,7 @@ class DistributedLinearAllGatherZero(Module):
 
         # CUDA streams for weight prefetching. Only used if cuda is enabled.
         if not self.P_y.device == 'cpu':
-            self.stream_context = ppe.cuda.stream
+            self.stream_context = nullcontext  # ppe.cuda.stream TODO Fix
             self.stream_weight = torch.cuda.Stream(device=self.P_y.device)
             if self.use_bias:
                 self.stream_bias = torch.cuda.Stream(device=self.P_y.device)

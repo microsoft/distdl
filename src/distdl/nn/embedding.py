@@ -129,8 +129,10 @@ class DistributedEmbedding(Module):
         # Buffer and stream for weight prefetching
         self.weight_buffer = None
         if not self.P_x.device == 'cpu':
+            self.stream_context = nullcontext  # ppe.cuda.stream TODO Fix
             self.stream_weight = torch.cuda.Stream(device=self.P_x.device)
         else:
+            self.stream_context = nullcontext
             self.stream_weight = None
 
         # State dict hooks for gather/scattering distributed weights
@@ -211,7 +213,7 @@ class DistributedEmbedding(Module):
         if self.P_x.size == 1:
             return
         if self.stream_weight is not None:
-            with ppe.cuda.stream(self.stream_weight):
+            with self.stream_context(self.stream_weight):
                 self.weight_buffer = self._squeeze(self.broadcast(self._expand(self.weight)))
         else:
             self.weight_buffer = self._squeeze(self.broadcast(self._expand(self.weight)))

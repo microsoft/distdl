@@ -127,7 +127,7 @@ class DistributedEmbeddingZero(Module):
         # Buffer and stream for weight prefetching
         self.weight_buffer = None
         if not self.P_x.device == 'cpu':
-            self.stream_context = ppe.cuda.stream
+            self.stream_context = nullcontext  # ppe.cuda.stream TODO Fix
             self.stream_weight = torch.cuda.Stream(device=self.P_x.device)
         else:
             self.stream_context = nullcontext

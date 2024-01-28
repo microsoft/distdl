@@ -117,11 +117,13 @@ class DistributedBatchNorm(Module):
 
             # CUDA streams for weight prefetching
             if not self.P_x.device == 'cpu':
+                self.stream_context = nullcontext  # ppe.cuda.stream TODO Fix
                 self.stream_gamma = torch.cuda.Stream(device=self.P_x.device)
-                self.stream_beta = torch.cuda.Stream(device=self.P_x.device)
+                self.stream_gamma = torch.cuda.Stream(device=self.P_x.device)
             else:
+                self.stream_context = nullcontext
                 self.stream_gamma = None
-                self.stream_beta = None
+                self.stream_gamma = None
 
         # State dict hooks for gather/scattering distributed weights
         self._register_state_dict_hook(self.gather_state_dict)
@@ -288,13 +290,13 @@ class DistributedBatchNorm(Module):
         if self.P_x.size == 1:
             return
         if self.stream_gamma is not None:
-            with ppe.cuda.stream(self.stream_gamma):
+            with self.stream_context(self.stream_gamma):
                 self.gamma_buffer = self.bc_affine(self.gamma)
         else:
             self.gamma_buffer = self.bc_affine(self.gamma)
 
         if self.stream_beta is not None:
-            with ppe.cuda.stream(self.stream_beta):
+            with self.stream_context(self.stream_beta):
                 self.beta_buffer = self.bc_affine(self.beta)
         else:
             self.beta_buffer = self.bc_affine(self.beta)

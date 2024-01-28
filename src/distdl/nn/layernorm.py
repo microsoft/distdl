@@ -126,11 +126,14 @@ class DistributedLayerNorm(Module):
 
             # CUDA streams for weight prefetching
             if not self.P_x.device == 'cpu':
+                self.stream_context = nullcontext  # ppe.cuda.stream TODO Fix
                 self.stream_weight = torch.cuda.Stream(device=self.P_x.device)
                 self.stream_bias = torch.cuda.Stream(device=self.P_x.device)
             else:
+                self.stream_context = nullcontext
                 self.stream_weight = None
                 self.stream_bias = None
+
         else:
             self.register_parameter('weight', None)
             self.register_parameter('bias', None)
@@ -248,13 +251,13 @@ class DistributedLayerNorm(Module):
             return
 
         if self.stream_weight is not None:
-            with ppe.cuda.stream(self.stream_weight):
+            with self.stream_context(self.stream_weight):
                 self.weight_buffer = self.broadcast(self.weight)
         else:
             self.weight_buffer = self.broadcast(self.weight)
 
         if self.stream_bias is not None:
-            with ppe.cuda.stream(self.stream_bias):
+            with self.stream_context(self.stream_bias):
                 self.bias_buffer = self.broadcast(self.bias)
         else:
             self.bias_buffer = self.broadcast(self.bias)

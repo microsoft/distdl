@@ -206,7 +206,7 @@ class DistributedExpertReduceScatter(Module):
 
         # CUDA streams for weight prefetching
         if not self.P_expert_emb.device == 'cpu':
-            self.stream_context = ppe.cuda.stream
+            self.stream_context = nullcontext  # ppe.cuda.stream TODO Fix
             self.stream_weight = torch.cuda.Stream(device=self.P_expert_emb.device)
             if self.use_bias:
                 self.stream_bias = torch.cuda.Stream(device=self.P_expert_emb.device)

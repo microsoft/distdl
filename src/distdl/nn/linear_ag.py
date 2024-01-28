@@ -206,10 +206,12 @@ class DistributedLinearAllGather(Module):
 
         # CUDA streams for weight prefetching
         if not self.P_y.device == 'cpu':
+            self.stream_context = nullcontext  # ppe.cuda.stream TODO Fix
             self.stream_weight = torch.cuda.Stream(device=self.P_y.device)
             if self.use_bias:
                 self.stream_bias = torch.cuda.Stream(device=self.P_y.device)
         else:
+            self.stream_context = nullcontext
             self.stream_weight = None
             if self.use_bias:
                 self.stream_bias = None
@@ -431,14 +433,14 @@ class DistributedLinearAllGather(Module):
             return
 
         if self.stream_weight is not None:
-            with ppe.cuda.stream(self.stream_weight):
+            with self.stream_context(self.stream_weight):
                 self.weight_buffer = self.broadcast_weight(self.weight).view(-1, self.in_features)
         else:
             self.weight_buffer = self.broadcast_weight(self.weight).view(-1, self.in_features)
 
         if self.bias is not None:
             if self.stream_bias is not None:
-                with ppe.cuda.stream(self.stream_bias):
+                with self.stream_context(self.stream_bias):
                     self.bias_buffer = self.broadcast_bias(self.bias).view(-1)
             else:
                 self.bias_buffer = self.broadcast_bias(self.bias).view(-1)
