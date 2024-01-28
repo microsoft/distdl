@@ -119,11 +119,11 @@ class DistributedBatchNorm(Module):
             if not self.P_x.device == 'cpu':
                 self.stream_context = nullcontext  # ppe.cuda.stream TODO Fix
                 self.stream_gamma = torch.cuda.Stream(device=self.P_x.device)
-                self.stream_gamma = torch.cuda.Stream(device=self.P_x.device)
+                self.stream_beta = torch.cuda.Stream(device=self.P_x.device)
             else:
                 self.stream_context = nullcontext
                 self.stream_gamma = None
-                self.stream_gamma = None
+                self.stream_beta = None
 
         # State dict hooks for gather/scattering distributed weights
         self._register_state_dict_hook(self.gather_state_dict)
