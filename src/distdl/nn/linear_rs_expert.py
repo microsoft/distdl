@@ -357,7 +357,7 @@ class DistributedExpertReduceScatter(Module):
 
         if self.use_bias and self.P_apply_bias.active:
             #self.bias_buffer = self.bias_buffer.view(self.bias_buffer.shape[0], 1, -1)
-            y = torch.einsum('ecm,enm->ecn', input, weight) + bias
+            y = torch.einsum('ecm,enm->ecn', input, weight) + bias.view(bias.shape[0], 1, -1)
         else:
             y = torch.einsum('ecm,enm->ecn', input, weight)
 
