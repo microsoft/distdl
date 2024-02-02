@@ -84,7 +84,8 @@ class DistributedLayerNormZero(Module):
 
         self.use_flash = (flash_layer_norm is not None and
                           backends.backend == backends.nccl_cupy and
-                          elementwise_affine)
+                          elementwise_affine and dtype in
+                          (torch.float16, torch.bfloat16))
 
         # Number of dimensions across which mean/var is computed
         num_dim = len(normalized_shape)

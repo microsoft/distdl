@@ -88,7 +88,8 @@ class DistributedRMSNormZero(Module):
 
         self.use_flash = (flash_rms_norm is not None and
                           backends.backend == backends.nccl_cupy and
-                          bias is False and elementwise_affine)
+                          bias is False and elementwise_affine and
+                          dtype in (torch.float16, torch.bfloat16))
 
         # Number of dimensions across which mean/var is computed
         num_dim = len(normalized_shape)
