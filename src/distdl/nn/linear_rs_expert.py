@@ -313,7 +313,7 @@ class DistributedExpertReduceScatter(Module):
             with torch.no_grad():
                 self._collect_weights()
                 self.weight_buffer.requires_grad = True
-                if self.use_bias:
+                if self.use_bias and self.P_apply_bias.active:
                     self.bias_buffer.requires_grad = True
         else:
             self._collect_weights()
@@ -327,9 +327,9 @@ class DistributedExpertReduceScatter(Module):
                 self.weight_buffer = self.all_gather_weight(self.weight)
 
         # Same for this bias buffer if bias is used.
-        if self.use_bias and self.bias_buffer is None:
+        if self.use_bias and self.P_apply_bias.active and self.bias_buffer is None:
                 with self.stream_context(self.stream_bias):
-                    self.bias_buffer = self.broadcast_bias(self.bias).view(self.num_experts, 1, -1)
+                    self.bias_buffer = self.broadcast_bias(self.bias).view(self.weight_buffer.shape[0], 1, -1)
 
     def clear_weight_buffer(self):
 
@@ -345,10 +345,10 @@ class DistributedExpertReduceScatter(Module):
                     self.weight_buffer.grad.div_(self.scale_backward)
                 self.weight.grad = self.reduce_scatter_weight(self.weight_buffer.grad)
 
-                if self.use_bias:
+                if self.use_bias and self.P_apply_bias.active:
                     if self.scale_backward is not None:
                         self.bias_buffer.grad.div_(self.scale_backward)
-                    self.bias.grad = self.sum_reduce_bias(self.bias_buffer.grad.view(self.num_experts, -1, 1))
+                    self.bias.grad = self.sum_reduce_bias(self.bias_buffer.grad.view(self.weight.grad.shape[0], -1, 1))
 
         self.weight_buffer = None
         self.bias_buffer = None
