@@ -2,7 +2,6 @@ import math
 from contextlib import nullcontext
 
 import einops
-import pytorch_pfn_extras as ppe
 import torch
 from einops import rearrange
 
@@ -240,7 +239,7 @@ class DistributedExpertAllGather(Module):
                 init.uniform_(self.bias, -bound, bound)
 
     def extra_repr(self) -> str:
-        return f'in_features={self.in_features}, out_features={self.out_features}, num_experts={self.num_experts}, bias={self.bias is not None}'
+        return f'in_features={self.in_features}, out_features={self.out_features}, num_experts={self.num_experts}, bias={self.bias is not None}'    # noqa: E501
 
     # If we collect the weights on the root worker and want to use a gated linear
     # unit right after the linear layer, we need to rearrange the weights, such that

@@ -2,7 +2,6 @@ import math
 from contextlib import nullcontext
 
 import einops
-import pytorch_pfn_extras as ppe
 import torch
 
 import distdl.nn.init as init
@@ -249,7 +248,7 @@ class DistributedExpertReduceScatter(Module):
             init.uniform_(self.bias, -bound, bound)
 
     def extra_repr(self) -> str:
-        return f'in_features={self.in_features}, out_features={self.out_features}, num_experts={self.num_experts}, bias={self.bias is not None}'
+        return f'in_features={self.in_features}, out_features={self.out_features}, num_experts={self.num_experts}, bias={self.bias is not None}'    # noqa: E501
 
     def gather_state_dict(self, module, destination, prefix, *args):
         if self.collect_state and self.P_weight.active:
@@ -328,8 +327,8 @@ class DistributedExpertReduceScatter(Module):
 
         # Same for this bias buffer if bias is used.
         if self.use_bias and self.P_apply_bias.active and self.bias_buffer is None:
-                with self.stream_context(self.stream_bias):
-                    self.bias_buffer = self.broadcast_bias(self.bias).view(self.weight_buffer.shape[0], 1, -1)
+            with self.stream_context(self.stream_bias):
+                self.bias_buffer = self.broadcast_bias(self.bias).view(self.weight_buffer.shape[0], 1, -1)
 
     def clear_weight_buffer(self):
 

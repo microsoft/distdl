@@ -1,7 +1,6 @@
 import numbers
 from contextlib import nullcontext
 
-import pytorch_pfn_extras as ppe
 import torch
 
 from distdl import backends
@@ -267,8 +266,8 @@ class DistributedLayerNormZero(Module):
                     self.weight_buffer.grad.div_(self.scale_backward)
                     self.bias_buffer.grad.div_(self.scale_backward)
 
-                self.weight.grad = self.reducescatter(self.weight_buffer.grad.view(1, 1, -1).transpose(0, -1)).transpose(0, -1)
-                self.bias.grad = self.reducescatter(self.bias_buffer.grad.view(1, 1, -1).transpose(0, -1)).transpose(0, -1)
+                self.weight.grad = self.reducescatter(self.weight_buffer.grad.view(1, 1, -1).transpose(0, -1)).transpose(0, -1)     # noqa: E501
+                self.bias.grad = self.reducescatter(self.bias_buffer.grad.view(1, 1, -1).transpose(0, -1)).transpose(0, -1)     # noqa: E501
 
         self.weight_buffer = None
         self.bias_buffer = None

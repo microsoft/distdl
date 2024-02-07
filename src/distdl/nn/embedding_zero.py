@@ -1,6 +1,5 @@
 from contextlib import nullcontext
 
-import pytorch_pfn_extras as ppe
 import torch
 
 import distdl.nn.init as init
