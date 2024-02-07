@@ -1,7 +1,7 @@
 import numbers
+from contextlib import nullcontext
 
 import numpy as np
-import pytorch_pfn_extras as ppe
 import torch
 
 from distdl.nn.all_sum_reduce import AllSumReduce

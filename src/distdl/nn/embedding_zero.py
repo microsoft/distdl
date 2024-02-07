@@ -1,11 +1,11 @@
 from contextlib import nullcontext
 
-import pytorch_pfn_extras as ppe
 import torch
 
 import distdl.nn.init as init
 from distdl.nn.all_gather import AllGather
 from distdl.nn.module import Module
+from distdl.nn.reduce_scatter import ReduceScatter
 from distdl.nn.repartition import Repartition
 from distdl.utilities.misc import stream_barrier
 from distdl.utilities.slicing import compute_subshape
@@ -88,6 +88,7 @@ class DistributedEmbeddingZero(Module):
         self.collect_state = collect_state
         self.dtype = dtype
         self.auto_clear_buffer = auto_clear_buffer
+        self.scale_backward = scale_backward
 
         self.P_x = P_x
         if not self.P_x.active:
@@ -100,6 +101,7 @@ class DistributedEmbeddingZero(Module):
 
         # Allgather
         self.allgather = AllGather(self.P_x, axes_all_gather=(0,), scale_backward=scale_backward)
+        self.reducescatter = ReduceScatter(self.P_x, axes_reduce_scatter=(0,))
         self.init_scatter = Repartition(self.P_root, self.P_x)
 
         # Local embedding size
@@ -209,7 +211,23 @@ class DistributedEmbeddingZero(Module):
 
         return destination
 
+   # Keep for backward compatibility
+    def prefetch_weights(self):
+        self.collect_weights()
+
     def collect_weights(self):
+        # For ZeRO-1 (auto_clear_buffer: False), we want to temporarily turn the weight buffer
+        # into a leaf tensor in which gradients are accumulated. Therefore, run the weight collection
+        # in no_grad mode and then manually set requires_grad to True. For ZeRO-3, just track the all-gather
+        # operation as usual.
+        if not self.auto_clear_buffer:
+            with torch.no_grad():
+                self._collect_weights()
+                self.weight_buffer.requires_grad = True
+        else:
+            self._collect_weights()
+
+    def _collect_weights(self):
 
         # If weight buffer is not already filled, start an allgather call. If cuda is used,
         # this call will be asynchronously executed in a separate stream.
@@ -217,10 +235,20 @@ class DistributedEmbeddingZero(Module):
             with self.stream_context(self.stream_weight):
                 self.weight_buffer = self._squeeze(self.allgather(self._expand(self.weight)))
 
-    def prefetch_weights(self):
-        self.collect_weights()
-
     def clear_weight_buffer(self):
+
+        # For ZeRO-1, this function must be manually called after the gradient accumulation loop.
+        # Only at this point do we call the reduce-scatter operations and populate the weight
+        # gradient. For ZeRO-3, this function is called after each forward pass and  reduce-scatter
+        # is called automatically, since the forward all-gather was tracked.
+        if not self.auto_clear_buffer:
+            with torch.no_grad():
+
+                # Reduce-scatter gradient
+                if self.scale_backward is not None:
+                    self.weight_buffer.grad.div_(self.scale_backward)
+                self.weight.grad = self._squeeze(self.reducescatter(self._expand(self.weight_buffer.grad)))
+
         self.weight_buffer = None
 
     def forward(self, input):

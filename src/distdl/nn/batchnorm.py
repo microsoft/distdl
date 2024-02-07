@@ -1,4 +1,5 @@
-import pytorch_pfn_extras as ppe
+from contextlib import nullcontext
+
 import torch
 
 from distdl.backends.common.tensor_comm import assemble_global_tensor_structure

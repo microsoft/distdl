@@ -2,7 +2,6 @@ import math
 from contextlib import nullcontext
 
 import numpy as np
-import pytorch_pfn_extras as ppe
 import torch
 from einops import rearrange
 
@@ -516,7 +515,25 @@ class DistributedLinearAllGatherZero(Module):
 
         return destination
 
+    # Keep for backward compatibility
+    def prefetch_weights(self):
+        self.collect_weights()
+
     def collect_weights(self):
+        # For ZeRO-1 (auto_clear_buffer: False), we want to temporarily turn the weight & bias buffers
+        # into the leaf tensors in which gradients are accumulated. Therefore, run the weight collections
+        # in no_grad mode and then manually set requires_grad to True. For ZeRO-3, just track the all-gather
+        # operations as usual.
+        if not self.auto_clear_buffer:
+            with torch.no_grad():
+                self._collect_weights()
+                self.weight_buffer.requires_grad = True
+                if self.bias is not None:
+                    self.bias_buffer.requires_grad = True
+        else:
+            self._collect_weights()
+
+    def _collect_weights(self):
 
         # If weight buffer is not already filled, start an allgather call. If cuda is used,
         # this call will be asynchronously executed in a separate stream.
@@ -527,12 +544,28 @@ class DistributedLinearAllGatherZero(Module):
         # Same for this bias buffer if bias is used.
         if self.bias is not None and self.bias_buffer is None:
             with self.stream_context(self.stream_bias):
-                self.bias_buffer = self.allgather_bias(self.bias.transpose(0, -2)).transpose(0, -2).view(-1)
-
-    def prefetch_weights(self):     # for backward compatibility
-        self.collect_weights()
+                self.bias_buffer = self.allgather_bias(self.bias.transpose(0, 1)).view(-1)
 
     def clear_weight_buffer(self):
+
+        # For ZeRO-1, this function must be manually called after the gradient accumulation loop.
+        # Only at this point do we call the reduce-scatter operations and populate the weight & bias
+        # gradients. For ZeRO-3, this function is called after each forward pass and  reduce-scatter
+        # is called automatically, since the forward all-gathers were tracked.
+        if not self.auto_clear_buffer:
+            with torch.no_grad():
+
+                # Reduce-scatter gradients
+                if self.scale_backward is not None:
+                    self.weight_buffer.grad.div_(self.scale_backward)
+                self.weight.grad = self.reduce_scatter_weight(self.weight_buffer.grad.unsqueeze(0).transpose(-1, 0))
+
+                if self.bias is not None:
+                    if self.scale_backward is not None:
+                        self.bias_buffer.grad.div_(self.scale_backward)
+                    self.bias.grad = self.reducescatter_bias(self.bias_buffer.grad.view(-1, 1, 1)).transpose(0, 1)
+
+        # Clear buffers
         self.weight_buffer = None
         self.bias_buffer = None
 
