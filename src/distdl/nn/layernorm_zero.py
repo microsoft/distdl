@@ -7,6 +7,7 @@ import torch
 from distdl import backends
 from distdl.nn.all_gather import AllGather
 from distdl.nn.module import Module
+from distdl.nn.reduce_scatter import ReduceScatter
 from distdl.nn.repartition import Repartition
 from distdl.utilities.misc import stream_barrier
 from distdl.utilities.slicing import compute_subshape
@@ -76,6 +77,7 @@ class DistributedLayerNormZero(Module):
         factory_kwargs = {'device': device, 'dtype': dtype}
         self.dtype = dtype
         self.auto_clear_buffer = auto_clear_buffer
+        self.scale_backward = scale_backward
 
         if isinstance(normalized_shape, numbers.Integral):
             normalized_shape = (normalized_shape,)
@@ -113,6 +115,7 @@ class DistributedLayerNormZero(Module):
 
             # Allgather for collecting weights from data-parallel workers
             self.allgather = AllGather(P_w, axes_all_gather=(0,), scale_backward=scale_backward)
+            self.reducescatter = ReduceScatter(P_w, axes_reduce_scatter=(0,))
 
             # Split normalized work along all workers
             normalized_shape_local = [1] * P_x.dim
@@ -220,23 +223,53 @@ class DistributedLayerNormZero(Module):
 
         return destination
 
+    # Keep for backward compatibility
+    def prefetch_weights(self):
+        self.collect_weights()
+
     def collect_weights(self):
+        # For ZeRO-1 (auto_clear_buffer: False), we want to temporarily turn the weight & bias buffers
+        # into the leaf tensors in which gradients are accumulated. Therefore, run the weight collections
+        # in no_grad mode and then manually set requires_grad to True. For ZeRO-3, just track the all-gather
+        # operations as usual.
+        if not self.auto_clear_buffer:
+            with torch.no_grad():
+                self._collect_weights()
+                self.weight_buffer.requires_grad = True
+                self.bias_buffer.requires_grad = True
+        else:
+            self._collect_weights()
+
+    def _collect_weights(self):
 
         # If weight buffer is not already filled, start an allgather call. If cuda is used,
         # this call will be asynchronously executed in a separate stream.
         if self.weight_buffer is None:
             with self.stream_context(self.stream_weight):
-                self.weight_buffer = self.allgather(self.weight.transpose(0, -1)).transpose(0, -1)
+                self.weight_buffer = self.allgather(self.weight.transpose(0, -1)).transpose(0, -1).squeeze()
 
         # Same for this bias buffer.
         if self.bias_buffer is None:
             with self.stream_context(self.stream_bias):
-                self.bias_buffer = self.allgather(self.bias.transpose(0, -1)).transpose(0, -1)
-
-    def prefetch_weights(self):     # for backward compatibility
-        self.collect_weights()
+                self.bias_buffer = self.allgather(self.bias.transpose(0, -1)).transpose(0, -1).squeeze()
 
     def clear_weight_buffer(self):
+
+        # For ZeRO-1, this function must be manually called after the gradient accumulation loop.
+        # Only at this point do we call the reduce-scatter operations and populate the weight & bias
+        # gradients. For ZeRO-3, this function is called after each forward pass and  reduce-scatter
+        # is called automatically, since the forward all-gathers were tracked.
+        if not self.auto_clear_buffer:
+            with torch.no_grad():
+
+                # Reduce-scatter gradients
+                if self.scale_backward is not None:
+                    self.weight_buffer.grad.div_(self.scale_backward)
+                    self.bias_buffer.grad.div_(self.scale_backward)
+
+                self.weight.grad = self.reducescatter(self.weight_buffer.grad.view(1, 1, -1).transpose(0, -1)).transpose(0, -1)
+                self.bias.grad = self.reducescatter(self.bias_buffer.grad.view(1, 1, -1).transpose(0, -1)).transpose(0, -1)
+
         self.weight_buffer = None
         self.bias_buffer = None
 
@@ -262,9 +295,6 @@ class DistributedLayerNormZero(Module):
             # All-gather weights if prefetch was not previously called.
             self.collect_weights()
             self.wait_for_streams()
-
-            self.weight_buffer = self.weight_buffer.squeeze()
-            self.bias_buffer = self.bias_buffer.squeeze()
 
         if self.use_flash:
             input = flash_layer_norm(input, self.weight_buffer, self.bias_buffer, self.eps)

@@ -8,6 +8,7 @@ import torch
 from distdl import backends
 from distdl.nn.all_gather import AllGather
 from distdl.nn.module import Module
+from distdl.nn.reduce_scatter import ReduceScatter
 from distdl.nn.repartition import Repartition
 from distdl.utilities.misc import stream_barrier
 from distdl.utilities.slicing import compute_subshape
@@ -80,6 +81,7 @@ class DistributedRMSNormZero(Module):
         factory_kwargs = {'device': device, 'dtype': dtype}
         self.dtype = dtype
         self.auto_clear_buffer = auto_clear_buffer
+        self.scale_backward = scale_backward
 
         if isinstance(normalized_shape, numbers.Integral):
             normalized_shape = (normalized_shape,)
@@ -121,6 +123,7 @@ class DistributedRMSNormZero(Module):
 
             # Allgather for collecting weights from data-parallel workers
             self.allgather = AllGather(P_w, axes_all_gather=(0,), scale_backward=scale_backward)
+            self.reducescatter = ReduceScatter(P_w, axes_reduce_scatter=(0,))
 
             # Split normalized work along all workers
             normalized_shape_local = [1] * P_x.dim
@@ -253,7 +256,25 @@ class DistributedRMSNormZero(Module):
         mean = input.pow(2).mean(dim=self.dim_reduce, keepdim=True)
         return input * torch.rsqrt(mean + self.eps)
 
+    # Keep for backward compatibility
+    def prefetch_weights(self):
+        self.collect_weights()
+
     def collect_weights(self):
+        # For ZeRO-1 (auto_clear_buffer: False), we want to temporarily turn the weight buffer
+        # into the leaf tensor in which gradients are accumulated. Therefore, run the weight collection
+        # in no_grad mode and then manually set requires_grad to True. For ZeRO-3, just track the all-gather
+        # operation as usual.
+        if not self.auto_clear_buffer:
+            with torch.no_grad():
+                self._collect_weights()
+                self.weight_buffer.requires_grad = True
+                if self.use_bias:
+                    self.bias_buffer.requires_grad = True
+        else:
+            self._collect_weights()
+
+    def _collect_weights(self):
 
         # If weight buffer is not already filled, start an allgather call. If cuda is used,
         # this call will be asynchronously executed in a separate stream.
@@ -265,10 +286,25 @@ class DistributedRMSNormZero(Module):
             with self.stream_context(self.stream_bias):
                 self.bias_buffer = self.allgather(self.bias.transpose(0, -1)).transpose(0, -1)
 
-    def prefetch_weights(self):     # for backward compatibility
-        self.collect_weights()
-
     def clear_weight_buffer(self):
+
+        # For ZeRO-1, this function must be manually called after the gradient accumulation loop.
+        # Only at this point do we call the reduce-scatter operations and populate the weight
+        # gradient. For ZeRO-3, this function is called after each forward pass and  reduce-scatter
+        # is called automatically, since the forward all-gather was tracked.
+        if not self.auto_clear_buffer:
+            with torch.no_grad():
+
+                # Reduce-scatter gradients
+                if self.scale_backward is not None:
+                    self.weight_buffer.grad.div_(self.scale_backward)
+                self.weight.grad = self.reducescatter(self.weight_buffer.grad.transpose(0, -1)).transpose(0, -1)
+
+                if self.use_bias:
+                    if self.scale_backward is not None:
+                        self.bias_buffer.grad.div_(self.scale_backward)
+                    self.bias.grad = self.reducescatter(self.bias_buffer.grad.transpose(0, -1)).transpose(0, -1)
+
         self.weight_buffer = None
         self.bias_buffer = None
 

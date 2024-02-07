@@ -12,6 +12,7 @@ from distdl.nn.broadcast import Broadcast
 from distdl.nn.module import Module
 from distdl.nn.reduce_scatter import ReduceScatter
 from distdl.nn.repartition import Repartition
+from distdl.nn.sum_reduce import SumReduce
 from distdl.utilities.misc import stream_barrier
 from distdl.utilities.slicing import compute_subshape
 from distdl.utilities.slicing import worker_layout
@@ -94,6 +95,7 @@ class DistributedExpertReduceScatter(Module):
         self.num_experts = num_experts
         self.collect_state = collect_state
         self.auto_clear_buffer = auto_clear_buffer
+        self.scale_backward = scale_backward
         self.use_bias = bias
 
         # Partition for weights (3D partition of size [ E, N, M ]).
@@ -201,8 +203,10 @@ class DistributedExpertReduceScatter(Module):
         else:
             self.reduce_scatter = ReduceScatter(self.P_expert_emb, axes_reduce_scatter=(3,))
         self.all_gather_weight = AllGather(self.P_weight, axes_all_gather=(1,), scale_backward=scale_backward)
+        self.reduce_scatter_weight = ReduceScatter(self.P_weight, axes_reduce_scatter=(1,))
         if self.use_bias:
             self.broadcast_bias = Broadcast(self.P_store_bias, self.P_apply_bias, scale_backward=scale_backward)
+            self.sum_reduce_bias = SumReduce(self.P_apply_bias, self.P_store_bias, preserve_batch=False)
 
         # CUDA streams for weight prefetching
         if not self.P_expert_emb.device == 'cpu':
@@ -296,7 +300,25 @@ class DistributedExpertReduceScatter(Module):
 
         return destination
 
+    # Keep for backward compatibility
+    def prefetch_weights(self):
+        self.collect_weights()
+
     def collect_weights(self):
+        # For ZeRO-1 (auto_clear_buffer: False), we want to temporarily turn the weight & bias buffers
+        # into the leaf tensors in which gradients are accumulated. Therefore, run the weight collections
+        # in no_grad mode and then manually set requires_grad to True. For ZeRO-3, just track the all-gather
+        # operations as usual.
+        if not self.auto_clear_buffer:
+            with torch.no_grad():
+                self._collect_weights()
+                self.weight_buffer.requires_grad = True
+                if self.use_bias:
+                    self.bias_buffer.requires_grad = True
+        else:
+            self._collect_weights()
+
+    def _collect_weights(self):
 
         # If weight buffer is not already filled, start an allgather call. If cuda is used,
         # this call will be asynchronously executed in a separate stream.
@@ -306,13 +328,28 @@ class DistributedExpertReduceScatter(Module):
 
         # Same for this bias buffer if bias is used.
         if self.use_bias and self.bias_buffer is None:
-            with self.stream_context(self.stream_bias):
-                self.bias_buffer = self.broadcast_bias(self.bias)
-
-    def prefetch_weights(self):     # for backward compatibility
-        self.collect_weights()
+                with self.stream_context(self.stream_bias):
+                    self.bias_buffer = self.broadcast_bias(self.bias).view(self.num_experts, 1, -1)
 
     def clear_weight_buffer(self):
+
+        # For ZeRO-1, this function must be manually called after the gradient accumulation loop.
+        # Only at this point do we call the reduce-scatter operations and populate the weight & bias
+        # gradients. For ZeRO-3, this function is called after each forward pass and  reduce-scatter
+        # is called automatically, since the forward all-gathers were tracked.
+        if not self.auto_clear_buffer:
+            with torch.no_grad():
+
+                # Reduce-scatter gradients
+                if self.scale_backward is not None:
+                    self.weight_buffer.grad.div_(self.scale_backward)
+                self.weight.grad = self.reduce_scatter_weight(self.weight_buffer.grad)
+
+                if self.use_bias:
+                    if self.scale_backward is not None:
+                        self.bias_buffer.grad.div_(self.scale_backward)
+                    self.bias.grad = self.sum_reduce_bias(self.bias_buffer.grad.view(self.num_experts, -1, 1))
+
         self.weight_buffer = None
         self.bias_buffer = None
 
@@ -346,7 +383,6 @@ class DistributedExpertReduceScatter(Module):
         self.wait_for_streams()
 
         if self.use_bias and self.P_apply_bias.active:
-            self.bias_buffer = self.bias_buffer.view(self.bias_buffer.shape[0], 1, -1)
             y = torch.einsum('ecm,enm->ecn', input, self.weight_buffer) + self.bias_buffer
         else:
             y = torch.einsum('ecm,enm->ecn', input, self.weight_buffer)
