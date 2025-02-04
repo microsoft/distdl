@@ -96,7 +96,7 @@ jobs:
         python setup.py build_ext --inplace  # Ensure C extensions are compiled
         # echo '  make bootstrap'
         # echo '  make release'
-        exit 1
+        exit 0
 
     - name: Perform CodeQL Analysis
       uses: github/codeql-action/analyze@v3
